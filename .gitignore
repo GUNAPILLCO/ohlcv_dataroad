@@ -1,6 +1,6 @@
 # Datos crudos de origen: READ ONLY logico (CLAUDE.md, regla 1). Deben permanecer
 # disponibles localmente pero nunca versionados.
-data/raw/mnq/
+# data/raw/mnq/
 
 # Exportacion de cuenta con credenciales, eliminada del historial el 2026-08-14
 # via git filter-repo. Nunca debe volver a versionarse.
@@ -9,6 +9,7 @@ data/raw/mnq/
 
 # Libros no versionados
 docs/books_and_references/
+#docs/tsay
 
 # Archivo de trabajo/borrador del usuario, no es un artefacto del proyecto.
 #prompt.md
