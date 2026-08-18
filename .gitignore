@@ -2,6 +2,16 @@
 # disponibles localmente pero nunca versionados.
 # data/raw/mnq/
 
+# Artefactos intermedios y procesados: regenerables ejecutando el pipeline
+# correspondiente (p.ej. `python -m ohlcv_dataroad.ingest.run_tda00`), no
+# se versionan por tamano y porque su contenido es 100% derivado del raw
+# + del codigo versionado en src/.
+data/interim/
+data/processed/
+
+# Entorno de paquete instalado en modo editable.
+*.egg-info/
+
 # Exportacion de cuenta con credenciales, eliminada del historial el 2026-08-14
 # via git filter-repo. Nunca debe volver a versionarse.
 

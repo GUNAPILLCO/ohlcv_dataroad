@@ -1,0 +1,2 @@
+n_surrogates,n_stability_groups,group_size,n_candidate_breaks_total,n_stable_breaks_total,mean_candidates_per_group_member,stable_fraction
+200,200,5,6000,38,6.0,0.006333333333333333

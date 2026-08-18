@@ -1,0 +1,11 @@
+block,label,n_rows,pct_of_total
+exclusive_reason,FIRST_OBSERVATION,1,5.2136284247021716e-05
+exclusive_reason,ROLL_BOUNDARY,21,0.001094861969187456
+exclusive_reason,TRADING_DATE_BOUNDARY,1398,0.07288652537733636
+exclusive_reason,NON_CONSECUTIVE_MINUTE,2100,0.1094861969187456
+exclusive_reason,VALID,1914530,99.81648027945049
+independent_flag,is_first_observation,1,5.2136284247021716e-05
+independent_flag,is_roll_boundary,21,0.001094861969187456
+independent_flag,is_trading_date_boundary,1419,0.07398138734652382
+independent_flag,is_non_consecutive_minute,3519,0.1834675842652694
+overlap,is_roll_boundary_AND_is_trading_date_boundary,21,0.001094861969187456

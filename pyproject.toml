@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ohlcv_dataroad"
+version = "0.1.0"
+description = "Auditoria y preparacion metodologica de datos OHLCV de MNQ (fase de caracterizacion empirica; sin targets, features ni ML)."
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "pyyaml>=6.0",
+    "pyarrow>=14.0",
+    "pandas_market_calendars>=4.4",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,248 @@
+# Configuracion versionada del snapshot MNQ.
+#
+# Este archivo existe para que decisiones que antes vivian como constantes
+# sueltas dentro del codigo (tick size, frontera del hold-out, formato del
+# timestamp crudo) queden declaradas en un unico lugar auditable, en vez de
+# quedar implicitas. Ver reports/mnq/00_initial_repository_audit.md, seccion 5
+# (riesgo 2: "configs/ vacio").
+#
+# NINGUN valor de este archivo fue inferido por el codigo de TDA-00: todos
+# provienen de la documentacion del proyecto (memoria heredada, auditoria
+# inicial) o de la especificacion externa del contrato MNQ. TDA-00 los usa
+# como entrada, no los descubre.
+
+instrument: MNQ
+
+raw_data:
+  dir: data/raw/mnq
+  file_pattern: "*.Last.txt"
+  separator: ";"
+  columns: [timestamp, open, high, low, close, volume]
+  # Formato de codigo de tiempo de Python (datetime.strptime) que coincide
+  # con el timestamp crudo, p.ej. "20191223 030100".
+  timestamp_format: "%Y%m%d %H%M%S"
+  # Confirmado por la fuente de los datos (ver
+  # reports/mnq/00_initial_repository_audit.md, seccion 4: "Zona horaria —
+  # RESUELTA — UTC CONFIRMADO"). El archivo crudo no trae offset explicito;
+  # esta clave documenta la interpretacion vigente, no se usa todavia para
+  # convertir nada en TDA-00 (esa conversion es alcance de TDA-01).
+  timestamp_raw_timezone: UTC
+
+# Especificacion del instrumento. El tick size NO se infiere de los datos:
+# viene de la especificacion de contrato de CME para el Micro E-mini
+# Nasdaq-100 (MNQ). TDA-00 lo usa para verificar que los precios observados
+# son compatibles con esa grilla, no para derivarlo.
+instrument_spec:
+  tick_size: 0.25
+  tick_size_source: "CME Micro E-mini Nasdaq-100 (MNQ) contract specification (fuente externa, no inferida de los datos)"
+
+# Frontera de hold-out, recuperada literalmente de
+# docs/instruments/mnq/MNQ_DATA_PRIOR_KNOWLEDGE.md, seccion 11 (HOLDOUT
+# GOVERNANCE, estado LOCKED), y verificada aritmeticamente en
+# reports/mnq/00_initial_repository_audit.md, seccion 3.7. La frontera es
+# limpia por archivo: ningun contrato queda partido entre ambos conjuntos.
+holdout:
+  boundary_utc: "2025-06-23 00:00:00"
+  boundary_source: "docs/instruments/mnq/MNQ_DATA_PRIOR_KNOWLEDGE.md, seccion 11 (HOLDOUT GOVERNANCE, LOCKED)"
+  research_files:
+    - 00_mnq_03_20.Last.txt
+    - 01_mnq_06_20.Last.txt
+    - 02_mnq_09_20.Last.txt
+    - 03_mnq_12_20.Last.txt
+    - 04_mnq_03_21.Last.txt
+    - 05_mnq_06_21.Last.txt
+    - 06_mnq_09_21.Last.txt
+    - 07_mnq_12_21.Last.txt
+    - 08_mnq_03_22.Last.txt
+    - 09_mnq_06_22.Last.txt
+    - 10_mnq_09_22.Last.txt
+    - 11_mnq_12_22.Last.txt
+    - 12_mnq_03_23.Last.txt
+    - 13_mnq_06_23.Last.txt
+    - 14_mnq_09_23.Last.txt
+    - 15_mnq_12_23.Last.txt
+    - 16_mnq_03_24.Last.txt
+    - 17_mnq_06_24.Last.txt
+    - 18_mnq_09_24.Last.txt
+    - 19_mnq_12_24.Last.txt
+    - 20_mnq_03_25.Last.txt
+    - 21_mnq_06_25.Last.txt
+  # Declarados explicitamente para que quede visible que TDA-00 los excluye
+  # a proposito. El pipeline de TDA-00 nunca abre estos archivos.
+  holdout_files:
+    - 22_mnq_09_25.Last.txt
+    - 23_mnq_12_25.Last.txt
+    - 24_mnq_03_26.Last.txt
+    - 25_mnq_06_26.Last.txt
+    - 26_mnq_09_26.Last.txt
+
+tda00:
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  inventory_report: TDA00_inventario.md
+  violations_report: TDA00_violaciones.csv
+  per_file_summary: TDA00_resumen_por_archivo.csv
+  bad_data_mask: tda00_bad_data_mask.parquet
+
+# TDA-02 -- Integridad del eje temporal y del calendario.
+#
+# La "grilla esperada" se construye a partir del calendario nativo de
+# negociacion de CME para productos de indices bursatiles (alias
+# "CME_Equity" en la libreria pandas_market_calendars), NO de ninguna
+# ventana operativa elegida por el usuario -- ver
+# reports/mnq/TDA02_cobertura.md, seccion 1, para la justificacion completa
+# y la evidencia de por que este calendario es la fuente correcta (y donde
+# su regla estatica del break secundario tuvo que corregirse contra
+# evidencia forense propia antes de usarse).
+tda02:
+  # Nombre del calendario de pandas_market_calendars usado para construir
+  # la grilla esperada. MNQ (Micro E-mini Nasdaq-100) pertenece al complejo
+  # de futuros de indices bursatiles de CME, para el cual esta libreria usa
+  # el alias "CME_Equity" (aliases: CME_Equity, CBOT_Equity), definido en
+  # pandas_market_calendars/calendars/cme.py -- ese modulo cita a su vez
+  # http://www.cmegroup.com/tools-information/holiday-calendar.html como
+  # fuente. El acceso directo a cmegroup.com estuvo bloqueado en esta sesion
+  # (igual que en TDA-01); ver informe para el detalle y la validacion
+  # cruzada contra la evidencia forense de TDA-01 (31/31 cierres
+  # anticipados coinciden exactamente).
+  calendar_name: CME_Equity
+  # Buffer de dias de calendario añadido a cada lado del rango de
+  # investigacion al construir el horario de sesiones, para poder resolver
+  # correctamente el primer y el ultimo borde de sesion sin efectos de
+  # truncamiento.
+  calendar_buffer_days: 10
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  coverage_report: TDA02_cobertura.md
+  coverage_by_year_csv: TDA02_cobertura_por_anio.csv
+  coverage_by_month_csv: TDA02_cobertura_por_mes.csv
+  gaps_csv: TDA02_huecos.csv
+  incomplete_days_csv: TDA02_dias_incompletos.csv
+  out_of_grid_csv: TDA02_barras_fuera_de_grilla.csv
+  dst_evidence_csv: TDA02_dst_evidencia.csv
+  heatmap_png: TDA02_heatmap_completitud.png
+  inactive_bar_mask: tda02_barra_inactiva_mask.parquet
+
+# TDA-03 -- Rolls y construccion de la serie continua.
+#
+# Politica de rollover propia, versionada aqui (no escondida en codigo).
+# Conserva la LOGICA de la politica heredada (docs/instruments/mnq/
+# MNQ_DATA_PRIOR_KNOWLEDGE.md, seccion 7.1, reglas 1-12: un contrato por
+# fecha, nunca mezclar ni promediar, confirmacion por volumen del
+# entrante, comparacion solo sobre minutos compartidos, irreversibilidad,
+# una sola confirmacion, fecha efectiva = jornada siguiente observada,
+# fechas de transicion detectadas -- no hardcodeadas --, trazabilidad
+# total, conservacion bloqueante, sin back-adjustment automatico) pero
+# NINGUNO de sus parametros calibrados bajo la ventana historica
+# 04:30-16:00 (691 barras/dia, umbral 55%) -- ver
+# reports/mnq/TDA03_rolls_serie_continua.md, seccion 2, para la
+# justificacion completa de cada parametro recalibrado bajo la sesion
+# nativa CME_Equity de TDA-02.
+tda03:
+  # Umbral de share de volumen (sobre minutos COMPARTIDOS por ambos
+  # contratos ese trading_date, regla 5 heredada) que el contrato ENTRANTE
+  # debe superar para que se emita la señal de roll. 0.50 = "cruce de
+  # dominancia": el entrante pasa a tener MAS volumen que el saliente ese
+  # dia. Es el umbral mas simple y parsimonioso posible (no requiere
+  # calibracion): no se copio el 55% heredado (calibrado bajo una ventana
+  # que ya no aplica). Validado empiricamente: coincide EXACTAMENTE con
+  # las fechas de roll de la politica heredada (calibrada de forma
+  # independiente, bajo otra ventana y otro umbral) en las 2 transiciones
+  # con solapamiento del conjunto de investigacion.
+  min_incoming_share_shared: 0.50
+  # Numero de trading_date CONSECUTIVOS que deben cumplir el umbral antes
+  # de emitir la señal de roll. 1 = basta una sola jornada (regla 7
+  # heredada: "no se exige confirmacion doble"). Justificado empiricamente
+  # en el informe: en ambas transiciones con solapamiento del conjunto de
+  # investigacion, el share del entrante crece de forma MONOTONA una vez
+  # cruza el umbral (nunca retrocede por debajo) -- exigir 2 confirmaciones
+  # habria dado exactamente la misma fecha efectiva en los dos casos, asi
+  # que no hay evidencia para preferir un valor mayor.
+  confirmation_sessions_required: 1
+  # Tamaño del ranking de mayores discontinuidades de precio (salto
+  # relativo |C_t-C_{t-1}|/C_{t-1}, entre barras CONSECUTIVAS de 1 minuto,
+  # mismo contrato, sin roll de por medio) que STOP-3 revisa. Se descarto
+  # deliberadamente un umbral fijo de "K veces la MAD global" -- ver
+  # tda03_rolls.py, docstring de find_extreme_jumps, para la razon
+  # completa (la serie no es estacionaria en nivel de precio ni en
+  # volatilidad; un umbral global marca miles de barras normales). Un
+  # ranking acotado y revisable, combinado con evidencia de volumen y
+  # reversion en la barra siguiente, es el diseño que se adopto.
+  extreme_jump_top_n: 40
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  report_name: TDA03_rolls_serie_continua.md
+  transitions_csv: TDA03_transiciones.csv
+  overlap_daily_evidence_csv: TDA03_evidencia_diaria_solapamientos.csv
+  no_overlap_evidence_csv: TDA03_evidencia_sin_solapamiento.csv
+  invariance_table_csv: TDA03_tabla_invariancia.csv
+  discarded_rows_csv: TDA03_filas_descartadas.csv
+  adjustment_factors_csv: TDA03_factores_ajuste.csv
+  extreme_jumps_csv: TDA03_saltos_extremos_stop3.csv
+  roll_mask_name: tda03_roll_mask.parquet
+  canonical_series_name: tda03_serie_continua.parquet
+
+# TDA-04 -- Construccion y auditoria de las variables de analisis de 1 minuto.
+#
+# Esta seccion SOLO declara nombres de artefactos de SALIDA -- no hay
+# ningun parametro numerico que configurar: la definicion de cada
+# variable (r_1m = ln(C_t/C_{t-1}), etc.) es una definicion matematica
+# fija, no un hiperparametro. Los artefactos de ENTRADA (serie canonica y
+# mascara de roll) son exactamente los de TDA-03 (seccion `tda03` arriba,
+# `canonical_series_name`/`roll_mask_name`) -- no se redeclaran aqui, para
+# que no puedan divergir por error.
+tda04:
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  report_name: TDA04_variables_analisis.md
+  variables_parquet_name: tda04_variables_1m.parquet
+  validity_mask_parquet_name: tda04_return_validity_mask.parquet
+  losses_by_cause_csv: TDA04_perdidas_por_causa.csv
+  th07_r_vs_R_csv: TDA04_th07_r_vs_R.csv
+
+# TDA-05 -- Resolucion efectiva y discrecion del retorno de 1 minuto.
+#
+# Esta seccion SOLO declara nombres de artefactos de SALIDA. tick_size NO
+# se redeclara aqui: ya existe como especificacion del instrumento
+# (seccion `instrument_spec`, arriba) y TDA-05 lo lee de ahi. La entrada
+# (variables y mascara de validez) es la de TDA-04 (seccion `tda04`), y la
+# mascara de barras inactivas es la de TDA-02 (seccion `tda02`,
+# `inactive_bar_mask`) -- ninguna se redeclara aqui, para que no puedan
+# divergir por error.
+tda05:
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  report_name: TDA05_resolucion_discrecion.md
+  global_csv: TDA05_resolucion_global.csv
+  by_hour_csv: TDA05_resolucion_por_hora.csv
+  by_year_csv: TDA05_resolucion_por_anio.csv
+  by_year_hour_csv: TDA05_resolucion_anio_hora.csv
+  histogram_png: TDA05_histograma_ticks.png
+  tick_variables_parquet_name: tda05_tick_variables.parquet
+
+# TDA-06 -- perfil determinista intradia y de calendario. Entrada
+# exclusiva: variables + mascara de validez de TDA-04 (seccion `tda04`),
+# nunca redeclaradas aqui. Los parametros numericos de esta seccion SI son
+# genuinamente configurables (a diferencia de tda05, que no tenia
+# ninguno): predeclarados ANTES de mirar el resultado real (ver
+# `tda06_intraday_calendar_profile.py`), no elegidos para mejorar el
+# resultado.
+tda06:
+  output_dir_reports: reports/mnq
+  output_dir_interim: data/interim/mnq
+  n_boot: 300
+  extreme_quantile: 0.99
+  smoothing_window_minutes: 15
+  max_breakpoints: 6
+  min_spacing_minutes: 60
+  year_stability_tolerance_minutes: 15
+  year_stability_min_years: 3
+  report_name: TDA06_perfil_intradia_calendario.md
+  minute_global_csv: TDA06_perfil_minuto_global.csv
+  minute_by_year_csv: TDA06_perfil_minuto_por_anio.csv
+  weekday_csv: TDA06_perfil_dia_semana.csv
+  segmentation_csv: TDA06_segmentacion_propuesta.csv
+  calibration_csv: TDA06_calibracion_null.csv
+  profile_png: TDA06_perfil_intradia.png
+  s_m_parquet_name: tda06_s_m.parquet
+  r_tilde_parquet_name: tda06_r_tilde.parquet
