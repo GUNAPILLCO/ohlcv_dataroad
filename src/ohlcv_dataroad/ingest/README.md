@@ -21,9 +21,18 @@ contrato, y cómo cambia esa discreción por hora del día y por año?*; TDA-06
 responde *¿existe un patrón DETERMINISTA de actividad/volatilidad ligado al
 reloj — minuto del día y día de la semana —, está en la media o en la
 magnitud, es estable entre años, y qué segmentación de sesión sugieren los
-propios datos?* — sin estudiar todavía la distribución marginal completa,
-la dependencia estocástica (ACF, clustering de volatilidad) ni ningún
-horizonte de predicción (eso es TDA-07 en adelante, fuera de esta tarea).
+propios datos?*; TDA-07 responde *¿cuánta curtosis y asimetría tiene la
+distribución marginal de `r_1m` (y de `r_tilde`, ajustado), cuánto de eso
+depende de un puñado de observaciones, cuánto cambia por año y por
+segmento, es la media distinguible de cero, y cuánto habría contaminado la
+distribución agregada si las reglas de no-cruce de TDA-04 no hubieran
+existido?*; TDA-08 responde *¿tiene `r_1m` memoria lineal (ACF/PACF/
+Ljung-Box) materialmente distinta de cero, de qué magnitud en ticks, es
+estable entre años y segmentos, y — si aparece — sobrevive al intento
+obligatorio de refutación por microestructura (1→5→10 minutos, por decil
+de volumen), o hay que declararla `NOT SEPARABLE WITH OHLCV LAST`?* — sin
+estudiar todavía volatility clustering en `|r|`/`r²` ni ajustar ARCH/GARCH
+(eso es TDA-09 en adelante, fuera de esta tarea).
 
 Los archivos, en el orden en que se ejecutan:
 
@@ -46,6 +55,12 @@ ingest/tda05_effective_resolution.py -> movimiento en ticks, discrecion, tick/si
 ingest/run_tda05.py              -> punto de entrada de terminal de TDA-05
 ingest/tda06_intraday_calendar_profile.py -> perfil por minuto/dia de semana, segmentacion, s(m), STOP-6 (TDA-06)
 ingest/run_tda06.py              -> punto de entrada de terminal de TDA-06
+ingest/tda07_marginal_distribution.py -> momentos, cuantiles, drift HAC/bootstrap, asimetria de colas, cierre de TH08 (TDA-07)
+ingest/run_tda07.py              -> punto de entrada de terminal de TDA-07
+ingest/th10_horizon_scaling.py   -> escalado de varianza r[h], beta log-log, complemento TH10 (pre-TDA-08)
+ingest/run_th10.py               -> punto de entrada de terminal del complemento TH10
+ingest/tda08_linear_mean_dependence.py -> ACF/PACF/Bartlett/Ljung-Box, refutacion microestructural, TH16-TH18 (TDA-08)
+ingest/run_tda08.py              -> punto de entrada de terminal de TDA-08
 ```
 
 ---
@@ -2175,6 +2190,154 @@ python -m ohlcv_dataroad.ingest.run_tda06 --config configs/mnq_snapshot.yaml
 
 ---
 
+## 19. `ingest/tda07_marginal_distribution.py`
+
+### Qué problema resuelve
+
+Caracteriza la distribución marginal de `r_1m` (y de `r_tilde`, ajustado
+por estacionalidad, RETROSPECTIVO) — momentos, cuantiles, drift, asimetría
+de colas — con la conciencia de que la marginal agregada de ~6 años es una
+MEZCLA de segmentos horarios (TDA-06) y de regímenes. Cierra, además, el
+componente distribucional de TH08 que TDA-04 dejó explícitamente
+pendiente: comparar los momentos/cuantiles de `r_1m` (con las reglas de
+no-cruce aplicadas) contra un contrafactual que las ignora por completo.
+
+### Tres invariantes bloqueantes, antes de cualquier resultado
+
+1. `tda04_variables_1m.parquet` y `tda04_return_validity_mask.parquet`
+   deben compartir EXACTAMENTE los mismos timestamps, en el mismo orden
+   (`verify_timestamp_alignment` — nunca se asume por longitud o por
+   orden de fila).
+2. `r_naive_1m` (el contrafactual, ver abajo) debe coincidir con `r_1m`
+   de TDA-04 en toda fila `invalid_reason == "VALID"`, dentro de una
+   tolerancia explícita (`verify_naive_matches_valid`) — ambas series
+   usan la MISMA fórmula sobre la MISMA columna `close`; si no coinciden,
+   hay una inconsistencia real, no un resultado a interpretar.
+3. **(Corrección puntual de cierre)** `tda06_r_tilde.parquet` debe estar
+   alineado exactamente con `tda04_variables_1m.parquet` (mismos
+   timestamps, mismo número de filas) y tener `label == "RETROSPECTIVO"`
+   en absolutamente todas las filas (`verify_r_tilde_invariants`) —
+   verificado justo antes de construir la población de análisis de
+   `r_tilde`, nunca antes (TH08 y las invariantes #1/#2 no dependen de
+   `r_tilde` y pueden fallar rápido sin necesitar ese artefacto).
+
+Si cualquiera falla, se lanza `TimestampAlignmentError`,
+`NaiveReturnContradictionError` o `RTildeInvariantError` y la etapa se
+detiene sin producir ningún resultado parcial.
+
+### El contrafactual de TH08: `r_naive_1m`
+
+`r_naive_1m = ln(close_t / close_{t-1})` por `shift(1)` **incondicional**
+sobre toda la serie canónica — a diferencia de `r_1m` de TDA-04, nunca
+respeta `trading_date`, `segment_id` ni la máscara de roll. Es,
+deliberadamente, la versión que TDA-04 se negó a construir. Por
+construcción, es `NaN` únicamente en la primera fila de la serie completa
+(`close` nunca es `NaN`, TDA-00) — ninguna otra fila queda excluida, a
+diferencia de las 3.520 filas `NaN` de `r_1m`.
+
+La comparación PRINCIPAL de TH08 es A) `r_1m` válido vs B) `r_naive_1m`
+global completo — mide directamente cuánto cambiarían los momentos y
+cuantiles de la distribución si las reglas de no-cruce no hubieran
+existido. El desglose por `invalid_reason` (`ROLL_BOUNDARY`,
+`TRADING_DATE_BOUNDARY`, `NON_CONSECUTIVE_MINUTE`) es un diagnóstico
+SECUNDARIO, subordinado al principal. `r_naive_1m` se etiqueta
+`CONTRAFACTUAL_VIOLA_NO_CRUCE` y nunca se escribe sobre ningún artefacto
+de TDA-04.
+
+### Momentos, cuantiles y el recorte del 0,1%
+
+`compute_moments_quantiles` es el único motor de momentos/cuantiles de la
+etapa (reutilizado por TH08 y TH11): media, desviación muestral
+(`ddof=1`), asimetría y curtosis EXCESO con momentos centrales
+poblacionales (`ddof=0`, la definición estándar equivalente a
+`scipy.stats.skew`/`kurtosis` con `bias=True`, sin depender de `scipy`), y
+la MISMA curtosis recalculada tras retirar el 0,05% más extremo de CADA
+cola (0,1% total — la lectura habitual de "recorte de X%"). La diferencia
+entre curtosis cruda y recortada es el resultado: si colapsa, el
+estimador crudo estaba dominado por un puñado de puntos.
+
+### HAC (Newey-West) para la media — TH12
+
+`hac_mean_se` implementa el caso particular de la fórmula sándwich de
+Newey-West cuando el único regresor es una constante:
+`Var_HAC(mean) = (1/T)·[γ₀ + 2·Σ wⱼ·γⱼ]`, con pesos de Bartlett
+`wⱼ=1-j/(l+1)` y bandwidth `l = floor(4·(T/100)^(2/9))`
+(`hac_bandwidth`, fórmula cerrada, nunca ajustada tras ver el resultado).
+Se reporta junto con un intervalo por bootstrap de bloques de jornada
+(mismo motor que TDA-05/TDA-06, G5) — ambos, nunca un p-valor aislado.
+
+**Corrección puntual de cierre**: la autocovarianza de rezago `j` NUNCA
+se calcula sobre posiciones de array adyacentes sin verificar que
+representan minutos de reloj realmente consecutivos. `compute_hac_block_ids`
+construye, a partir de `timestamp`/`trading_date` de la población
+analizada (global, un año o un segmento), un `block_id` por fila —
+constante dentro de cada tramo genuinamente continuo (delta=60s, mismo
+`trading_date`; el roll queda cubierto porque TDA-04 certificó que todo
+roll coincide con un cambio de `trading_date`) — y `hac_mean_se` solo
+suma el par `(t, t-j)` a `gamma_j` si `block_ids[t] == block_ids[t-j]`.
+Sin esto, dos filas válidas adyacentes en el array COMPACTADO podían estar
+separadas, en el reloj real, por una fila invalidada por TDA-04 o —
+en el análisis por segmento — por una jornada completa (el mismo tramo
+horario de dos días distintos), fabricando dependencia temporal
+artificial que TDA-04 decidió explícitamente no conectar.
+
+### Bootstrap de bloques único para TH12+TH13
+
+`day_block_bootstrap` remuestrea jornadas (`trading_date`) COMPLETAS con
+reemplazo (preserva la dependencia intra-día, G5) y evalúa
+`_drift_and_tail_stat` — un solo vector con la media, las dos diferencias
+de cuantiles simétricos y las dos frecuencias de excedencia por lado — en
+UNA sola pasada de bootstrap por grupo, en vez de remuestrear el mismo
+grupo varias veces para cada estadístico.
+
+### Por qué NO se usa "curtosis por lado" en TH13
+
+El texto del roadmap sugiere literalmente "curtosis calculada por lado"
+para TH13, pero esa medida no tiene una definición estándar única en la
+literatura (partir un cuarto momento a mitad de muestra es ambiguo). Se
+sustituye, por instrucción explícita de la tarea, por dos medidas
+directamente interpretables: la diferencia entre cuantiles simétricos en
+magnitud (`q_{1-p} - |q_p|`, en unidades de retorno) y la frecuencia de
+excedencias por lado a un umbral simétrico fijo (una proporción, ya
+interpretable por sí misma) — ambas responden la misma pregunta de TH13
+sin inventar una métrica ambigua. La misma razón explica por qué `r_tilde`
+nunca se traduce a ticks (§ más abajo): es una cantidad des-estacionalizada,
+no un retorno de precio literal.
+
+### Segmentación de TDA-06: leída, nunca modificada
+
+`load_segmentation_cutoffs` lee `TDA06_segmentacion_propuesta.csv` y
+filtra por `stable == True` — nunca recalcula los cortes. `assign_segment_label`
+divide `minute_of_day` (0..1439) en los tramos que esos cortes definen.
+Es una partición para el análisis de TDA-07, exactamente como TDA-06 la
+documentó: una propuesta empírica, no una arquitectura de ML.
+
+### QQ-plot sin `scipy`
+
+`qq_points` usa `statistics.NormalDist().inv_cdf` (librería estándar de
+Python) para los cuantiles teóricos de la normal — no hace falta `scipy`,
+que no es una dependencia del repositorio. Con muestras de millones de
+filas, se compara una grilla fija de ~500 probabilidades (práctica
+estándar para QQ-plots de muestras grandes), no cada punto individual.
+
+## 20. `ingest/run_tda07.py`
+
+Punto de entrada de terminal, mismo espíritu que TDA-00..06: carga la
+configuración, llama a `run_tda07_analysis`, vuelca las tres tablas
+(comparación TH08 global, diagnóstico TH08 por causa, momentos/cuantiles/
+drift/colas por serie × alcance) a su CSV, dibuja los tres gráficos QQ
+(global, por segmento, comparación A/B de TH08) e imprime el resumen
+completo de auditoría, incluyendo la confirmación explícita de que ambas
+invariantes bloqueantes se cumplieron.
+
+**Reproducir la ejecución**:
+
+```bash
+python -m ohlcv_dataroad.ingest.run_tda07 --config configs/mnq_snapshot.yaml
+```
+
+---
+
 ## 16. `ingest/run_tda05.py`
 
 Punto de entrada de terminal, mismo espíritu que TDA-00..04: carga la
@@ -2188,4 +2351,111 @@ resumen completo de auditoría.
 
 ```bash
 python -m ohlcv_dataroad.ingest.run_tda05 --config configs/mnq_snapshot.yaml
+```
+
+---
+
+## 21. `ingest/tda08_linear_mean_dependence.py`
+
+### Qué problema resuelve
+
+Mide la dependencia LINEAL de `r_1m` con su propio pasado (ACF/PACF/
+Ljung-Box) y la somete OBLIGATORIAMENTE a un protocolo de refutación
+microestructural antes de llamarla "dependencia" — resuelve TH16 (¿la
+ACF es distinguible de cero, de qué magnitud en ticks?), TH17 (si
+`rho_1` es material, ¿es atribuible a microestructura -- bid-ask bounce,
+no sincronía -- o `NOT SEPARABLE WITH OHLCV LAST`?) y TH18 (¿es estable
+entre años y segmentos?).
+
+### Topología temporal: el mismo bloque de continuidad, parametrizado
+
+`compute_block_ids(timestamp, trading_date, expected_delta_seconds)`
+generaliza `compute_hac_block_ids` de TDA-07 y la lógica de `r[h]` de
+TH10 con un delta esperado CONFIGURABLE — `60.0` para `r_1m` nativo
+(idéntica semántica a TDA-04/TDA-07), `300.0`/`600.0` para el análisis
+1→5→10 minutos no solapado de TH17 (ver más abajo). Se reimplementa en
+vez de importar la versión de TDA-07 únicamente porque esa versión tiene
+el delta fijo en 60s; es el MISMO algoritmo, no una semántica distinta.
+
+`compute_acf(values, block_ids, max_lag)` es el motor central: para cada
+rezago `k`, la autocovarianza `gamma_k` se calcula SOLO sobre pares
+`(t, t-k)` que comparten bloque — nunca se compacta la serie primero. La
+normalización sigue la misma corrección que HAC en TDA-07: `gamma_k =
+suma_de_pares_same_block / T` (nunca dividido por el número de pares
+sobrevivientes), y `gamma_0` (denominador fijo) usa TODA la población.
+`n_pairs` por rezago se reporta explícitamente — nunca se asume `T-k`.
+
+### Bartlett vs bootstrap: por qué se reportan ambos
+
+`bartlett_se` implementa la fórmula clásica de texto
+(`SE(rho_k)=sqrt((1+2*sum_{j<k}rho_j^2)/T)`), verificada contra esa
+misma fórmula reimplementada en los tests sobre una serie sintética SIN
+bloques (donde el supuesto es literalmente aplicable). Es el diagnóstico
+clásico, comparable con cualquier ACF-plot de texto. El intervalo
+PRINCIPAL de esta etapa (G5), sin embargo, es el bootstrap de bloques de
+jornada (`bootstrap_rho`) — porque la serie real SÍ tiene bloques/
+discontinuidades, y el bootstrap no depende de ningún supuesto de
+continuidad.
+
+### La clave compuesta del bootstrap: por qué no basta con reutilizar `block_id`
+
+Un bootstrap de jornadas con reemplazo puede sortear el MISMO día dos
+veces. Si se concatenan sus filas y se reutiliza el `block_id` original
+tal cual, el final de la primera copia y el inicio de la segunda
+comparten el mismo `block_id` (son, literalmente, el mismo día) — el
+chequeo `block_ids[k:]==block_ids[:-k]` los trataría como un par válido,
+fabricando exactamente el vecino falso que toda esta etapa existe para
+evitar. `bootstrap_rho` corrige esto con una clave COMPUESTA
+(`block_id * (n_dates+1) + ranura_de_remuestreo`): dos filas solo se
+consideran del mismo bloque en una réplica si comparten el `block_id`
+ORIGINAL Y la MISMA ranura de remuestreo — nunca dos copias distintas
+del mismo día, ni siquiera si son idénticas en contenido.
+
+### G2: dos nulls, con costo acotado explícitamente
+
+`g2_permutation_null` baraja los VALORES de `r_1m` entre sí preservando
+`block_ids` intactos (destruye el orden temporal, conserva la
+estructura de continuidad) — mismo espíritu que la calibración de
+TDA-06. `g2_synthetic_gaussian_null` genera ruido gaussiano i.i.d. con
+la misma escala y estructura de bloques — un segundo null, generativo,
+no solo una permutación de los datos reales. Calibrar sobre los 2.760
+rezagos completos, 200 veces, sería prohibitivo — se calibra sobre
+`G2_NULL_MAX_LAG=60` (cubre `BOOTSTRAP_LAGS` y los `m` cortos de
+Ljung-Box); para los dos valores "de jornada" de `LJUNG_BOX_M` (1.380 y
+2.760) se usa una referencia de momentos asintótica (media=m,
+sd=sqrt(2m)), documentada explícitamente como más débil que la
+calibración empírica.
+
+### 1→5→10 minutos: reutiliza TH10, nunca solapa
+
+`compute_multi_frequency_rho1` reutiliza `build_horizon_returns`/
+`non_overlap_mask` del complemento TH10 sin modificarlos: para `h=5`/
+`h=10` selecciona ventanas NO SOLAPADAS (posiciones múltiplo de `h`
+dentro de cada bloque) y calcula `rho_1` de ESA serie con un delta
+esperado de `h*60` segundos — nunca sobre ventanas solapadas, que
+fabricarían dependencia mecánica.
+
+### Traducción de `rho_1` a ticks — definición explícita
+
+`translate_rho1_to_ticks` NO escribe "rho_1=X, por tanto X ticks"
+(rho_1 es adimensional). Define: bajo `Var(r_t)=Var(r_{t-1})`, la
+pendiente OLS de `r_t` sobre `r_{t-1}` es exactamente `rho_1`; el
+"movimiento previo de referencia" es 1 desviación estándar de `r`
+(`sigma_r`); el "movimiento lineal implícito" es `rho_1 * sigma_r`. Se
+convierte a ticks reutilizando `compute_tick_return_repr` de TDA-07 (la
+MISMA función que ya tradujo el drift de TH12) — nunca una aproximación
+nueva.
+
+## 22. `ingest/run_tda08.py`
+
+Punto de entrada de terminal, mismo espíritu que TDA-00..07/TH10: carga
+la configuración, llama a `run_tda08_analysis`, vuelca cada tabla a su
+CSV, dibuja la ACF con bandas de Bartlett (crudo vs ajustado, primeros
+30 rezagos — la grilla completa de 2.760 vive en el CSV) e imprime el
+resumen completo de auditoría (TH16/TH17/TH18, G2, ventanas de TDA-06).
+
+**Reproducir la ejecución**:
+
+```bash
+python -m ohlcv_dataroad.ingest.run_tda08 --config configs/mnq_snapshot.yaml
 ```

@@ -1,0 +1,15 @@
+m,Q,estimable,note,calibration_status,series
+10,378.18213916706895,True,,G2_CALIBRATED,r_1m
+20,445.4252493583808,True,,G2_CALIBRATED,r_1m
+40,612.1442285881908,True,,G2_CALIBRATED,r_1m
+60,718.9923039648746,True,,G2_CALIBRATED,r_1m
+1380,,False,NOT_ESTIMABLE -- excede el maximo rezago con pares validos bajo no-cruce (=1378),NOT_ESTIMABLE,r_1m
+2760,,False,NOT_ESTIMABLE -- excede el maximo rezago con pares validos bajo no-cruce (=1378),NOT_ESTIMABLE,r_1m
+1378,6004.559859355881,True,maximo rezago REALMENTE estimable bajo las reglas de no-cruce (no un m predeclarado),DESCRIPTIVE_UNCALIBRATED,r_1m
+10,590.2487484321176,True,,NOT_G2_CALIBRATED,r_tilde
+20,807.4248914376244,True,,NOT_G2_CALIBRATED,r_tilde
+40,997.6410159288321,True,,NOT_G2_CALIBRATED,r_tilde
+60,1302.7976691289073,True,,NOT_G2_CALIBRATED,r_tilde
+1380,,False,NOT_ESTIMABLE -- excede el maximo rezago con pares validos bajo no-cruce (=1378),NOT_ESTIMABLE,r_tilde
+2760,,False,NOT_ESTIMABLE -- excede el maximo rezago con pares validos bajo no-cruce (=1378),NOT_ESTIMABLE,r_tilde
+1378,7171.0380495049485,True,maximo rezago REALMENTE estimable bajo las reglas de no-cruce (no un m predeclarado),NOT_G2_CALIBRATED,r_tilde

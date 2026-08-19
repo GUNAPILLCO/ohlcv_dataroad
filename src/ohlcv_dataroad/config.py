@@ -122,6 +122,55 @@ class SnapshotConfig:
     tda06_s_m_parquet_name: str = ""
     tda06_r_tilde_parquet_name: str = ""
 
+    # TDA-07 -- misma logica de opcionalidad que TDA-02/03/04/05/06 (ver arriba).
+    tda07_n_boot: int = 300
+    tda07_report_name: str = ""
+    tda07_th08_global_csv_name: str = ""
+    tda07_th08_by_cause_csv_name: str = ""
+    tda07_distribution_tables_csv_name: str = ""
+    tda07_qq_global_png_name: str = ""
+    tda07_qq_by_segment_png_name: str = ""
+    tda07_qq_th08_png_name: str = ""
+
+    # Complemento TH10 (pre-TDA-08) -- misma logica de opcionalidad que
+    # TDA-02/03/04/05/06/07 (ver arriba). ``th10_horizons`` vacio usa el
+    # default de codigo (``HORIZONS`` en th10_horizon_scaling.py).
+    th10_horizons: list[int] = None  # type: ignore[assignment]
+    th10_n_boot: int = 300
+    th10_report_name: str = ""
+    th10_var_by_horizon_csv_name: str = ""
+    th10_var_by_horizon_non_overlap_csv_name: str = ""
+    th10_beta_by_year_csv_name: str = ""
+    th10_var_h_plot_png_name: str = ""
+
+    # TDA-08 -- misma logica de opcionalidad que TDA-02/03/04/05/06/07 (ver arriba).
+    tda08_n_boot: int = 300
+    tda08_n_perm: int = 200
+    tda08_report_name: str = ""
+    tda08_acf_global_csv_name: str = ""
+    tda08_pacf_csv_name: str = ""
+    tda08_bootstrap_ci_csv_name: str = ""
+    tda08_portmanteau_csv_name: str = ""
+    tda08_g2_calibration_null1_csv_name: str = ""
+    tda08_g2_portmanteau_null1_csv_name: str = ""
+    tda08_g2_calibration_csv_name: str = ""
+    tda08_g2_portmanteau_null_csv_name: str = ""
+    tda08_g2_moment_check_csv_name: str = ""
+    tda08_ticks_translation_csv_name: str = ""
+    tda08_multi_frequency_csv_name: str = ""
+    tda08_acf_by_group_csv_name: str = ""
+    tda08_volume_decile_sensitivity_csv_name: str = ""
+    tda08_windows_csv_name: str = ""
+    tda08_windows_by_year_csv_name: str = ""
+    tda08_windows_adjacent_csv_name: str = ""
+    tda08_acf_plot_png_name: str = ""
+
+    # TDA08-H -- complemento ACOTADO de TDA-08 (memoria lineal a 30/60 min).
+    # TDA-08 permanece CERRADA/CONGELADA; esta seccion es evidencia separada.
+    tda08h_report_name: str = ""
+    tda08h_multi_horizon_csv_name: str = ""
+    tda08h_plot_png_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -298,6 +347,138 @@ class SnapshotConfig:
     def tda06_r_tilde_parquet_path(self) -> Path:
         return self.interim_dir / self.tda06_r_tilde_parquet_name
 
+    @property
+    def tda07_report_path(self) -> Path:
+        return self.reports_dir / self.tda07_report_name
+
+    @property
+    def tda07_th08_global_csv_path(self) -> Path:
+        return self.reports_dir / self.tda07_th08_global_csv_name
+
+    @property
+    def tda07_th08_by_cause_csv_path(self) -> Path:
+        return self.reports_dir / self.tda07_th08_by_cause_csv_name
+
+    @property
+    def tda07_distribution_tables_csv_path(self) -> Path:
+        return self.reports_dir / self.tda07_distribution_tables_csv_name
+
+    @property
+    def tda07_qq_global_png_path(self) -> Path:
+        return self.reports_dir / self.tda07_qq_global_png_name
+
+    @property
+    def tda07_qq_by_segment_png_path(self) -> Path:
+        return self.reports_dir / self.tda07_qq_by_segment_png_name
+
+    @property
+    def tda07_qq_th08_png_path(self) -> Path:
+        return self.reports_dir / self.tda07_qq_th08_png_name
+
+    @property
+    def th10_report_path(self) -> Path:
+        return self.reports_dir / self.th10_report_name
+
+    @property
+    def th10_var_by_horizon_csv_path(self) -> Path:
+        return self.reports_dir / self.th10_var_by_horizon_csv_name
+
+    @property
+    def th10_var_by_horizon_non_overlap_csv_path(self) -> Path:
+        return self.reports_dir / self.th10_var_by_horizon_non_overlap_csv_name
+
+    @property
+    def th10_beta_by_year_csv_path(self) -> Path:
+        return self.reports_dir / self.th10_beta_by_year_csv_name
+
+    @property
+    def th10_var_h_plot_png_path(self) -> Path:
+        return self.reports_dir / self.th10_var_h_plot_png_name
+
+    @property
+    def tda08_report_path(self) -> Path:
+        return self.reports_dir / self.tda08_report_name
+
+    @property
+    def tda08_acf_global_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_acf_global_csv_name
+
+    @property
+    def tda08_pacf_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_pacf_csv_name
+
+    @property
+    def tda08_bootstrap_ci_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_bootstrap_ci_csv_name
+
+    @property
+    def tda08_portmanteau_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_portmanteau_csv_name
+
+    @property
+    def tda08_g2_calibration_null1_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_g2_calibration_null1_csv_name
+
+    @property
+    def tda08_g2_portmanteau_null1_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_g2_portmanteau_null1_csv_name
+
+    @property
+    def tda08_g2_calibration_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_g2_calibration_csv_name
+
+    @property
+    def tda08_g2_portmanteau_null_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_g2_portmanteau_null_csv_name
+
+    @property
+    def tda08_g2_moment_check_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_g2_moment_check_csv_name
+
+    @property
+    def tda08_ticks_translation_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_ticks_translation_csv_name
+
+    @property
+    def tda08_multi_frequency_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_multi_frequency_csv_name
+
+    @property
+    def tda08_acf_by_group_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_acf_by_group_csv_name
+
+    @property
+    def tda08_volume_decile_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_volume_decile_sensitivity_csv_name
+
+    @property
+    def tda08_windows_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_windows_csv_name
+
+    @property
+    def tda08_windows_by_year_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_windows_by_year_csv_name
+
+    @property
+    def tda08_windows_adjacent_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08_windows_adjacent_csv_name
+
+    @property
+    def tda08_acf_plot_png_path(self) -> Path:
+        return self.reports_dir / self.tda08_acf_plot_png_name
+
+    @property
+    def tda08h_report_path(self) -> Path:
+        return self.reports_dir / self.tda08h_report_name
+
+    @property
+    def tda08h_multi_horizon_csv_path(self) -> Path:
+        return self.reports_dir / self.tda08h_multi_horizon_csv_name
+
+    @property
+    def tda08h_plot_png_path(self) -> Path:
+        return self.reports_dir / self.tda08h_plot_png_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -345,6 +526,10 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     tda04 = raw.get("tda04", {})
     tda05 = raw.get("tda05", {})
     tda06 = raw.get("tda06", {})
+    tda07 = raw.get("tda07", {})
+    th10 = raw.get("th10", {})
+    tda08 = raw.get("tda08", {})
+    tda08h = raw.get("tda08h", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -417,4 +602,42 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda06_profile_png_name=tda06.get("profile_png", ""),
         tda06_s_m_parquet_name=tda06.get("s_m_parquet_name", ""),
         tda06_r_tilde_parquet_name=tda06.get("r_tilde_parquet_name", ""),
+        tda07_n_boot=int(tda07.get("n_boot", 300)),
+        tda07_report_name=tda07.get("report_name", ""),
+        tda07_th08_global_csv_name=tda07.get("th08_global_csv", ""),
+        tda07_th08_by_cause_csv_name=tda07.get("th08_by_cause_csv", ""),
+        tda07_distribution_tables_csv_name=tda07.get("distribution_tables_csv", ""),
+        tda07_qq_global_png_name=tda07.get("qq_global_png", ""),
+        tda07_qq_by_segment_png_name=tda07.get("qq_by_segment_png", ""),
+        tda07_qq_th08_png_name=tda07.get("qq_th08_png", ""),
+        th10_horizons=list(th10["horizons"]) if th10.get("horizons") else None,
+        th10_n_boot=int(th10.get("n_boot", 300)),
+        th10_report_name=th10.get("report_name", ""),
+        th10_var_by_horizon_csv_name=th10.get("var_by_horizon_csv", ""),
+        th10_var_by_horizon_non_overlap_csv_name=th10.get("var_by_horizon_non_overlap_csv", ""),
+        th10_beta_by_year_csv_name=th10.get("beta_by_year_csv", ""),
+        th10_var_h_plot_png_name=th10.get("var_h_plot_png", ""),
+        tda08_n_boot=int(tda08.get("n_boot", 300)),
+        tda08_n_perm=int(tda08.get("n_perm", 200)),
+        tda08_report_name=tda08.get("report_name", ""),
+        tda08_acf_global_csv_name=tda08.get("acf_global_csv", ""),
+        tda08_pacf_csv_name=tda08.get("pacf_csv", ""),
+        tda08_bootstrap_ci_csv_name=tda08.get("bootstrap_ci_csv", ""),
+        tda08_portmanteau_csv_name=tda08.get("portmanteau_csv", ""),
+        tda08_g2_calibration_null1_csv_name=tda08.get("g2_calibration_null1_csv", ""),
+        tda08_g2_portmanteau_null1_csv_name=tda08.get("g2_portmanteau_null1_csv", ""),
+        tda08_g2_calibration_csv_name=tda08.get("g2_calibration_csv", ""),
+        tda08_g2_portmanteau_null_csv_name=tda08.get("g2_portmanteau_null_csv", ""),
+        tda08_g2_moment_check_csv_name=tda08.get("g2_moment_check_csv", ""),
+        tda08_ticks_translation_csv_name=tda08.get("ticks_translation_csv", ""),
+        tda08_multi_frequency_csv_name=tda08.get("multi_frequency_csv", ""),
+        tda08_acf_by_group_csv_name=tda08.get("acf_by_group_csv", ""),
+        tda08_volume_decile_sensitivity_csv_name=tda08.get("volume_decile_sensitivity_csv", ""),
+        tda08_windows_csv_name=tda08.get("windows_csv", ""),
+        tda08_windows_by_year_csv_name=tda08.get("windows_by_year_csv", ""),
+        tda08_windows_adjacent_csv_name=tda08.get("windows_adjacent_csv", ""),
+        tda08_acf_plot_png_name=tda08.get("acf_plot_png", ""),
+        tda08h_report_name=tda08h.get("report_name", ""),
+        tda08h_multi_horizon_csv_name=tda08h.get("multi_horizon_csv", ""),
+        tda08h_plot_png_name=tda08h.get("plot_png", ""),
     )

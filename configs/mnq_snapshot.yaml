@@ -246,3 +246,83 @@ tda06:
   profile_png: TDA06_perfil_intradia.png
   s_m_parquet_name: tda06_s_m.parquet
   r_tilde_parquet_name: tda06_r_tilde.parquet
+
+# TDA-07 -- distribucion marginal y por segmento. Entrada: variables +
+# mascara de validez de TDA-04 (seccion `tda04`), r_tilde de TDA-06
+# (seccion `tda06`, `r_tilde_parquet_name`) y la segmentacion propuesta de
+# TDA-06 (`tda06.segmentation_csv`) -- ninguna se redeclara aqui, para que
+# no puedan divergir por error. `n_boot` es el unico parametro numerico
+# genuinamente configurable (bootstrap de bloques por jornada, TH12/TH13);
+# el bandwidth HAC (Newey-West) y los niveles de cuantil/recorte son
+# formulas cerradas o convenciones predeclaradas en el codigo
+# (`tda07_marginal_distribution.py`), no valores de configuracion.
+tda07:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  report_name: TDA07_distribucion_marginal.md
+  th08_global_csv: TDA07_th08_contrafactual_global.csv
+  th08_by_cause_csv: TDA07_th08_contrafactual_por_causa.csv
+  distribution_tables_csv: TDA07_momentos_cuantiles_drift_colas.csv
+  qq_global_png: TDA07_qq_global.png
+  qq_by_segment_png: TDA07_qq_por_segmento.png
+  qq_th08_png: TDA07_qq_th08_contrafactual.png
+
+# Complemento TH10 (pre-TDA-08) -- escalado de la varianza con el
+# horizonte. Entrada: variables + mascara de validez de TDA-04 (seccion
+# `tda04`), reutilizadas sin redeclarar. `horizons` es la grilla
+# diagnostica predeclarada (seccion 4 de la tarea) -- NO se ajusta tras
+# ver el resultado. `n_boot` es el bootstrap de bloques por jornada
+# (misma logica que TDA-05/06/07).
+th10:
+  output_dir_reports: reports/mnq
+  horizons: [1, 2, 5, 10, 15, 30, 60]
+  n_boot: 300
+  report_name: TH10_escalado_varianza_horizonte.md
+  var_by_horizon_csv: TH10_var_by_horizon.csv
+  var_by_horizon_non_overlap_csv: TH10_var_by_horizon_no_solapado.csv
+  beta_by_year_csv: TH10_beta_por_anio.csv
+  var_h_plot_png: TH10_var_h_loglog.png
+
+# TDA-08 -- dependencia lineal en la media (ACF/PACF/portmanteau, TH16-TH18).
+# Entrada: variables + mascara de validez de TDA-04 (seccion `tda04`),
+# r_tilde de TDA-06 (seccion `tda06`) y la segmentacion de TDA-06 --
+# ninguna se redeclara aqui. `n_boot`/`n_perm` son los unicos parametros
+# genuinamente configurables (bootstrap de bloques por jornada y
+# calibracion G2 -- Null 1 exclusivamente para la inferencia principal,
+# ver informe seccion 11); la grilla de rezagos, m del portmanteau
+# (Q(m) = sum n_pairs_k*rho_k^2, NO Ljung-Box clasico -- ver docstring de
+# `compute_portmanteau_q`) y demas convenciones son constantes
+# predeclaradas en el codigo (`tda08_linear_mean_dependence.py`), no
+# valores de configuracion.
+tda08:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  n_perm: 200
+  report_name: TDA08_dependencia_lineal_media.md
+  acf_global_csv: TDA08_acf_global.csv
+  pacf_csv: TDA08_pacf.csv
+  bootstrap_ci_csv: TDA08_bootstrap_ci.csv
+  portmanteau_csv: TDA08_portmanteau.csv
+  g2_calibration_null1_csv: TDA08_g2_calibracion_null1_principal.csv
+  g2_portmanteau_null1_csv: TDA08_g2_portmanteau_null1_principal.csv
+  g2_calibration_csv: TDA08_g2_calibracion_combinada_secundaria.csv
+  g2_portmanteau_null_csv: TDA08_g2_portmanteau_combinado_secundario.csv
+  g2_moment_check_csv: TDA08_g2_diagnostico_momentos.csv
+  ticks_translation_csv: TDA08_traduccion_ticks.csv
+  multi_frequency_csv: TDA08_rho1_multi_frecuencia.csv
+  acf_by_group_csv: TDA08_acf_por_grupo.csv
+  volume_decile_sensitivity_csv: TDA08_decil_volumen_sensibilidad.csv
+  windows_csv: TDA08_ventanas_tda06.csv
+  windows_by_year_csv: TDA08_ventanas_por_anio.csv
+  windows_adjacent_csv: TDA08_ventanas_minutos_adyacentes.csv
+  acf_plot_png: TDA08_acf_bartlett.png
+
+# TDA08-H -- complemento ACOTADO de TDA-08 (memoria lineal NO SOLAPADA a
+# 30/60 minutos, TDA-08 permanece CERRADA/CONGELADA). Reutiliza n_boot y
+# semilla de la seccion `tda08` -- ningun parametro nuevo genuinamente
+# configurable en esta extension.
+tda08h:
+  output_dir_reports: reports/mnq
+  report_name: TDA08H_horizon_memory_extension.md
+  multi_horizon_csv: TDA08H_rho1_multi_horizon.csv
+  plot_png: TDA08H_rho1_multi_horizon.png

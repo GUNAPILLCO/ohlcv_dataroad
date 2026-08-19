@@ -1,0 +1,2 @@
+var_real,var_synth,var_ratio,var_within_tolerance,kurt_real,kurt_synth,kurt_rel_diff,kurt_within_tolerance,scale_profile_correlation,scale_profile_within_tolerance
+1.7569398464188835e-07,2.403091166748665e-07,1.3677708839302676,False,111.55600433248864,401.2239759399021,2.596614797569018,False,0.9974111659133288,True
