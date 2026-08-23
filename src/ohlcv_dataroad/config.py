@@ -171,6 +171,33 @@ class SnapshotConfig:
     tda08h_multi_horizon_csv_name: str = ""
     tda08h_plot_png_name: str = ""
 
+    # TDA-09 -- dependencia en magnitud / volatility clustering (TH19-TH21).
+    # misma logica de opcionalidad que TDA-02..TDA-08 (ver arriba). Las
+    # grillas de rezagos/ordenes (MAX_LAG_MAGNITUDE, BOOTSTRAP_LAGS_MAGNITUDE,
+    # PORTMANTEAU_M_MAGNITUDE, STABILITY_LAGS, ARCH_LM_ORDERS, TH21_ENERGY_M,
+    # umbrales de STOP-9/flatness/TH20) son constantes predeclaradas en
+    # ``tda09_volatility_clustering.py`` -- no valores de configuracion,
+    # mismo criterio que TDA-08 aplico a su propia grilla de rezagos.
+    tda09_n_boot: int = 300
+    tda09_n_perm: int = 200
+    tda09_n_perm_arch_lm: int = 60
+    tda09_report_name: str = ""
+    tda09_acf_csv_name: str = ""
+    tda09_bootstrap_ci_csv_name: str = ""
+    tda09_clock_attribution_csv_name: str = ""
+    tda09_persistence_by_year_csv_name: str = ""
+    tda09_persistence_by_segment_csv_name: str = ""
+    tda09_portmanteau_csv_name: str = ""
+    tda09_arch_lm_csv_name: str = ""
+    tda09_g2_calibration_null1_csv_name: str = ""
+    tda09_g2_calibration_secondary_csv_name: str = ""
+    tda09_g2_synthetic_moment_check_csv_name: str = ""
+    tda09_mean_removal_sensitivity_csv_name: str = ""
+    tda09_clock_flatness_csv_name: str = ""
+    tda09_acf_triple_png_name: str = ""
+    tda09_acf_raw_vs_adjusted_png_name: str = ""
+    tda09_decay_png_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -479,6 +506,70 @@ class SnapshotConfig:
     def tda08h_plot_png_path(self) -> Path:
         return self.reports_dir / self.tda08h_plot_png_name
 
+    @property
+    def tda09_report_path(self) -> Path:
+        return self.reports_dir / self.tda09_report_name
+
+    @property
+    def tda09_acf_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_acf_csv_name
+
+    @property
+    def tda09_bootstrap_ci_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_bootstrap_ci_csv_name
+
+    @property
+    def tda09_clock_attribution_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_clock_attribution_csv_name
+
+    @property
+    def tda09_persistence_by_year_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_persistence_by_year_csv_name
+
+    @property
+    def tda09_persistence_by_segment_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_persistence_by_segment_csv_name
+
+    @property
+    def tda09_portmanteau_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_portmanteau_csv_name
+
+    @property
+    def tda09_arch_lm_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_arch_lm_csv_name
+
+    @property
+    def tda09_g2_calibration_null1_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_g2_calibration_null1_csv_name
+
+    @property
+    def tda09_g2_calibration_secondary_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_g2_calibration_secondary_csv_name
+
+    @property
+    def tda09_g2_synthetic_moment_check_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_g2_synthetic_moment_check_csv_name
+
+    @property
+    def tda09_mean_removal_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_mean_removal_sensitivity_csv_name
+
+    @property
+    def tda09_clock_flatness_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_clock_flatness_csv_name
+
+    @property
+    def tda09_acf_triple_png_path(self) -> Path:
+        return self.reports_dir / self.tda09_acf_triple_png_name
+
+    @property
+    def tda09_acf_raw_vs_adjusted_png_path(self) -> Path:
+        return self.reports_dir / self.tda09_acf_raw_vs_adjusted_png_name
+
+    @property
+    def tda09_decay_png_path(self) -> Path:
+        return self.reports_dir / self.tda09_decay_png_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -530,6 +621,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     th10 = raw.get("th10", {})
     tda08 = raw.get("tda08", {})
     tda08h = raw.get("tda08h", {})
+    tda09 = raw.get("tda09", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -640,4 +732,23 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda08h_report_name=tda08h.get("report_name", ""),
         tda08h_multi_horizon_csv_name=tda08h.get("multi_horizon_csv", ""),
         tda08h_plot_png_name=tda08h.get("plot_png", ""),
+        tda09_n_boot=int(tda09.get("n_boot", 300)),
+        tda09_n_perm=int(tda09.get("n_perm", 200)),
+        tda09_n_perm_arch_lm=int(tda09.get("n_perm_arch_lm", 60)),
+        tda09_report_name=tda09.get("report_name", ""),
+        tda09_acf_csv_name=tda09.get("acf_csv", ""),
+        tda09_bootstrap_ci_csv_name=tda09.get("bootstrap_ci_csv", ""),
+        tda09_clock_attribution_csv_name=tda09.get("clock_attribution_csv", ""),
+        tda09_persistence_by_year_csv_name=tda09.get("persistence_by_year_csv", ""),
+        tda09_persistence_by_segment_csv_name=tda09.get("persistence_by_segment_csv", ""),
+        tda09_portmanteau_csv_name=tda09.get("portmanteau_csv", ""),
+        tda09_arch_lm_csv_name=tda09.get("arch_lm_csv", ""),
+        tda09_g2_calibration_null1_csv_name=tda09.get("g2_calibration_null1_csv", ""),
+        tda09_g2_calibration_secondary_csv_name=tda09.get("g2_calibration_secondary_csv", ""),
+        tda09_g2_synthetic_moment_check_csv_name=tda09.get("g2_synthetic_moment_check_csv", ""),
+        tda09_mean_removal_sensitivity_csv_name=tda09.get("mean_removal_sensitivity_csv", ""),
+        tda09_clock_flatness_csv_name=tda09.get("clock_flatness_csv", ""),
+        tda09_acf_triple_png_name=tda09.get("acf_triple_png", ""),
+        tda09_acf_raw_vs_adjusted_png_name=tda09.get("acf_raw_vs_adjusted_png", ""),
+        tda09_decay_png_name=tda09.get("decay_png", ""),
     )

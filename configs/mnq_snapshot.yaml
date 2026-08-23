@@ -325,4 +325,40 @@ tda08h:
   output_dir_reports: reports/mnq
   report_name: TDA08H_horizon_memory_extension.md
   multi_horizon_csv: TDA08H_rho1_multi_horizon.csv
+
+# TDA-09 -- dependencia en magnitud / volatility clustering (TH19-TH21).
+# Entrada: variables + mascara de validez de TDA-04 (seccion `tda04`),
+# r_tilde y s(m) de TDA-06 (seccion `tda06`), segmentacion de TDA-06 --
+# ninguna se redeclara aqui. `n_boot`/`n_perm` son bootstrap de bloques
+# por jornada y calibracion G2 (null por permutacion dentro de
+# minute_of_day), misma convencion que TDA-08. `n_perm_arch_lm` es un
+# numero reducido de replicas para la calibracion empirica del LM de
+# Engle (cada replica exige una regresion OLS completa, no solo una
+# correlacion -- decision de presupuesto computacional documentada en el
+# informe). La grilla de rezagos (600 minutos, "varios cientos"),
+# ordenes del LM de Engle, ventana de energia de TH21 y umbrales de
+# STOP-9/decision de null/TH20 son constantes predeclaradas en
+# `tda09_volatility_clustering.py`, no valores de configuracion (mismo
+# criterio que TDA-08 aplico a su propia grilla de rezagos/m).
+tda09:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  n_perm: 200
+  n_perm_arch_lm: 60
+  report_name: TDA09_volatility_clustering.md
+  acf_csv: TDA09_acf_magnitud.csv
+  bootstrap_ci_csv: TDA09_bootstrap_ci.csv
+  clock_attribution_csv: TDA09_clock_attribution.csv
+  persistence_by_year_csv: TDA09_persistencia_por_anio.csv
+  persistence_by_segment_csv: TDA09_persistencia_por_segmento.csv
+  portmanteau_csv: TDA09_portmanteau.csv
+  arch_lm_csv: TDA09_arch_lm.csv
+  g2_calibration_null1_csv: TDA09_g2_calibracion_null1_principal.csv
+  g2_calibration_secondary_csv: TDA09_g2_calibracion_secundaria_global_ajustada.csv
+  g2_synthetic_moment_check_csv: TDA09_g2_diagnostico_momentos_sintetico.csv
+  mean_removal_sensitivity_csv: TDA09_sensibilidad_remocion_media.csv
+  clock_flatness_csv: TDA09_diagnostico_aplanamiento_reloj.csv
+  acf_triple_png: TDA09_acf_triple.png
+  acf_raw_vs_adjusted_png: TDA09_acf_raw_vs_adjustado.png
+  decay_png: TDA09_decay_loglog_semilog.png
   plot_png: TDA08H_rho1_multi_horizon.png
