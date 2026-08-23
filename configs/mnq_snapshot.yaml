@@ -351,6 +351,7 @@ tda09:
   clock_attribution_csv: TDA09_clock_attribution.csv
   persistence_by_year_csv: TDA09_persistencia_por_anio.csv
   persistence_by_segment_csv: TDA09_persistencia_por_segmento.csv
+  persistence_rolling_csv: TDA09_persistencia_ventana_rodante.csv
   portmanteau_csv: TDA09_portmanteau.csv
   arch_lm_csv: TDA09_arch_lm.csv
   g2_calibration_null1_csv: TDA09_g2_calibracion_null1_principal.csv

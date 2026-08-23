@@ -187,6 +187,7 @@ class SnapshotConfig:
     tda09_clock_attribution_csv_name: str = ""
     tda09_persistence_by_year_csv_name: str = ""
     tda09_persistence_by_segment_csv_name: str = ""
+    tda09_persistence_rolling_csv_name: str = ""
     tda09_portmanteau_csv_name: str = ""
     tda09_arch_lm_csv_name: str = ""
     tda09_g2_calibration_null1_csv_name: str = ""
@@ -531,6 +532,10 @@ class SnapshotConfig:
         return self.reports_dir / self.tda09_persistence_by_segment_csv_name
 
     @property
+    def tda09_persistence_rolling_csv_path(self) -> Path:
+        return self.reports_dir / self.tda09_persistence_rolling_csv_name
+
+    @property
     def tda09_portmanteau_csv_path(self) -> Path:
         return self.reports_dir / self.tda09_portmanteau_csv_name
 
@@ -741,6 +746,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda09_clock_attribution_csv_name=tda09.get("clock_attribution_csv", ""),
         tda09_persistence_by_year_csv_name=tda09.get("persistence_by_year_csv", ""),
         tda09_persistence_by_segment_csv_name=tda09.get("persistence_by_segment_csv", ""),
+        tda09_persistence_rolling_csv_name=tda09.get("persistence_rolling_csv", ""),
         tda09_portmanteau_csv_name=tda09.get("portmanteau_csv", ""),
         tda09_arch_lm_csv_name=tda09.get("arch_lm_csv", ""),
         tda09_g2_calibration_null1_csv_name=tda09.get("g2_calibration_null1_csv", ""),

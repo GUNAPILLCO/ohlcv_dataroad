@@ -3,13 +3,59 @@
 Implementa la etapa TDA-09 del roadmap
 (``docs/methodology/Tsay_OHLCV_analysis_roadmap.md``, seccion "TDA-09"):
 mide si el TAMAÑO de los movimientos de MNQ tiene memoria (agrupamiento
-de volatilidad), separando explicitamente cuanto de esa memoria es un
-patron determinista de reloj (TDA-06, ``s(m)``) y cuanto sobrevive tras
-quitarlo.
+de volatilidad), y compara esa memoria antes y despues de quitar el
+patron determinista de reloj (TDA-06, ``s(m)``).
 
 Resuelve TH19, TH20 y TH21 (ver informe,
-``reports/mnq/TDA09_volatility_clustering.md``, para el estado final de
-cada una).
+``reports/mnq/TDA09_volatility_clustering.md``, generado automaticamente
+por ``run_tda09.py`` a partir de este modulo -- nunca escrito a mano).
+
+CORRECCION DE AUDITORIA (v1, posterior al cierre v0): una revision
+detecto varios problemas de fondo que esta version corrige:
+
+1. **Estabilidad temporal incompleta**: el roadmap pide año, segmento Y
+   ventana rodante -- la v0 solo tenia año y segmento. Se añade
+   persistencia por VENTANA RODANTE (mes calendario, misma convencion
+   que ``rolling_rho1_by_month`` de TDA-08).
+2. **Sin incertidumbre por grupo**: la v0 solo reportaba ``rho`` puntual
+   por año/segmento. Se añade IC 95% bootstrap (rezago 1, costo acotado)
+   para año, segmento Y ventana rodante, con un motor NUEVO
+   (``bootstrap_rho_by_group_all_groups``) que amortiza el resampleo en
+   UNA sola pasada por replica para TODOS los grupos a la vez (no una
+   pasada por grupo -- ver docstring para el porque).
+3. **Interpretacion causal indebida de TH21**: la v0 decia implicitamente
+   que "el reloj explica X% del clustering". Se corrige: ``clock_attribution``
+   es una comparacion DESCRIPTIVA de una metrica de energia antes/despues
+   del ajuste -- nunca una descomposicion causal. La conclusion permitida
+   es "el clustering sobrevive claramente al ajuste horario", no un
+   porcentaje de atribucion causal.
+4. **Rolls en log_hl no verificados explicitamente**: la v0 confiaba
+   implicitamente en que TDA-04 certifico que todo roll coincide con un
+   cambio de ``trading_date`` (cierto para las poblaciones filtradas por
+   ``r_1m_valid``, pero ``log_hl_pop``/``log_hl_tilde_pop`` NO estan
+   filtradas asi). Se añade ``compute_block_ids_with_contract``, que
+   exige ADEMAS el mismo ``contract`` entre dos filas consecutivas --
+   nunca depende silenciosamente de un invariante de otra etapa cuando se
+   puede verificar aqui sin costo relevante.
+5. **Lenguaje de "estabilidad"**: no se declara "la magnitud es estable".
+   Se declara "la PRESENCIA del clustering es estable entre años y
+   segmentos, aunque su INTENSIDAD varia" -- una afirmacion mas precisa
+   y menos fuerte que la original.
+6. **TH20 reforzado**: sigue sin afirmar memoria larga; la ambiguedad
+   memoria-larga-vs-cambios-de-nivel queda expresamente abierta (TDA-14).
+7. **Informe no se generaba automaticamente**: ``run_tda09.py`` ahora
+   genera ``TDA09_volatility_clustering.md`` a partir de los resultados
+   (``render_report``) -- una sola ejecucion produce TODO TDA-09.
+8. **Progreso visible**: ``run_tda09_analysis`` acepta ``verbose=True`` y
+   imprime 8 etapas con tiempo por etapa y tiempo acumulado; el runner
+   añade una 9na etapa (persistencia de artefactos) con el mismo formato.
+9. **Optimizaciones de rendimiento** (documentadas, sin cambiar
+   metodologia): el bootstrap por grupo amortiza el resampleo entre
+   todos los grupos de una misma agrupacion (año/segmento/mes) en una
+   sola pasada por replica, en vez de resamplear una vez por grupo --
+   evita un costo multiplicativo (grupos x replicas) sin cambiar ningun
+   resultado (es exactamente la misma definicion, solo computada de
+   forma mas eficiente).
 
 Que es "magnitud" aqui, en una frase: NO es prediccion de direccion --
 ``|r_t|``, ``r_t^2`` y ``log(H_t/L_t)`` son proxies de cuan GRANDE fue el
@@ -18,7 +64,7 @@ agitados (y periodos tranquilos, tranquilos), eso es "memoria en
 magnitud" aunque la direccion siga siendo poco predecible (TDA-08 ya
 cerro esa pregunta por separado: TH16/17/18).
 
-Decision sobre r_t vs residuo/innovacion (seccion 8 de la tarea): TDA-08
+Decision sobre r_t vs residuo/innovacion (seccion 8 del roadmap): TDA-08
 (CLOSED) encontro que la dependencia lineal en la media es diminuta
 (``beta_1~0.0059``, ~0.14 ticks) y `NOT SEPARABLE WITH OHLCV LAST`
 (STOP-8a/8b). Por parsimonia (G4), este modulo usa ``r_1m`` directamente
@@ -28,29 +74,25 @@ comparar ACF(|r|) contra ACF(|r - beta_1*r_{t-1}|) en una grilla pequeña
 de rezagos, para verificar (no solo asumir) que remover la media no
 cambia materialmente la conclusion de magnitud.
 
-TOPOLOGIA TEMPORAL (bloqueante, heredada de TDA-08 sin modificarla): se
-reutilizan ``compute_block_ids``/``compute_acf``/``bootstrap_rho``/
-``acf_by_group``/``g2_permutation_null_by_minute`` de
+TOPOLOGIA TEMPORAL (bloqueante): se reutilizan ``compute_acf``/
+``bootstrap_rho``/``acf_by_group``/``g2_permutation_null_by_minute`` de
 ``tda08_linear_mean_dependence.py`` TAL CUAL -- ningun cambio a ese
-modulo. Ninguna ACF de esta etapa cruza ``trading_date``, gaps o rolls.
+modulo CLOSED. La construccion de bloques de continuidad usa una version
+PROPIA de esta etapa, ``compute_block_ids_with_contract`` (ver punto 4
+arriba) -- mas estricta que ``compute_block_ids`` de TDA-08 porque
+tambien exige mismo ``contract``. Ninguna ACF de esta etapa cruza
+``trading_date``, gaps o rolls de contrato.
 
-CRUDO vs AJUSTADO POR RELOJ (el resultado central de la etapa, seccion 7
-de la tarea):
+CRUDO vs AJUSTADO POR RELOJ (seccion 7 del roadmap):
 
 - ``|r_1m|``/``r_1m^2`` (crudo) vs ``|r_tilde|``/``r_tilde^2`` (ajustado)
   -- ``r_tilde = r_1m / s(m)`` ya fue construido y persistido por TDA-06
   (RETROSPECTIVO). ``|r_tilde| = |r_1m|/s(m)`` y ``r_tilde^2 =
-  r_1m^2/s(m)^2`` son identidades algebraicas directas de esa definicion
-  -- no se inventa ninguna transformacion nueva para estas dos variables.
+  r_1m^2/s(m)^2`` son identidades algebraicas directas de esa definicion.
 - ``log_hl`` (crudo) vs ``log_hl_tilde = log_hl / s(m)`` (ajustado) --
-  transformacion NUEVA de esta etapa, pero dimensionalmente identica a la
-  de ``r_tilde``: ``s(m)`` fue estimado por TDA-06 usando exactamente
-  ``log_hl`` como proxy elegido (informe TDA-06, seccion 11) -- dividir
-  ``log_hl`` por el mismo indice estacional que ya lo normaliza es
-  coherente por construccion, no una convencion arbitraria. Se verifica
-  (``verify_s_m_is_log_hl_proxy``) que ``tda06_s_m.parquet`` en efecto
-  proviene de ``log_hl`` antes de usarlo asi -- si TDA-06 cambiara de
-  proxy, esta etapa debe fallar explicitamente, no asumirlo en silencio.
+  transformacion NUEVA de esta etapa, dimensionalmente coherente porque
+  ``s(m)`` fue estimado por TDA-06 usando exactamente ``log_hl`` como
+  proxy elegido (verificado con ``verify_s_m_is_log_hl_proxy``).
 
 Todo lo etiquetado "ajustado"/``r_tilde``/``log_hl_tilde`` hereda la
 etiqueta ``RETROSPECTIVO`` de TDA-06 -- NUNCA se presenta como una
@@ -69,7 +111,8 @@ Que NO hace este modulo (deliberadamente, fuera de alcance de TDA-09):
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -100,7 +143,6 @@ from ohlcv_dataroad.ingest.tda08_linear_mean_dependence import (
     bartlett_se,
     bootstrap_rho,
     compute_acf,
-    compute_block_ids,
     compute_portmanteau_q,
     g2_null1_calibration_summary,
     g2_null1_portmanteau_summary,
@@ -119,9 +161,17 @@ __all__ = [
     "STOP9_FRACTION_REMOVED_THRESHOLD",
     "CLOCK_FLATNESS_RATIO_THRESHOLD",
     "TH20_MIN_FRACTION_SURVIVES",
+    "TH19_MIN_MATERIAL_RHO",
+    "TH21_SURVIVES_GENUINE_THRESHOLD",
+    "TH21_SURVIVES_ARTIFACT_THRESHOLD",
+    "GROUP_BOOTSTRAP_N_BOOT",
+    "GROUP_BOOTSTRAP_LAG",
+    "ANALYSIS_STAGES",
+    "TOTAL_STAGES",
     "build_log_hl_population",
     "verify_s_m_is_log_hl_proxy",
     "build_log_hl_tilde",
+    "compute_block_ids_with_contract",
     "mean_removal_sensitivity",
     "clock_profile_flatness",
     "g2_global_permutation_null",
@@ -132,21 +182,21 @@ __all__ = [
     "dependence_energy",
     "clock_attribution",
     "decide_stop9",
+    "decide_th19",
+    "classify_th21",
+    "th20_status_label",
+    "bootstrap_rho_by_group_all_groups",
+    "year_month_labels",
     "decay_form_diagnostic",
     "TDA09Result",
     "run_tda09_analysis",
 ]
 
 # ---------------------------------------------------------------------------
-# Convenciones PREDECLARADAS (seccion 10/11/12/13/14/17/18 de la tarea --
-# nunca elegidas despues de ver el resultado)
+# Convenciones PREDECLARADAS (nunca elegidas despues de ver el resultado)
 # ---------------------------------------------------------------------------
 
-# "Varios cientos de rezagos" (roadmap TH19): 600 minutos = 10 horas --
-# cubre corto plazo, decaimiento y persistencia de varias horas, y queda
-# comodamente por debajo del techo estructural de continuidad que TDA-08
-# ya documento (max rezago continuo estimable = 1.378, ver ese informe
-# seccion 1) sin necesitar volver a verificarlo aqui.
+# "Varios cientos de rezagos" (roadmap TH19): 600 minutos = 10 horas.
 MAX_LAG_MAGNITUDE = 600
 
 BOOTSTRAP_LAGS_MAGNITUDE = (1, 2, 5, 10, 20, 30, 60, 120, 240, 360, 480, 600)
@@ -155,47 +205,49 @@ G2_NULL_MAX_LAG = 60
 G2_LAGS = tuple(k for k in BOOTSTRAP_LAGS_MAGNITUDE if k <= G2_NULL_MAX_LAG)
 # ``g2_null1_portmanteau_summary`` (TDA-08) asume columnas de rezago
 # CONTIGUAS (1..N) para poder tomar el prefijo ``[:m]`` -- se calcula el
-# null de permutacion sobre el rango CONTIGUO completo (igual que TDA-08:
-# ``null_lags = tuple(range(1, G2_NULL_MAX_LAG + 1))``), y se subselecciona
+# null de permutacion sobre el rango CONTIGUO completo, y se subselecciona
 # por indice para la tabla de calibracion de ``rho`` en la grilla dispersa
 # ``G2_LAGS`` -- exactamente el patron de TDA-08 (``bootstrap_lag_idx``).
 G2_FULL_LAGS = tuple(range(1, G2_NULL_MAX_LAG + 1))
 
-# Grilla pequeña y predeclarada para persistencia por año/segmento
-# (seccion 19 de la tarea: "no hace falta recalcular cientos de lags para
-# cada subdivision si una tabla pequeña de lags predeclarados responde
-# correctamente la pregunta").
+# Grilla pequeña y predeclarada para persistencia por año/segmento/ventana
+# rodante (mensual): "no hace falta recalcular cientos de lags para cada
+# subdivision si una tabla pequeña de lags predeclarados responde
+# correctamente la pregunta".
 STABILITY_LAGS = (1, 5, 20, 60)
 
-# LM de Engle: cantidad pequeña y predeclarada de ordenes (seccion 14 de
-# la tarea).
+# LM de Engle: cantidad pequeña y predeclarada de ordenes.
 ARCH_LM_ORDERS = (1, 5, 20)
 
 # Ventana predeclarada para la metrica de "cantidad total de dependencia"
-# (TH21, seccion 17 de la tarea): 240 minutos = 4 horas -- captura
-# dependencia acumulada de varias horas sin exigir el rango completo de
-# MAX_LAG_MAGNITUDE.
+# (TH21): 240 minutos = 4 horas.
 TH21_ENERGY_M = 240
 
-# STOP-9 (seccion 22): si la fraccion de dependencia que SOBREVIVE al
-# ajuste cae por debajo de este umbral (es decir, se remueve >=90%), se
-# declara STOP-9 ACTIVADO. Punto de referencia DESCRIPTIVO predeclarado,
-# leido de forma holistica junto con |r| Y log_hl (igual que TDA-06 hizo
-# con STOP-6) -- no una puerta binaria ciega sobre una sola cifra.
+# STOP-9: si la fraccion de dependencia que SOBREVIVE al ajuste cae por
+# debajo de este umbral (es decir, se remueve >=90%) en TODAS las
+# variables evaluadas, se declara STOP-9 ACTIVADO.
 STOP9_FRACTION_REMOVED_THRESHOLD = 0.90
 
 # Umbral para decidir si el perfil de reloj de la serie AJUSTADA quedo
-# "efectivamente removido" (seccion 15 de la tarea) -- comparacion de
-# rango relativo, no una decision automatica: se documenta siempre, y el
-# null POR MINUTO (mas conservador, nunca asume nada) sigue siendo el
-# PRINCIPAL en todos los casos; el null GLOBAL solo se reporta como
-# sensibilidad secundaria para la serie ajustada.
+# "efectivamente removido" -- el null POR MINUTO (mas conservador) sigue
+# siendo el PRINCIPAL en todos los casos; el null GLOBAL solo se reporta
+# como sensibilidad secundaria para la serie ajustada.
 CLOCK_FLATNESS_RATIO_THRESHOLD = 0.20
 
 # TH20 solo se habilita si una fraccion no trivial de la dependencia
-# sobrevive al ajuste (seccion 18 de la tarea: "solo si TH19 demuestra que
-# una cantidad MATERIAL de dependencia... sobrevive").
+# sobrevive al ajuste.
 TH20_MIN_FRACTION_SURVIVES = 0.05
+
+# TH19: materialidad minima de rho en el rezago 1 de |r| crudo (G5 --
+# "no solo estadisticamente distinto de cero"). Predeclarado.
+TH19_MIN_MATERIAL_RHO = 0.02
+
+# TH21 (clasificacion DESCRIPTIVA, nunca causal -- ver clock_attribution):
+# umbrales predeclarados sobre la fraccion de energia de dependencia que
+# SOBREVIVE al ajuste, para clasificar la comparacion en una de tres
+# etiquetas descriptivas.
+TH21_SURVIVES_GENUINE_THRESHOLD = 0.5
+TH21_SURVIVES_ARTIFACT_THRESHOLD = 0.1
 
 DEFAULT_N_BOOT = 300
 DEFAULT_BOOTSTRAP_SEED = 0
@@ -209,20 +261,122 @@ NULL_PERCENTILE = 97.5
 
 MIN_N_FOR_GROUP = 200
 
+# Bootstrap por grupo (año/segmento/ventana rodante mensual): n_boot
+# reducido (presupuesto computacional documentado -- ver
+# ``bootstrap_rho_by_group_all_groups``) y UN SOLO rezago (el mas
+# informativo para la pregunta de estabilidad: ¿el clustering de
+# rezago-1 aparece en todos los subperiodos?). Los rezagos 5/20/60 del
+# punto estimado (STABILITY_LAGS) no llevan IC bootstrap por costo.
+GROUP_BOOTSTRAP_N_BOOT = 50
+GROUP_BOOTSTRAP_LAG = 1
+GROUP_BOOTSTRAP_SEED = 6
+GROUP_BOOTSTRAP_MIN_REPLICAS = 10
+
+ANALYSIS_STAGES = 8
+TOTAL_STAGES = 9  # 8 de analisis (run_tda09_analysis) + 1 de persistencia de artefactos (run_tda09.py)
+
 
 class SMProxyMismatchError(Exception):
     """``tda06_s_m.parquet`` no fue construido con ``log_hl`` como proxy.
 
     TDA-06 (CLOSED) eligio ``log_hl`` como proxy de ``s(m)`` (informe,
-    seccion 11: "proxy elegido: log_hl"). El ajuste ``log_hl_tilde =
-    log_hl / s(m)`` de esta etapa depende de esa eleccion especifica para
-    ser dimensionalmente coherente (dividir ``log_hl`` por un indice
-    estacional estimado sobre SI MISMO). Si una version futura de TDA-06
-    cambiara de proxy sin que esta etapa se actualizara, aplicar la misma
-    formula seria una transformacion arbitraria, no la coherente descrita
-    en el informe -- por eso esta comprobacion es bloqueante en vez de
-    asumida.
+    seccion 11). El ajuste ``log_hl_tilde = log_hl / s(m)`` de esta etapa
+    depende de esa eleccion especifica para ser dimensionalmente
+    coherente -- si una version futura de TDA-06 cambiara de proxy sin
+    que esta etapa se actualizara, aplicar la misma formula seria una
+    transformacion arbitraria. Comprobacion bloqueante, nunca asumida.
     """
+
+
+# ---------------------------------------------------------------------------
+# Progreso visible -- 8 etapas de analisis + tiempo acumulado
+# ---------------------------------------------------------------------------
+
+class _StageTimer:
+    """Imprime ``[TDA09 i/N] mensaje...`` y, al abrir la siguiente etapa (o
+    al llamar ``finish()``), el tiempo que tomo la etapa anterior y el
+    tiempo total acumulado desde el inicio. Guarda todos los tiempos por
+    etapa en ``self.stage_timings`` para incluirlos en el informe.
+    """
+
+    def __init__(self, total_stages: int = ANALYSIS_STAGES, verbose: bool = True):
+        self.total = total_stages
+        self.verbose = verbose
+        self.t_start = time.perf_counter()
+        self.stage_timings: dict[str, float] = {}
+        self._last = self.t_start
+        self._i = 0
+        self._current_name = ""
+
+    def stage(self, name: str) -> None:
+        now = time.perf_counter()
+        if self._i > 0:
+            elapsed_stage = now - self._last
+            self.stage_timings[self._current_name] = elapsed_stage
+            if self.verbose:
+                total_elapsed = now - self.t_start
+                print(f"[TDA09 {self._i}/{self.total}] {self._current_name} -- completado en {elapsed_stage:.1f}s (total: {total_elapsed:.1f}s)")
+        self._i += 1
+        self._current_name = name
+        self._last = now
+        if self.verbose:
+            print(f"[TDA09 {self._i}/{self.total}] {name}...")
+
+    def finish(self) -> dict[str, float]:
+        now = time.perf_counter()
+        elapsed_stage = now - self._last
+        self.stage_timings[self._current_name] = elapsed_stage
+        if self.verbose:
+            total_elapsed = now - self.t_start
+            print(f"[TDA09 {self._i}/{self.total}] {self._current_name} -- completado en {elapsed_stage:.1f}s (total: {total_elapsed:.1f}s)")
+        self.stage_timings["_total_analysis"] = now - self.t_start
+        return self.stage_timings
+
+
+# ---------------------------------------------------------------------------
+# Topologia -- bloques de continuidad que ADEMAS exigen mismo contrato
+# ---------------------------------------------------------------------------
+
+def compute_block_ids_with_contract(
+    timestamp: pd.Series, trading_date: pd.Series, contract: pd.Series, expected_delta_seconds: float,
+) -> np.ndarray:
+    """Como ``compute_block_ids`` (TDA-08) pero exige ADEMAS el mismo
+    ``contract`` entre dos filas consecutivas para pertenecer al mismo
+    bloque de continuidad -- defensa EXPLICITA e independientemente
+    verificable de que ninguna ACF cruza un roll de contrato.
+
+    Por que hace falta esto ademas de lo que TDA-08 ya hacia: TDA-04
+    (informe, seccion 5) certifico que todo roll coincide con un cambio
+    de ``trading_date``, asi que para poblaciones filtradas a
+    ``r_1m_valid=True`` (que ya excluyen la fila ``ROLL_BOUNDARY``) esa
+    proteccion era implicita. Mismo esta comprobacion se aplica aqui de
+    forma UNIFORME a las 4 poblaciones de esta etapa -- en particular a
+    ``log_hl``/``log_hl_tilde``, que incluyen TODAS las barras admisibles
+    (no solo ``r_1m_valid=True``) y por tanto NO heredan esa proteccion
+    implicita. Nunca se depende silenciosamente de un invariante de otra
+    etapa cuando se puede verificar directamente aqui, sin costo
+    adicional relevante (una comparacion de arrays mas).
+    """
+    ts = pd.to_datetime(timestamp)
+    order = np.argsort(ts.to_numpy())
+    ts_sorted = ts.to_numpy()[order]
+    td_sorted = np.asarray(trading_date)[order]
+    contract_sorted = np.asarray(contract)[order]
+
+    n = len(ts_sorted)
+    if n == 0:
+        return np.array([], dtype=int)
+
+    delta_seconds = np.diff(ts_sorted).astype("timedelta64[ns]").astype(np.int64) / 1e9
+    same_date = td_sorted[1:] == td_sorted[:-1]
+    same_contract = contract_sorted[1:] == contract_sorted[:-1]
+    continues = (np.abs(delta_seconds - expected_delta_seconds) < 1e-6) & same_date & same_contract
+    new_block = np.concatenate([[True], ~continues])
+    block_ids_sorted = np.cumsum(new_block) - 1
+
+    block_ids = np.empty(n, dtype=int)
+    block_ids[order] = block_ids_sorted
+    return block_ids
 
 
 # ---------------------------------------------------------------------------
@@ -237,10 +391,7 @@ def build_log_hl_population(variables: pd.DataFrame, validity: pd.DataFrame, cut
     de ``minute_of_day``/``year_ny`` que TDA-06/07/08 ya certificaron) SIN
     filtrar por ``r_1m_valid`` -- a diferencia de ``build_r1m_population``
     (TDA-07), porque ``log_hl`` no necesita una barra anterior comparable
-    (TDA-04: "nunca es NaN por una regla de no-cruce"). Misma convencion
-    que us TDA-06 uso para el perfil de ``log_hl``/``volume`` (poblacion
-    completa, ~1.918.050 filas sobre el conjunto de investigacion real,
-    frente a las ~1.914.530 de ``r_1m_valid``).
+    (TDA-04: "nunca es NaN por una regla de no-cruce").
     """
     df = attach_calendar_fields(variables, validity)
     df["segment_label"], labels = assign_segment_label(df["minute_of_day"], cutoffs)
@@ -248,13 +399,7 @@ def build_log_hl_population(variables: pd.DataFrame, validity: pd.DataFrame, cut
 
 
 def verify_s_m_is_log_hl_proxy(s_m_table: pd.DataFrame) -> None:
-    """Invariante bloqueante: ``tda06_s_m.parquet`` debe provenir EXCLUSIVAMENTE del proxy ``log_hl``.
-
-    Ver ``SMProxyMismatchError`` para el porque. Se ejecuta ANTES de
-    construir ``log_hl_tilde`` -- si falla, esta etapa se detiene sin
-    producir la rama ajustada de ``log_hl`` (la rama de ``r_tilde``, que
-    no depende de esta comprobacion, no se ve afectada).
-    """
+    """Invariante bloqueante: ``tda06_s_m.parquet`` debe provenir EXCLUSIVAMENTE del proxy ``log_hl``."""
     proxies = s_m_table["proxy"].unique()
     if len(proxies) != 1 or proxies[0] != "log_hl":
         raise SMProxyMismatchError(
@@ -267,13 +412,8 @@ def verify_s_m_is_log_hl_proxy(s_m_table: pd.DataFrame) -> None:
 def build_log_hl_tilde(log_hl_pop: pd.DataFrame, s_m_table: pd.DataFrame) -> pd.DataFrame:
     """``log_hl_tilde = log_hl / s(minute_of_day)`` -- ajuste RETROSPECTIVO, dimensionalmente coherente.
 
-    Identica mecanica de proteccion que ``tda06_intraday_calendar_profile.build_r_tilde``
-    (division protegida: ``NaN`` explicito donde ``s_m`` no esta definido
-    o no es positivo, nunca ``inf``) -- no se duplica esa funcion, se
-    reimplementa la misma regla de dos lineas para no importar un
-    artefacto especifico de ``r_1m`` sobre una poblacion de ``log_hl`` que
-    tiene una fila distinta (TODAS las barras, no solo ``r_1m_valid``).
-
+    Division protegida (``s_m=0``/no finito -> ``NaN`` explicito, nunca
+    ``inf``), misma mecanica que ``tda06_intraday_calendar_profile.build_r_tilde``.
     Requiere que ``verify_s_m_is_log_hl_proxy`` ya haya pasado.
     """
     s_map = s_m_table.set_index("minute_of_day")["s_m"]
@@ -290,29 +430,19 @@ def build_log_hl_tilde(log_hl_pop: pd.DataFrame, s_m_table: pd.DataFrame) -> pd.
 
 
 # ---------------------------------------------------------------------------
-# Decision sobre r_t vs innovacion (seccion 8 de la tarea) -- sensibilidad
-# barata unica, NO un nuevo modelo de media
+# Decision sobre r_t vs innovacion -- sensibilidad barata unica, NO un
+# nuevo modelo de media
 # ---------------------------------------------------------------------------
 
 def mean_removal_sensitivity(r1m_pop: pd.DataFrame, block_ids_raw: np.ndarray, lags: tuple[int, ...] = STABILITY_LAGS) -> pd.DataFrame:
     """Compara ACF(|r|) contra ACF(|r - beta_1*r_{t-1}|) -- ¿remover la media cambia la conclusion de magnitud?
 
-    ``beta_1`` se recalcula aqui mismo (nunca se congela un numero externo
-    de TDA-08, para no arriesgar que quede obsoleto si el conjunto de
-    investigacion cambia) via ``compute_acf`` a rezago 1 sobre la misma
-    poblacion ``r1m_pop``/``block_ids_raw``. El residuo ``e_t = r_t -
-    beta_1*r_{t-1}`` solo se define donde existe un par valido del MISMO
-    bloque de continuidad (nunca se fabrica un vecino) -- las filas sin
-    predecesor valido quedan excluidas de la subpoblacion de ``e``, y los
-    bloques de continuidad de ESA subpoblacion se recalculan desde sus
-    propios timestamps (``compute_block_ids`` genera bloques mas cortos
-    automaticamente donde se elimino una fila, sin necesitar logica
-    adicional).
-
-    Es, deliberadamente, la UNICA sensibilidad de este tipo en la etapa
-    (seccion 8 de la tarea: "puede realizarse como maximo una sensibilidad
-    barata"). No es un modelo AR ajustado ni se persiste como artefacto
-    separado -- se reporta en el informe (§8).
+    ``beta_1`` se recalcula aqui mismo via ``compute_acf`` a rezago 1. El
+    residuo ``e_t = r_t - beta_1*r_{t-1}`` solo se define donde existe un
+    par valido del MISMO bloque de continuidad (nunca se fabrica un
+    vecino); los bloques de la subpoblacion de ``e`` se recalculan con
+    ``compute_block_ids_with_contract`` sobre sus propios timestamps
+    (bloques mas cortos automaticamente donde se elimino una fila).
     """
     values = r1m_pop["r_1m"].to_numpy(dtype=float)
     acf1 = compute_acf(values, block_ids_raw, max_lag=1)
@@ -324,7 +454,7 @@ def mean_removal_sensitivity(r1m_pop: pd.DataFrame, block_ids_raw: np.ndarray, l
 
     sub = r1m_pop.loc[same_block_prev].copy()
     sub["e"] = e[same_block_prev]
-    sub_block_ids = compute_block_ids(sub["timestamp"], sub["trading_date"], 60.0)
+    sub_block_ids = compute_block_ids_with_contract(sub["timestamp"], sub["trading_date"], sub["contract"], 60.0)
 
     max_lag = max(lags)
     abs_r_acf = compute_acf(np.abs(values), block_ids_raw, max_lag).set_index("lag")
@@ -343,17 +473,11 @@ def mean_removal_sensitivity(r1m_pop: pd.DataFrame, block_ids_raw: np.ndarray, l
 
 # ---------------------------------------------------------------------------
 # G2 -- perfil de reloj de la serie AJUSTADA: ¿esta "efectivamente
-# removido"? (seccion 15 de la tarea -- se verifica, no se asume)
+# removido"?
 # ---------------------------------------------------------------------------
 
 def clock_profile_flatness(values: np.ndarray, minute_of_day: np.ndarray) -> float:
-    """``std(mediana por minuto) / mean(mediana por minuto)`` -- cuanto varia el nivel tipico entre minutos.
-
-    Cuanto MAS BAJO, mas "plano" es el perfil por minuto de ``values`` --
-    un perfil perfectamente plano (sin patron de reloj) da ~0. Se usa la
-    MEDIANA por minuto (robusta a colas, misma preferencia de TDA-06) en
-    vez de la media.
-    """
+    """``std(mediana por minuto) / mean(mediana por minuto)`` -- cuanto varia el nivel tipico entre minutos."""
     df = pd.DataFrame({"m": np.asarray(minute_of_day), "v": np.asarray(values, dtype=float)})
     med = df.groupby("m")["v"].median().dropna()
     mean_level = float(med.mean())
@@ -369,12 +493,9 @@ def g2_global_permutation_null(
     """Null SECUNDARIO para la serie AJUSTADA: permutacion GLOBAL (sin condicionar por minuto).
 
     Solo defendible si el perfil de reloj de la serie ajustada ya quedo
-    efectivamente removido (``clock_profile_flatness`` bajo, ver
-    ``CLOCK_FLATNESS_RATIO_THRESHOLD``) -- por eso NUNCA es el null
-    PRINCIPAL de esta etapa (ese rol lo cumple siempre
-    ``g2_permutation_null_by_minute``, mas conservador porque no depende
-    de esa verificacion). Se reporta como sensibilidad secundaria,
-    explicitamente comparada contra el principal (informe, TH21).
+    efectivamente removido (``clock_profile_flatness`` bajo) -- por eso
+    NUNCA es el null PRINCIPAL (ese rol lo cumple siempre
+    ``g2_permutation_null_by_minute``, mas conservador).
     """
     rng = np.random.default_rng(seed)
     max_lag = max(lags)
@@ -389,19 +510,11 @@ def g2_global_permutation_null(
 
 
 # ---------------------------------------------------------------------------
-# LM de Engle -- diagnostico/test, NUNCA modelo ajustado (seccion 14)
+# LM de Engle -- diagnostico/test, NUNCA modelo ajustado
 # ---------------------------------------------------------------------------
 
 def block_relative_position(block_ids: np.ndarray) -> np.ndarray:
-    """Posicion (0-index) de cada fila DENTRO de su propio bloque de continuidad.
-
-    Una fila con posicion ``p`` garantiza que las ``p`` filas anteriores
-    pertenecen al MISMO bloque (los bloques son, por construccion de
-    ``compute_block_ids``, tramos de delta=60s exacto y mismo
-    ``trading_date`` -- nunca hay un salto oculto dentro de un bloque).
-    Se usa para decidir, sin ambiguedad, que filas tienen una cadena
-    COMPLETA de ``order`` rezagos validos para el LM de Engle.
-    """
+    """Posicion (0-index) de cada fila DENTRO de su propio bloque de continuidad."""
     return pd.Series(np.arange(len(block_ids))).groupby(np.asarray(block_ids)).cumcount().to_numpy()
 
 
@@ -410,18 +523,7 @@ def engle_lm_statistic(x: np.ndarray, block_ids: np.ndarray, order: int) -> dict
 
     Regresion OLS: ``x_t^2`` sobre una constante y ``x_{t-1}^2 .. x_{t-order}^2``,
     restringida a filas con una cadena COMPLETA de ``order`` rezagos
-    validos DENTRO del mismo bloque de continuidad
-    (``block_relative_position(block_ids) >= order``) -- nunca se
-    construye un rezago que cruce ``trading_date``, un hueco o un roll.
-
-    ``LM = n_eff * R^2`` (formulacion estandar de Engle, Tsay C3) -- bajo
-    topologia fragmentada y muestras de ``n~10^6``, la calibracion
-    asintotica clasica (``chi2(order)``) NO se usa como evidencia
-    principal (seccion 14 de la tarea): este numero se reporta junto a su
-    calibracion EMPIRICA por permutacion (``calibrate_engle_lm``), nunca
-    solo.
-
-    Salida: ``dict`` con ``order``, ``n_eff``, ``LM``, ``R2``, ``estimable``.
+    validos DENTRO del mismo bloque de continuidad.
     """
     x = np.asarray(x, dtype=float)
     pos = block_relative_position(block_ids)
@@ -447,13 +549,7 @@ def engle_lm_statistic(x: np.ndarray, block_ids: np.ndarray, order: int) -> dict
 
 
 def _permute_within_minute(values: np.ndarray, minute_of_day: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Permuta ``values`` DENTRO de cada ``minute_of_day`` -- misma mecanica que ``g2_permutation_null_by_minute`` (TDA-08), expuesta como paso reutilizable.
-
-    Se reimplementa (en vez de extraerse de TDA-08, para no modificar ese
-    modulo CLOSED) porque el LM de Engle necesita el ARRAY PERMUTADO
-    completo, no solo el ``rho_k`` que ``g2_permutation_null_by_minute``
-    devuelve.
-    """
+    """Permuta ``values`` DENTRO de cada ``minute_of_day``."""
     values = np.asarray(values, dtype=float)
     minute_of_day = np.asarray(minute_of_day)
     order = np.argsort(minute_of_day, kind="stable")
@@ -472,16 +568,7 @@ def calibrate_engle_lm(
     x: np.ndarray, block_ids: np.ndarray, minute_of_day: np.ndarray, order: int,
     n_perm: int = N_PERM_ARCH_LM, seed: int = ARCH_LM_PERMUTATION_SEED,
 ) -> dict:
-    """Calibracion EMPIRICA del LM de Engle: percentil del ``LM`` real dentro de ``n_perm`` replicas permutadas por minuto.
-
-    Misma logica de G2 (Null 1: permutacion dentro de ``minute_of_day``,
-    preserva el perfil de reloj y la marginal real, destruye la
-    dependencia serial) aplicada al estadistico LM en vez de a ``rho_k``.
-    ``n_perm`` reducido respecto del G2 principal (60 vs 200) por
-    presupuesto computacional -- cada replica exige una regresion OLS
-    completa sobre ~n filas, no solo una correlacion; decision de
-    presupuesto documentada explicitamente, no una reduccion silenciosa.
-    """
+    """Calibracion EMPIRICA del LM de Engle: percentil del ``LM`` real dentro de ``n_perm`` replicas permutadas por minuto."""
     real = engle_lm_statistic(x, block_ids, order)
     if not real["estimable"]:
         return {**real, "n_perm": 0, "null_p50": float("nan"), "null_p975": float("nan"), "percentile_of_real": float("nan"), "exceeds_calibration_threshold": False}
@@ -505,7 +592,7 @@ def calibrate_engle_lm(
 
 # ---------------------------------------------------------------------------
 # Diagnostico "same-clock-position" entre jornadas -- SEPARADO y distinto
-# de una ACF continua de 1.380 minutos (seccion 11 de la tarea)
+# de una ACF continua de 1.380 minutos
 # ---------------------------------------------------------------------------
 
 def same_clock_next_trading_day(
@@ -513,24 +600,11 @@ def same_clock_next_trading_day(
 ) -> dict:
     """Correlacion, agrupada a traves de TODOS los minutos, entre el valor de ``value_col`` en (trading_date=d, minuto=m) y en (trading_date=SIGUIENTE dia de negociacion presente, minuto=m).
 
-    Explicitamente NO es una ACF continua de 1.380/2.760 minutos: la
-    topologia de no-cruce vigente (TDA-08, seccion 1) hace que ese rezago
-    sea ``NOT_ESTIMABLE`` bajo el motor continuo (max rezago realmente
-    estimable = 1.378). Este diagnostico no conecta el final de un
-    ``trading_date`` con el siguiente minuto a minuto -- en su lugar,
-    empareja el MISMO minuto del reloj en dos jornadas de negociacion
-    CONSECUTIVAS presentes en los datos (no necesariamente consecutivas
-    en el calendario: fines de semana/feriados simplemente hacen que el
-    "siguiente dia de negociacion" no sea el dia calendario siguiente).
-
-    El bootstrap remuestrea PARES DE DIAS CONSECUTIVOS completos (con
-    reemplazo) -- mismo principio de bloque por jornada que el resto de
-    la etapa, aplicado aqui a la unidad "par (dia_i, dia_i+1)".
-
-    Salida: ``dict`` con ``rho``, ``n_pairs`` (pares minuto-valido
-    presentes en ambos dias, sumados sobre todos los pares de dias),
-    ``n_day_pairs`` (numero de pares de dias consecutivos), ``ci_lo``,
-    ``ci_hi``.
+    Explicitamente NO es una ACF continua de 1.380/2.760 minutos (ese
+    rezago es ``NOT_ESTIMABLE`` bajo el motor continuo). Empareja el
+    MISMO minuto del reloj en dos jornadas de negociacion CONSECUTIVAS
+    presentes en los datos. El bootstrap remuestrea PARES DE DIAS
+    CONSECUTIVOS completos (con reemplazo).
     """
     df = pop_df[["trading_date", "minute_of_day", value_col]].copy()
     dates = sorted(df["trading_date"].unique())
@@ -573,31 +647,35 @@ def same_clock_next_trading_day(
 
 
 # ---------------------------------------------------------------------------
-# TH21 -- fraccion de dependencia removida por el reloj / que sobrevive
+# TH21 -- comparacion DESCRIPTIVA de energia de dependencia (NUNCA una
+# descomposicion causal de "cuanto explica el reloj")
 # ---------------------------------------------------------------------------
 
 def dependence_energy(acf_tab: pd.DataFrame, m: int) -> float:
-    """``Q(m) = sum_{k=1}^{m} n_pairs_k * rho_k^2`` -- la MISMA metrica de portmanteau de TDA-08, reutilizada como "cantidad total de dependencia" no negativa.
-
-    Se elige esta metrica (en vez de inventar una nueva) porque ya es la
-    unica cantidad de la etapa que (a) pondera cada rezago por su propia
-    precision (``n_pairs_k``, mas pares = mas confianza), (b) es
-    monotonamente no negativa por construccion, y (c) ya se calcula de
-    todas formas para el portmanteau -- reusarla evita definir una segunda
-    convencion de "energia de dependencia" sin necesidad (G4).
-    """
+    """``Q(m) = sum_{k=1}^{m} n_pairs_k * rho_k^2`` -- la MISMA metrica de portmanteau de TDA-08, reutilizada como "cantidad total de dependencia" no negativa."""
     q_tab = compute_portmanteau_q(acf_tab, (m,))
     row = q_tab.loc[q_tab["m"] == m].iloc[0]
     return float(row["Q"]) if bool(row["estimable"]) else float("nan")
 
 
 def clock_attribution(acf_raw: pd.DataFrame, acf_adjusted: pd.DataFrame, m: int = TH21_ENERGY_M) -> dict:
-    """Fraccion de la dependencia (energia ``Q(m)``) removida/que sobrevive al ajuste por ``s(m)``.
+    """Compara la energia de dependencia (``Q(m)``) ANTES y DESPUES del ajuste por ``s(m)`` -- una comparacion DESCRIPTIVA, NO una descomposicion causal.
 
-    ``fraccion_removida = 1 - Q_adjusted/Q_raw``; ``fraccion_sobrevive =
-    Q_adjusted/Q_raw``. Si ``Q_raw`` es 0 o no finito, ambas fracciones se
-    reportan como ``NaN`` explicito -- nunca se fuerza un porcentaje sobre
-    un denominador inestable (seccion 17 de la tarea).
+    IMPORTANTE (correccion de auditoria v1): ``fraction_removed``/
+    ``fraction_survives`` son un CAMBIO DESCRIPTIVO de una metrica de
+    energia entre dos series (cruda y ajustada) -- NUNCA se interpretan
+    como "el reloj explica X% del clustering". Esa lectura implicaria una
+    descomposicion causal aditiva (energia_total = energia_reloj +
+    energia_dinamica) que esta metrica no garantiza: `Q(m)` no es lineal
+    en la transformacion `s(m)`, y ambas series comparten la MISMA
+    dinamica subyacente ademas de diferir en escala por minuto -- por eso
+    la fraccion puede incluso ser NEGATIVA (la energia sube tras
+    ajustar) sin que eso signifique que el reloj "aportaba menos que
+    cero". La UNICA lectura valida es: "la energia de dependencia
+    cambio de esta manera al estandarizar por el perfil de reloj" -- y,
+    cuando la fraccion que sobrevive es alta, "el clustering sobrevive
+    claramente al ajuste horario y el reloj no explica la mayor parte de
+    la persistencia observada" (ver ``classify_th21``).
     """
     q_raw = dependence_energy(acf_raw, m)
     q_adj = dependence_energy(acf_adjusted, m)
@@ -613,13 +691,9 @@ def clock_attribution(acf_raw: pd.DataFrame, acf_adjusted: pd.DataFrame, m: int 
 def decide_stop9(attributions: list[dict], threshold: float = STOP9_FRACTION_REMOVED_THRESHOLD) -> dict:
     """STOP-9: lectura HOLISTICA (misma filosofia que ``decide_stop6`` de TDA-06) sobre varias variables de magnitud.
 
-    ``attributions`` es una lista de resultados de ``clock_attribution``
-    (una entrada por variable, p.ej. ``|r|`` y ``log_hl``). STOP-9 se
-    declara ACTIVADO solo si TODAS las variables evaluadas muestran una
-    fraccion removida por encima del umbral (colapso practicamente
-    completo en cada una) -- si UNA variable muestra dependencia que
-    sobrevive de forma material, no se activa (el roadmap exige "colapsa
-    PRACTICAMENTE POR COMPLETO", no "colapsa en promedio").
+    STOP-9 se declara ACTIVADO solo si TODAS las variables evaluadas
+    muestran una fraccion removida por encima del umbral (colapso
+    practicamente completo en cada una).
     """
     valid = [a for a in attributions if np.isfinite(a.get("fraction_removed", float("nan")))]
     if not valid:
@@ -637,9 +711,70 @@ def decide_stop9(attributions: list[dict], threshold: float = STOP9_FRACTION_REM
     }
 
 
+def classify_th21(clock_attribution_rows: list[dict], genuine_threshold: float = TH21_SURVIVES_GENUINE_THRESHOLD, artifact_threshold: float = TH21_SURVIVES_ARTIFACT_THRESHOLD) -> dict:
+    """Clasificacion DESCRIPTIVA (nunca causal) de TH21 a partir de la fraccion de energia que SOBREVIVE al ajuste.
+
+    ``CLUSTERING_GENUINO``: la fraccion que sobrevive es alta (>= ``genuine_threshold``)
+    en TODAS las variables evaluadas -- lectura permitida: "el clustering
+    sobrevive claramente al ajuste horario y el reloj no explica la mayor
+    parte de la persistencia observada".
+    ``ARTEFACTO_DE_ESTACIONALIDAD``: la fraccion que sobrevive es baja
+    (<= ``artifact_threshold``) en TODAS.
+    ``MIXTO``: ni lo uno ni lo otro, o resultados dispares entre variables.
+    Nunca se reporta un porcentaje como "atribuible al reloj" -- ver
+    docstring de ``clock_attribution``.
+    """
+    valid = [a for a in clock_attribution_rows if np.isfinite(a.get("fraction_survives", float("nan")))]
+    if not valid:
+        return {"verdict": "MIXTO", "reason": "Fraccion no estimable para ninguna variable evaluada -- se reporta MIXTO por defecto conservador."}
+    survives = [a["fraction_survives"] for a in valid]
+    if min(survives) >= genuine_threshold:
+        verdict = "CLUSTERING_GENUINO"
+    elif max(survives) <= artifact_threshold:
+        verdict = "ARTEFACTO_DE_ESTACIONALIDAD"
+    else:
+        verdict = "MIXTO"
+    return {
+        "verdict": verdict,
+        "fractions_survives": {a.get("variable", "?"): a["fraction_survives"] for a in valid},
+        "genuine_threshold": genuine_threshold, "artifact_threshold": artifact_threshold,
+    }
+
+
+def decide_th19(g2_null1_calibration: pd.DataFrame, materiality_threshold: float = TH19_MIN_MATERIAL_RHO) -> dict:
+    """Clasifica TH19 de forma programatica: exige AMBAS cosas (G5) -- que ``|r|`` crudo en el rezago 1 supere la calibracion G2, Y que su magnitud sea material (no solo distinta de cero)."""
+    rho_cal = g2_null1_calibration
+    if "kind_of_row" in rho_cal.columns:
+        rho_cal = rho_cal[rho_cal["kind_of_row"] == "rho_calibration"]
+    row = rho_cal[(rho_cal["variable"] == "abs_r") & (rho_cal["raw_adjusted"] == "raw") & (rho_cal["lag"] == 1)]
+    if row.empty:
+        return {"verdict": "RESULTADO_INDETERMINADO", "reason": "No hay calibracion G2 disponible para |r| crudo en el rezago 1."}
+    exceeds = bool(row["exceeds_calibration_threshold"].iloc[0])
+    rho_1 = float(row["rho_real_abs"].iloc[0])
+    material = rho_1 >= materiality_threshold
+    if exceeds and material:
+        verdict = "VOLATILITY_CLUSTERING_DETECTABLE"
+    elif not material:
+        verdict = "NO_VOLATILITY_CLUSTERING_MATERIAL"
+    else:
+        verdict = "RESULTADO_INDETERMINADO"
+    return {"verdict": verdict, "rho_1_abs_r_raw": rho_1, "exceeds_g2_threshold": exceeds, "materiality_threshold": materiality_threshold}
+
+
+def th20_status_label(th20_enabled: bool, decay_diagnostics: dict[str, dict]) -> str:
+    """``RESUELTA``/``NO_HABILITADA``/``INDETERMINADA`` para TH20 -- nunca afirma memoria larga (ver ``decay_form_diagnostic``)."""
+    if not th20_enabled:
+        return "NO_HABILITADA"
+    if not decay_diagnostics or not all(d.get("estimable") for d in decay_diagnostics.values()):
+        return "INDETERMINADA"
+    return "RESUELTA"
+
+
 # ---------------------------------------------------------------------------
 # TH20 -- forma del decaimiento (log-log vs semi-log), solo si TH19/TH21
-# habilitan la pregunta
+# habilitan la pregunta. Diagnostico DESCRIPTIVO -- NUNCA estima memoria
+# larga ni un parametro `d`; la ambiguedad memoria-larga-vs-cambios-de-
+# nivel queda EXPLICITAMENTE abierta para TDA-14.
 # ---------------------------------------------------------------------------
 
 def decay_form_diagnostic(acf_tab: pd.DataFrame) -> dict:
@@ -647,10 +782,10 @@ def decay_form_diagnostic(acf_tab: pd.DataFrame) -> dict:
 
     NO estima ningun parametro de memoria larga (``d``) ni declara
     "memoria larga verdadera" -- solo reporta cual de las dos formas
-    describe mejor (mayor R^2) la ACF observada, como diagnostico
-    descriptivo (seccion 18 de la tarea). Ambigueadad de interpretacion
-    (cambios de nivel no modelados vs memoria larga genuina) queda
-    EXPLICITAMENTE abierta para TDA-14 -- no se resuelve aqui.
+    describe mejor (mayor R^2) la ACF observada. Un decaimiento lento
+    puede deberse a memoria larga genuina O a cambios de nivel/regimen no
+    modelados (Tsay, C3) -- esa ambiguedad NO se resuelve aqui, queda
+    abierta para TDA-14.
     """
     sub = acf_tab.loc[acf_tab["estimable"] & (acf_tab["rho"] > 0)].copy()
     if len(sub) < 5:
@@ -673,7 +808,7 @@ def decay_form_diagnostic(acf_tab: pd.DataFrame) -> dict:
     slope_semilog, intercept_semilog, r2_semilog = _fit_r2(k, log_rho)
 
     if r2_loglog > r2_semilog:
-        form_hint = "mas compatible con log-log (posible decaimiento polinomial / persistencia lenta)"
+        form_hint = "mas compatible con log-log (posible decaimiento polinomial / persistencia lenta -- NO se afirma memoria larga, ver docstring)"
     elif r2_semilog > r2_loglog:
         form_hint = "mas compatible con semi-log (posible decaimiento exponencial / persistencia corta)"
     else:
@@ -685,6 +820,135 @@ def decay_form_diagnostic(acf_tab: pd.DataFrame) -> dict:
         "slope_semilog": slope_semilog, "intercept_semilog": intercept_semilog, "r2_semilog": r2_semilog,
         "form_hint": form_hint,
     }
+
+
+# ---------------------------------------------------------------------------
+# Estabilidad temporal -- año, segmento Y VENTANA RODANTE (mensual), con
+# bootstrap de incertidumbre POR GRUPO (correccion de auditoria v1,
+# puntos 1 y 2)
+# ---------------------------------------------------------------------------
+
+def year_month_labels(trading_date) -> np.ndarray:
+    """``"YYYY-MM"`` a partir de ``trading_date`` -- la "ventana rodante" mas simple y transparente (misma convencion que ``rolling_rho1_by_month`` de TDA-08)."""
+    td = pd.to_datetime(pd.Series(np.asarray(trading_date)))
+    return (td.dt.year.astype(str) + "-" + td.dt.month.astype(str).str.zfill(2)).to_numpy()
+
+
+def bootstrap_rho_by_group_all_groups(
+    values: np.ndarray, block_ids: np.ndarray, trading_date: np.ndarray, group_labels: np.ndarray, lag: int,
+    n_boot: int = GROUP_BOOTSTRAP_N_BOOT, seed: int = GROUP_BOOTSTRAP_SEED, min_boot_replicas: int = GROUP_BOOTSTRAP_MIN_REPLICAS,
+) -> pd.DataFrame:
+    """Bootstrap de bloques por jornada para ``rho`` en UN rezago fijo, con IC 95% calculado SIMULTANEAMENTE para TODOS los valores de ``group_labels``.
+
+    OPTIMIZACION DE RENDIMIENTO (documentada, sin cambiar metodologia):
+    una implementacion ingenua resamplearia los dias UNA VEZ POR GRUPO
+    (año/segmento/mes), multiplicando el costo por el numero de grupos.
+    Esta version resamplea los dias UNA SOLA VEZ POR REPLICA y, dentro de
+    esa misma replica, calcula ``rho`` para TODOS los grupos a la vez via
+    un ``groupby`` (la misma tecnica de ``acf_by_group`` de TDA-08) --
+    exactamente la misma definicion estadistica, computada en una
+    fraccion del tiempo.
+
+    Misma definicion "principal" que ``acf_by_group`` (TDA-08): un par
+    ``(t, t-lag)`` se cuenta para el grupo de la observacion MAS RECIENTE
+    (``t``), sin exigir que ``t-lag`` pertenezca al mismo grupo -- evita
+    el error que TDA-08 corrigio en su 1a revision (filtrar FILAS por
+    grupo antes de construir los pares fabrica una condicion mas
+    estricta que "group_t == group_t", y ademas -- para grupos que
+    recurren varias veces por dia, como los segmentos horarios --
+    fabricaria vecinos entre dias distintos que nunca fueron
+    temporalmente adyacentes).
+
+    Salida: ``DataFrame`` con ``group``, ``n_boot_used``, ``rho_ci_lo``,
+    ``rho_ci_hi`` (``NaN`` si ``n_boot_used < min_boot_replicas``).
+    """
+    values = np.asarray(values, dtype=float)
+    block_ids = np.asarray(block_ids)
+    group_labels = np.asarray(group_labels)
+    trading_date = np.asarray(trading_date)
+
+    unique_dates, inverse = np.unique(trading_date, return_inverse=True)
+    n_dates = len(unique_dates)
+    order = np.argsort(inverse, kind="stable")
+    sorted_inverse = inverse[order]
+    boundaries = np.searchsorted(sorted_inverse, np.arange(n_dates + 1))
+    date_to_rows = [order[boundaries[i]:boundaries[i + 1]] for i in range(n_dates)]
+
+    all_groups = pd.unique(group_labels)
+    boot_rho = {g: np.full(n_boot, np.nan) for g in all_groups}
+
+    rng = np.random.default_rng(seed)
+    for b in range(n_boot):
+        sampled_days = rng.integers(0, n_dates, size=n_dates)
+        idx_parts, slot_parts = [], []
+        for slot, d in enumerate(sampled_days):
+            rows = date_to_rows[d]
+            idx_parts.append(rows)
+            slot_parts.append(np.full(len(rows), slot, dtype=np.int64))
+        idx = np.concatenate(idx_parts)
+        slots = np.concatenate(slot_parts)
+
+        vals = values[idx]
+        grp = group_labels[idx]
+        composite_block = block_ids[idx].astype(np.int64) * (n_dates + 1) + slots
+        T = vals.size
+        if lag >= T:
+            continue
+        same = composite_block[lag:] == composite_block[:-lag]
+        if not same.any():
+            continue
+
+        x_t = vals[lag:][same]
+        x_tk = vals[:-lag][same]
+        g_t = grp[lag:][same]
+
+        pairs = pd.DataFrame({"g": g_t, "x_t": x_t, "x_tk": x_tk})
+        grouped = pairs.groupby("g", observed=True)
+        mean_t_g = grouped["x_t"].transform("mean").to_numpy()
+        mean_tk_g = grouped["x_tk"].transform("mean").to_numpy()
+        e_t = pairs["x_t"].to_numpy() - mean_t_g
+        e_tk = pairs["x_tk"].to_numpy() - mean_tk_g
+
+        agg = pd.DataFrame({"g": g_t, "prod": e_t * e_tk, "et2": e_t * e_t, "etk2": e_tk * e_tk}).groupby("g", observed=True).agg(
+            n=("prod", "size"), sum_prod=("prod", "sum"), sum_et2=("et2", "sum"), sum_etk2=("etk2", "sum"),
+        )
+        for g, row in agg.iterrows():
+            if g not in boot_rho or row["n"] < 2:
+                continue
+            denom = np.sqrt(row["sum_et2"] * row["sum_etk2"])
+            if denom > 0:
+                boot_rho[g][b] = row["sum_prod"] / denom
+
+    rows = []
+    for g in all_groups:
+        arr = boot_rho[g]
+        finite = arr[~np.isnan(arr)]
+        enough = finite.size >= min_boot_replicas
+        rows.append({
+            "group": g, "n_boot_used": int(finite.size),
+            "rho_ci_lo": float(np.percentile(finite, 2.5)) if enough else float("nan"),
+            "rho_ci_hi": float(np.percentile(finite, 97.5)) if enough else float("nan"),
+        })
+    return pd.DataFrame(rows)
+
+
+def _persistence_table_with_ci(
+    values: np.ndarray, block_ids: np.ndarray, trading_date: np.ndarray, group_labels: np.ndarray,
+    variable: str, kind: str, lags: tuple[int, ...] = STABILITY_LAGS,
+    ci_lag: int = GROUP_BOOTSTRAP_LAG, n_boot: int = GROUP_BOOTSTRAP_N_BOOT, seed: int = GROUP_BOOTSTRAP_SEED,
+) -> pd.DataFrame:
+    """Punto estimado (``acf_by_group``, TDA-08, sin cambios) + IC 95% bootstrap por grupo (SOLO en ``ci_lag``, costo acotado -- ver ``bootstrap_rho_by_group_all_groups``)."""
+    point = acf_by_group(values, block_ids, group_labels, lags, MIN_N_FOR_GROUP)
+    point.insert(0, "variable", variable)
+    point.insert(1, "raw_adjusted", kind)
+
+    ci = bootstrap_rho_by_group_all_groups(values, block_ids, trading_date, group_labels, ci_lag, n_boot, seed)
+    merged = point.merge(ci, on="group", how="left")
+    at_ci_lag = merged["lag"] == ci_lag
+    merged["rho_ci_lo"] = np.where(at_ci_lag, merged["rho_ci_lo"], np.nan)
+    merged["rho_ci_hi"] = np.where(at_ci_lag, merged["rho_ci_hi"], np.nan)
+    merged["n_boot_used"] = np.where(at_ci_lag, merged["n_boot_used"], np.nan)
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -706,6 +970,7 @@ class TDA09Result:
     stop9_decision: dict
     persistence_by_year: pd.DataFrame
     persistence_by_segment: pd.DataFrame
+    persistence_rolling_window: pd.DataFrame
     arch_lm_table: pd.DataFrame
     g2_null1_calibration: pd.DataFrame
     g2_secondary_global_calibration: pd.DataFrame
@@ -714,10 +979,18 @@ class TDA09Result:
     clock_flatness_table: pd.DataFrame
     decay_diagnostics: dict[str, dict]
     th20_enabled: bool
+    th19_verdict: dict = field(default_factory=dict)
+    th21_verdict: dict = field(default_factory=dict)
+    th20_verdict: str = ""
+    stage_timings: dict[str, float] = field(default_factory=dict)
 
 
-def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
-    """Orquesta TDA-09 completo: ACF/portmanteau/bootstrap de magnitud (crudo vs ajustado), G2, LM de Engle, atribucion de reloj (TH21), STOP-9, forma del decaimiento (TH20 condicional)."""
+def run_tda09_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA09Result:
+    """Orquesta TDA-09 completo en 8 etapas con progreso visible: ACF/portmanteau/bootstrap de magnitud (crudo vs ajustado), estabilidad por año/segmento/ventana rodante con IC bootstrap, G2, LM de Engle, comparacion descriptiva de energia de reloj (TH21), STOP-9, forma del decaimiento (TH20 condicional)."""
+    timer = _StageTimer(ANALYSIS_STAGES, verbose=verbose)
+
+    # --- Etapa 1: carga de datos y poblaciones ------------------------------
+    timer.stage("Carga de datos y construccion de poblaciones (r_1m/r_tilde/log_hl/log_hl_tilde)")
     validate_research_holdout_disjoint(config)
 
     variables, validity = load_tda04_inputs(config)
@@ -731,7 +1004,6 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
 
     cutoffs = load_segmentation_cutoffs(config)
 
-    # --- Poblaciones -------------------------------------------------------
     r1m_pop, segment_labels = build_r1m_population(variables, validity, cutoffs)
     r1m_pop = r1m_pop.sort_values("timestamp").reset_index(drop=True)
 
@@ -748,16 +1020,17 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
     log_hl_tilde_pop = build_log_hl_tilde(log_hl_pop, s_m_table)
     log_hl_tilde_pop = log_hl_tilde_pop.loc[log_hl_tilde_pop["log_hl_tilde"].notna()].sort_values("timestamp").reset_index(drop=True)
 
-    # --- Bloques de continuidad por poblacion -------------------------------
-    block_ids_r1m = compute_block_ids(r1m_pop["timestamp"], r1m_pop["trading_date"], 60.0)
-    block_ids_r_tilde = compute_block_ids(r_tilde_pop["timestamp"], r_tilde_pop["trading_date"], 60.0)
-    block_ids_log_hl = compute_block_ids(log_hl_pop["timestamp"], log_hl_pop["trading_date"], 60.0)
-    block_ids_log_hl_tilde = compute_block_ids(log_hl_tilde_pop["timestamp"], log_hl_tilde_pop["trading_date"], 60.0)
+    # Bloques de continuidad -- CONTRACT-AWARE (correccion de auditoria v1,
+    # punto 4): exige mismo `contract` ademas de mismo trading_date/delta.
+    block_ids_r1m = compute_block_ids_with_contract(r1m_pop["timestamp"], r1m_pop["trading_date"], r1m_pop["contract"], 60.0)
+    block_ids_r_tilde = compute_block_ids_with_contract(r_tilde_pop["timestamp"], r_tilde_pop["trading_date"], r_tilde_pop["contract"], 60.0)
+    block_ids_log_hl = compute_block_ids_with_contract(log_hl_pop["timestamp"], log_hl_pop["trading_date"], log_hl_pop["contract"], 60.0)
+    block_ids_log_hl_tilde = compute_block_ids_with_contract(log_hl_tilde_pop["timestamp"], log_hl_tilde_pop["trading_date"], log_hl_tilde_pop["contract"], 60.0)
 
-    # --- Sensibilidad de media (seccion 8) ----------------------------------
+    # --- Etapa 2: sensibilidad de media + ACF (8 series) + portmanteau -----
+    timer.stage("Sensibilidad de media, ACF de magnitud/direccion (hasta 600 rezagos) y portmanteau")
     mean_removal_table = mean_removal_sensitivity(r1m_pop, block_ids_r1m)
 
-    # --- Series de magnitud (crudo y ajustado) ------------------------------
     r_raw = r1m_pop["r_1m"].to_numpy(dtype=float)
     r_adj = r_tilde_pop["r_tilde"].to_numpy(dtype=float)
     abs_r_raw = r1m_pop["abs_r_1m"].to_numpy(dtype=float)
@@ -772,6 +1045,12 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
         ("abs_r", "raw"): r1m_pop, ("abs_r", "adjusted"): r_tilde_pop,
         ("r2", "raw"): r1m_pop, ("r2", "adjusted"): r_tilde_pop,
         ("log_hl", "raw"): log_hl_pop, ("log_hl", "adjusted"): log_hl_tilde_pop,
+    }
+    block_ids_by_key: dict[tuple[str, str], np.ndarray] = {
+        ("r", "raw"): block_ids_r1m, ("r", "adjusted"): block_ids_r_tilde,
+        ("abs_r", "raw"): block_ids_r1m, ("abs_r", "adjusted"): block_ids_r_tilde,
+        ("r2", "raw"): block_ids_r1m, ("r2", "adjusted"): block_ids_r_tilde,
+        ("log_hl", "raw"): block_ids_log_hl, ("log_hl", "adjusted"): block_ids_log_hl_tilde,
     }
 
     series_spec = [
@@ -788,14 +1067,11 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
 
     g2_portmanteau_m = tuple(m for m in PORTMANTEAU_M_MAGNITUDE if m <= G2_NULL_MAX_LAG)
 
-    acf_rows = []
-    portmanteau_rows = []
-    bootstrap_rows = []
-    g2_null1_rows = []
-    g2_secondary_rows = []
+    acf_rows, portmanteau_rows = [], []
     acf_lookup: dict[tuple[str, str], pd.DataFrame] = {}
+    port_lookup: dict[tuple[str, str], pd.DataFrame] = {}
 
-    for name, kind, values, block_ids, minute_of_day, has_g2_null, in_bootstrap, _ in series_spec:
+    for name, kind, values, block_ids, minute_of_day, has_g2_null, in_bootstrap, in_stability in series_spec:
         T = values.size
         acf_tab = compute_acf(values, block_ids, MAX_LAG_MAGNITUDE)
         acf_lookup[(name, kind)] = acf_tab
@@ -809,71 +1085,34 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
         port = annotate_portmanteau_calibration(
             compute_portmanteau_q(acf_tab, PORTMANTEAU_M_MAGNITUDE), has_null1_calibration=has_g2_null,
         )
-        port.insert(0, "variable", name)
-        port.insert(1, "raw_adjusted", kind)
-        portmanteau_rows.append(port)
-
-        if in_bootstrap:
-            trading_date_arr = pop_by_key[(name, kind)]["trading_date"].to_numpy()
-            rho_boot, _ = bootstrap_rho(values, block_ids, trading_date_arr, BOOTSTRAP_LAGS_MAGNITUDE, n_boot, DEFAULT_BOOTSTRAP_SEED)
-            acf_idx = acf_tab.set_index("lag")
-            for li, k in enumerate(BOOTSTRAP_LAGS_MAGNITUDE):
-                finite = rho_boot[:, li][~np.isnan(rho_boot[:, li])]
-                bootstrap_rows.append({
-                    "variable": name, "raw_adjusted": kind, "kind": "continuous_lag", "label": str(k),
-                    "rho_point": float(acf_idx.loc[k, "rho"]) if k in acf_idx.index else np.nan,
-                    "n_pairs": int(acf_idx.loc[k, "n_pairs"]) if k in acf_idx.index else 0,
-                    "ci_lo": float(np.percentile(finite, 2.5)) if finite.size else np.nan,
-                    "ci_hi": float(np.percentile(finite, 97.5)) if finite.size else np.nan,
-                })
-
-        if has_g2_null:
-            perm_null_full = g2_permutation_null_by_minute(values, minute_of_day, block_ids, G2_FULL_LAGS, n_perm, PERMUTATION_SEED)
-            sparse_idx = [G2_FULL_LAGS.index(k) for k in G2_LAGS]
-            real_rho_by_lag = {k: float(acf_tab.loc[acf_tab["lag"] == k, "rho"].iloc[0]) for k in G2_LAGS}
-            cal = g2_null1_calibration_summary(real_rho_by_lag, perm_null_full[:, sparse_idx], G2_LAGS)
-            cal.insert(0, "variable", name)
-            cal.insert(1, "raw_adjusted", kind)
-            cal.insert(2, "kind_of_row", "rho_calibration")
-            g2_null1_rows.append(cal)
-
-            real_q_by_m = {m: float(port.loc[port["m"] == m, "Q"].iloc[0]) for m in g2_portmanteau_m if (port["m"] == m).any()}
-            port_null = g2_null1_portmanteau_summary(perm_null_full, acf_tab["n_pairs"].to_numpy(), g2_portmanteau_m, real_q=real_q_by_m)
-            port_null.insert(0, "variable", name)
-            port_null.insert(1, "raw_adjusted", kind)
-            g2_null1_rows.append(port_null.rename(columns={"m": "lag"}).assign(kind_of_row="portmanteau_calibration"))
-
-            if kind == "adjusted":
-                global_null_full = g2_global_permutation_null(values, block_ids, G2_FULL_LAGS, n_perm, GLOBAL_PERMUTATION_SEED)
-                sec = g2_null1_calibration_summary(real_rho_by_lag, global_null_full[:, sparse_idx], G2_LAGS)
-                sec.insert(0, "variable", name)
-                sec.insert(1, "raw_adjusted", kind)
-                sec.insert(2, "null_type", "global_permutation_secondary")
-                g2_secondary_rows.append(sec)
+        port_lookup[(name, kind)] = port
+        port_out = port.copy()
+        port_out.insert(0, "variable", name)
+        port_out.insert(1, "raw_adjusted", kind)
+        portmanteau_rows.append(port_out)
 
     acf_table = pd.concat(acf_rows, ignore_index=True)
     portmanteau_table = pd.concat(portmanteau_rows, ignore_index=True)
-    bootstrap_table = pd.DataFrame(bootstrap_rows)
-    g2_null1_calibration = pd.concat(g2_null1_rows, ignore_index=True) if g2_null1_rows else pd.DataFrame()
-    g2_secondary_global_calibration = pd.concat(g2_secondary_rows, ignore_index=True) if g2_secondary_rows else pd.DataFrame()
 
-    # --- Diagnostico de "flatness" de reloj (justifica/documenta el null secundario) ---
-    flatness_rows = []
-    for name in ("abs_r", "log_hl"):
-        raw_values = abs_r_raw if name == "abs_r" else log_hl_raw
-        adj_values = abs_r_adj if name == "abs_r" else log_hl_adj
-        raw_minute = r1m_pop["minute_of_day"].to_numpy() if name == "abs_r" else log_hl_pop["minute_of_day"].to_numpy()
-        adj_minute = r_tilde_pop["minute_of_day"].to_numpy() if name == "abs_r" else log_hl_tilde_pop["minute_of_day"].to_numpy()
-        flat_raw = clock_profile_flatness(raw_values, raw_minute)
-        flat_adj = clock_profile_flatness(adj_values, adj_minute)
-        ratio = (flat_adj / flat_raw) if flat_raw not in (0, None) and np.isfinite(flat_raw) and flat_raw != 0 else float("nan")
-        flatness_rows.append({
-            "variable": name, "flatness_raw": flat_raw, "flatness_adjusted": flat_adj, "ratio": ratio,
-            "clock_effectively_removed": bool(ratio <= CLOCK_FLATNESS_RATIO_THRESHOLD) if np.isfinite(ratio) else False,
-        })
-    clock_flatness_table = pd.DataFrame(flatness_rows)
+    # --- Etapa 3: bootstrap (series completas + same-clock-position) -------
+    timer.stage("Bootstrap de bloques por jornada (rezagos clave) y diagnostico same-clock-position")
+    bootstrap_rows = []
+    for name, kind, values, block_ids, minute_of_day, has_g2_null, in_bootstrap, in_stability in series_spec:
+        if not in_bootstrap:
+            continue
+        trading_date_arr = pop_by_key[(name, kind)]["trading_date"].to_numpy()
+        rho_boot, _ = bootstrap_rho(values, block_ids, trading_date_arr, BOOTSTRAP_LAGS_MAGNITUDE, n_boot, DEFAULT_BOOTSTRAP_SEED)
+        acf_idx = acf_lookup[(name, kind)].set_index("lag")
+        for li, k in enumerate(BOOTSTRAP_LAGS_MAGNITUDE):
+            finite = rho_boot[:, li][~np.isnan(rho_boot[:, li])]
+            bootstrap_rows.append({
+                "variable": name, "raw_adjusted": kind, "kind": "continuous_lag", "label": str(k),
+                "rho_point": float(acf_idx.loc[k, "rho"]) if k in acf_idx.index else np.nan,
+                "n_pairs": int(acf_idx.loc[k, "n_pairs"]) if k in acf_idx.index else 0,
+                "ci_lo": float(np.percentile(finite, 2.5)) if finite.size else np.nan,
+                "ci_hi": float(np.percentile(finite, 97.5)) if finite.size else np.nan,
+            })
 
-    # --- Same-clock-position entre jornadas (seccion 11) --------------------
     _SAME_CLOCK_COL = "_same_clock_value"
     same_clock_specs = [
         ("abs_r", "raw", r1m_pop, abs_r_raw),
@@ -890,36 +1129,76 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
             "rho_point": result["rho"], "n_pairs": result["n_pairs"], "ci_lo": result["ci_lo"], "ci_hi": result["ci_hi"],
             "n_day_pairs": result["n_day_pairs"],
         })
-    bootstrap_table = pd.concat([bootstrap_table, pd.DataFrame(same_clock_rows)], ignore_index=True)
+    bootstrap_table = pd.concat([pd.DataFrame(bootstrap_rows), pd.DataFrame(same_clock_rows)], ignore_index=True)
 
-    # --- TH21: atribucion de reloj + STOP-9 ---------------------------------
-    clock_attr_rows = []
+    # --- Etapa 4: G2 (principal + secundario + sintetico) + aplanamiento ---
+    timer.stage("Calibracion G2 (null principal por minuto, secundario global, sintetico) y diagnostico de aplanamiento de reloj")
+    g2_null1_rows, g2_secondary_rows = [], []
+    for name, kind, values, block_ids, minute_of_day, has_g2_null, in_bootstrap, in_stability in series_spec:
+        if not has_g2_null:
+            continue
+        acf_tab = acf_lookup[(name, kind)]
+        port = port_lookup[(name, kind)]
+        perm_null_full = g2_permutation_null_by_minute(values, minute_of_day, block_ids, G2_FULL_LAGS, n_perm, PERMUTATION_SEED)
+        sparse_idx = [G2_FULL_LAGS.index(k) for k in G2_LAGS]
+        real_rho_by_lag = {k: float(acf_tab.loc[acf_tab["lag"] == k, "rho"].iloc[0]) for k in G2_LAGS}
+        cal = g2_null1_calibration_summary(real_rho_by_lag, perm_null_full[:, sparse_idx], G2_LAGS)
+        cal.insert(0, "variable", name)
+        cal.insert(1, "raw_adjusted", kind)
+        cal.insert(2, "kind_of_row", "rho_calibration")
+        g2_null1_rows.append(cal)
+
+        real_q_by_m = {m: float(port.loc[port["m"] == m, "Q"].iloc[0]) for m in g2_portmanteau_m if (port["m"] == m).any()}
+        port_null = g2_null1_portmanteau_summary(perm_null_full, acf_tab["n_pairs"].to_numpy(), g2_portmanteau_m, real_q=real_q_by_m)
+        port_null.insert(0, "variable", name)
+        port_null.insert(1, "raw_adjusted", kind)
+        g2_null1_rows.append(port_null.rename(columns={"m": "lag"}).assign(kind_of_row="portmanteau_calibration"))
+
+        if kind == "adjusted":
+            global_null_full = g2_global_permutation_null(values, block_ids, G2_FULL_LAGS, n_perm, GLOBAL_PERMUTATION_SEED)
+            sec = g2_null1_calibration_summary(real_rho_by_lag, global_null_full[:, sparse_idx], G2_LAGS)
+            sec.insert(0, "variable", name)
+            sec.insert(1, "raw_adjusted", kind)
+            sec.insert(2, "null_type", "global_permutation_secondary")
+            g2_secondary_rows.append(sec)
+
+    g2_null1_calibration = pd.concat(g2_null1_rows, ignore_index=True) if g2_null1_rows else pd.DataFrame()
+    g2_secondary_global_calibration = pd.concat(g2_secondary_rows, ignore_index=True) if g2_secondary_rows else pd.DataFrame()
+
+    flatness_rows = []
     for name in ("abs_r", "log_hl"):
-        attr = clock_attribution(acf_lookup[(name, "raw")], acf_lookup[(name, "adjusted")], TH21_ENERGY_M)
-        attr["variable"] = name
-        clock_attr_rows.append(attr)
-    clock_attribution_table = pd.DataFrame(clock_attr_rows)
-    stop9_decision = decide_stop9(clock_attr_rows)
+        raw_values = abs_r_raw if name == "abs_r" else log_hl_raw
+        adj_values = abs_r_adj if name == "abs_r" else log_hl_adj
+        raw_minute = r1m_pop["minute_of_day"].to_numpy() if name == "abs_r" else log_hl_pop["minute_of_day"].to_numpy()
+        adj_minute = r_tilde_pop["minute_of_day"].to_numpy() if name == "abs_r" else log_hl_tilde_pop["minute_of_day"].to_numpy()
+        flat_raw = clock_profile_flatness(raw_values, raw_minute)
+        flat_adj = clock_profile_flatness(adj_values, adj_minute)
+        ratio = (flat_adj / flat_raw) if flat_raw not in (0, None) and np.isfinite(flat_raw) and flat_raw != 0 else float("nan")
+        flatness_rows.append({
+            "variable": name, "flatness_raw": flat_raw, "flatness_adjusted": flat_adj, "ratio": ratio,
+            "clock_effectively_removed": bool(ratio <= CLOCK_FLATNESS_RATIO_THRESHOLD) if np.isfinite(ratio) else False,
+        })
+    clock_flatness_table = pd.DataFrame(flatness_rows)
 
-    # --- Persistencia por año / segmento (grilla pequeña predeclarada) ------
-    year_rows = []
-    segment_rows = []
-    for name, kind, values, block_ids, _mod, _has_null, _in_boot, in_stability in series_spec:
+    # --- Etapa 5: persistencia por año / segmento / ventana rodante ---------
+    timer.stage("Persistencia por año, segmento y ventana rodante (mensual), con IC bootstrap por grupo")
+    year_rows, segment_rows, rolling_rows = [], [], []
+    for name, kind, values, block_ids, minute_of_day, has_g2_null, in_bootstrap, in_stability in series_spec:
         if not in_stability:
             continue
         pop = pop_by_key[(name, kind)]
-        yt = acf_by_group(values, block_ids, pop["year_ny"].to_numpy(), STABILITY_LAGS, MIN_N_FOR_GROUP)
-        yt.insert(0, "variable", name)
-        yt.insert(1, "raw_adjusted", kind)
-        year_rows.append(yt)
-        st = acf_by_group(values, block_ids, pop["segment_label"].to_numpy(), STABILITY_LAGS, MIN_N_FOR_GROUP)
-        st.insert(0, "variable", name)
-        st.insert(1, "raw_adjusted", kind)
-        segment_rows.append(st)
+        trading_date_arr = pop["trading_date"].to_numpy()
+
+        year_rows.append(_persistence_table_with_ci(values, block_ids, trading_date_arr, pop["year_ny"].to_numpy(), name, kind))
+        segment_rows.append(_persistence_table_with_ci(values, block_ids, trading_date_arr, pop["segment_label"].to_numpy(), name, kind))
+        rolling_rows.append(_persistence_table_with_ci(values, block_ids, trading_date_arr, year_month_labels(trading_date_arr), name, kind))
+
     persistence_by_year = pd.concat(year_rows, ignore_index=True)
     persistence_by_segment = pd.concat(segment_rows, ignore_index=True)
+    persistence_rolling_window = pd.concat(rolling_rows, ignore_index=True).rename(columns={"group": "year_month"})
 
-    # --- LM de Engle (r_1m crudo y r_tilde ajustado) ------------------------
+    # --- Etapa 6: LM de Engle ------------------------------------------------
+    timer.stage("LM de Engle (r_1m crudo y r_tilde ajustado)")
     arch_rows = []
     for name, values, block_ids, minute_of_day in [
         ("r_1m", r_raw, block_ids_r1m, r1m_pop["minute_of_day"].to_numpy()),
@@ -931,7 +1210,31 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
             arch_rows.append(result)
     arch_lm_table = pd.DataFrame(arch_rows)
 
-    # --- G2 synthetic (Null 2, TDA-08 heredado) sobre |r| crudo -------------
+    # --- Etapa 7: TH21 (comparacion descriptiva de energia) + STOP-9 + TH20 -
+    timer.stage("Comparacion descriptiva de energia de dependencia (TH21), STOP-9 y diagnostico de decaimiento (TH20)")
+    clock_attr_rows = []
+    for name in ("abs_r", "log_hl"):
+        attr = clock_attribution(acf_lookup[(name, "raw")], acf_lookup[(name, "adjusted")], TH21_ENERGY_M)
+        attr["variable"] = name
+        clock_attr_rows.append(attr)
+    clock_attribution_table = pd.DataFrame(clock_attr_rows)
+    stop9_decision = decide_stop9(clock_attr_rows)
+    th21_verdict = classify_th21(clock_attr_rows)
+
+    abs_r_survives = clock_attribution_table.loc[clock_attribution_table["variable"] == "abs_r", "fraction_survives"].iloc[0]
+    log_hl_survives = clock_attribution_table.loc[clock_attribution_table["variable"] == "log_hl", "fraction_survives"].iloc[0]
+    th20_enabled = bool(
+        (np.isfinite(abs_r_survives) and abs_r_survives >= TH20_MIN_FRACTION_SURVIVES) or
+        (np.isfinite(log_hl_survives) and log_hl_survives >= TH20_MIN_FRACTION_SURVIVES)
+    )
+    decay_diagnostics: dict[str, dict] = {}
+    if th20_enabled:
+        decay_diagnostics["abs_r_adjusted"] = decay_form_diagnostic(acf_lookup[("abs_r", "adjusted")])
+        decay_diagnostics["log_hl_adjusted"] = decay_form_diagnostic(acf_lookup[("log_hl", "adjusted")])
+    th20_verdict = th20_status_label(th20_enabled, decay_diagnostics)
+
+    # --- Etapa 8: null sintetico (diagnostico) + veredicto final TH19 -------
+    timer.stage("Diagnostico del null sintetico heredado de TDA-08 y veredicto final TH19")
     from ohlcv_dataroad.ingest.tda08_linear_mean_dependence import (
         draw_synthetic_empirical_sample,
         g2_synthetic_null_moment_check,
@@ -950,17 +1253,9 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
         "inferencia principal de log_hl sin necesitar un segundo sistema de nulls."
     )
 
-    # --- TH20: forma del decaimiento, condicional a supervivencia material --
-    abs_r_survives = clock_attribution_table.loc[clock_attribution_table["variable"] == "abs_r", "fraction_survives"].iloc[0]
-    log_hl_survives = clock_attribution_table.loc[clock_attribution_table["variable"] == "log_hl", "fraction_survives"].iloc[0]
-    th20_enabled = bool(
-        (np.isfinite(abs_r_survives) and abs_r_survives >= TH20_MIN_FRACTION_SURVIVES) or
-        (np.isfinite(log_hl_survives) and log_hl_survives >= TH20_MIN_FRACTION_SURVIVES)
-    )
-    decay_diagnostics: dict[str, dict] = {}
-    if th20_enabled:
-        decay_diagnostics["abs_r_adjusted"] = decay_form_diagnostic(acf_lookup[("abs_r", "adjusted")])
-        decay_diagnostics["log_hl_adjusted"] = decay_form_diagnostic(acf_lookup[("log_hl", "adjusted")])
+    th19_verdict = decide_th19(g2_null1_calibration)
+
+    stage_timings = timer.finish()
 
     return TDA09Result(
         r1m_population=r1m_pop, r_tilde_population=r_tilde_pop,
@@ -969,9 +1264,12 @@ def run_tda09_analysis(config: SnapshotConfig) -> TDA09Result:
         acf_table=acf_table, bootstrap_table=bootstrap_table, portmanteau_table=portmanteau_table,
         clock_attribution_table=clock_attribution_table, stop9_decision=stop9_decision,
         persistence_by_year=persistence_by_year, persistence_by_segment=persistence_by_segment,
+        persistence_rolling_window=persistence_rolling_window,
         arch_lm_table=arch_lm_table,
         g2_null1_calibration=g2_null1_calibration, g2_secondary_global_calibration=g2_secondary_global_calibration,
         g2_synthetic_moment_check=moment_check,
         mean_removal_sensitivity_table=mean_removal_table, clock_flatness_table=clock_flatness_table,
         decay_diagnostics=decay_diagnostics, th20_enabled=th20_enabled,
+        th19_verdict=th19_verdict, th21_verdict=th21_verdict, th20_verdict=th20_verdict,
+        stage_timings=stage_timings,
     )

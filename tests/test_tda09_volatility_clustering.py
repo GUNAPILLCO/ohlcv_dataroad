@@ -30,23 +30,33 @@ from ohlcv_dataroad.ingest.tda09_volatility_clustering import (
     CLOCK_FLATNESS_RATIO_THRESHOLD,
     G2_FULL_LAGS,
     G2_LAGS,
+    GROUP_BOOTSTRAP_LAG,
     SMProxyMismatchError,
     STOP9_FRACTION_REMOVED_THRESHOLD,
+    TH19_MIN_MATERIAL_RHO,
+    TH21_SURVIVES_ARTIFACT_THRESHOLD,
+    TH21_SURVIVES_GENUINE_THRESHOLD,
     block_relative_position,
+    bootstrap_rho_by_group_all_groups,
     build_log_hl_population,
     build_log_hl_tilde,
     calibrate_engle_lm,
+    classify_th21,
     clock_attribution,
     clock_profile_flatness,
+    compute_block_ids_with_contract,
     decay_form_diagnostic,
     decide_stop9,
+    decide_th19,
     dependence_energy,
     engle_lm_statistic,
     g2_global_permutation_null,
     mean_removal_sensitivity,
     run_tda09_analysis,
     same_clock_next_trading_day,
+    th20_status_label,
     verify_s_m_is_log_hl_proxy,
+    year_month_labels,
 )
 
 TICK = 0.25
@@ -167,6 +177,7 @@ def _make_config(tmp_path: Path, research_files, holdout_files=None, boundary_ut
             "clock_attribution_csv": "TDA09_clock_attribution.csv",
             "persistence_by_year_csv": "TDA09_persistencia_por_anio.csv",
             "persistence_by_segment_csv": "TDA09_persistencia_por_segmento.csv",
+            "persistence_rolling_csv": "TDA09_persistencia_ventana_rodante.csv",
             "portmanteau_csv": "TDA09_portmanteau.csv",
             "arch_lm_csv": "TDA09_arch_lm.csv",
             "g2_calibration_null1_csv": "TDA09_g2_calibracion_null1_principal.csv",
@@ -648,13 +659,15 @@ def test_run_tda09_synthetic_null_diagnostic_is_kept_separate_from_principal_inf
 # ---------------------------------------------------------------------------
 
 def test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolete(tmp_path):
+    import time as _time
+
     from ohlcv_dataroad.ingest.run_tda09 import ARTIFACT_PATH_ATTRS, persist_artifacts
 
     config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
     _prepare_full_fixture(config, n_days=20)
-    result = run_tda09_analysis(config)
+    result = run_tda09_analysis(config, verbose=False)
 
-    written = persist_artifacts(result, config)
+    written = persist_artifacts(result, config, _time.perf_counter(), "python -m ohlcv_dataroad.ingest.run_tda09")
     declared_paths = {getattr(config, attr) for attr in ARTIFACT_PATH_ATTRS}
 
     # el decay_png solo se escribe si TH20 quedo habilitada -- se acepta
@@ -668,6 +681,39 @@ def test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolet
     declared_names = {p.name for p in written}
     obsolete = tda09_files_on_disk - declared_names
     assert not obsolete, f"artefactos TDA09_* en disco que ya no estan declarados: {obsolete}"
+
+
+def test_persist_artifacts_generates_the_markdown_report_automatically(tmp_path):
+    """Correccion de auditoria v1, punto 7: una sola ejecucion debe producir TODO TDA-09, incluido el informe."""
+    import time as _time
+
+    from ohlcv_dataroad.ingest.run_tda09 import persist_artifacts
+
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=20)
+    result = run_tda09_analysis(config, verbose=False)
+
+    t0 = _time.perf_counter()
+    persist_artifacts(result, config, t0, "python -m ohlcv_dataroad.ingest.run_tda09")
+
+    assert config.tda09_report_path.exists()
+    text = config.tda09_report_path.read_text(encoding="utf-8")
+    assert "TH19" in text and "TH20" in text and "TH21" in text and "STOP-9" in text
+    assert result.th19_verdict.get("verdict") in text
+    assert result.th21_verdict.get("verdict") in text
+    # correccion punto 3: el informe puede CITAR la frase prohibida solo para
+    # advertir explicitamente que NO se afirma -- nunca como una conclusion
+    # propia sin negacion. Se verifica que la advertencia explicita este
+    # presente y que la conclusion permitida (no causal) tambien lo este.
+    lowered = text.lower()
+    assert "nunca se interpretan como" in lowered or "no se afirma" in lowered
+    assert "descriptiva" in lowered and "nunca una descomposici" in lowered
+    # lenguaje de estabilidad corregido (punto 5): el informe puede CITAR la
+    # frase antigua solo para contrastarla explicitamente con la correccion
+    # (nunca afirmarla sin mas) -- se verifica que la formulacion CORREGIDA
+    # este presente.
+    assert "presencia del clustering es estable" in lowered
+    assert "intensidad" in lowered
 
 
 # ---------------------------------------------------------------------------
@@ -764,3 +810,202 @@ def test_genuine_clustering_plus_clock_pattern_survives_adjustment(tmp_path):
     sub_adj = result.acf_table[(result.acf_table["variable"] == "abs_r") & (result.acf_table["raw_adjusted"] == "adjusted")]
     rho1_adj = float(sub_adj.loc[sub_adj["lag"] == 1, "rho"].iloc[0])
     assert rho1_adj > 0.03  # la dependencia genuina sobrevive al ajuste por reloj
+
+
+# ---------------------------------------------------------------------------
+# L. compute_block_ids_with_contract -- rolls en log_hl/log_hl_tilde (correccion
+#    de auditoria v1, punto 4): el bloque debe romperse tambien en un cambio
+#    de `contract`, incluso si trading_date/delta looks continuo.
+# ---------------------------------------------------------------------------
+
+def test_compute_block_ids_with_contract_breaks_block_on_contract_change_even_with_continuous_date_and_delta():
+    ts = pd.date_range("2024-01-08 09:30:00", periods=6, freq="1min")
+    trading_date = [datetime.date(2024, 1, 8)] * 6
+    # delta=60s y mismo trading_date en TODAS las filas -- solo el contrato cambia a mitad.
+    contract = ["H24", "H24", "H24", "M24", "M24", "M24"]
+    block_ids = compute_block_ids_with_contract(pd.Series(ts), pd.Series(trading_date), pd.Series(contract), 60.0)
+    assert block_ids[2] != block_ids[3]  # el cambio de contrato SIEMPRE rompe el bloque
+    assert block_ids[0] == block_ids[1] == block_ids[2]
+    assert block_ids[3] == block_ids[4] == block_ids[5]
+
+
+def test_compute_block_ids_with_contract_matches_plain_version_when_contract_never_changes():
+    ts = pd.date_range("2024-01-08 09:30:00", periods=5, freq="1min")
+    trading_date = [datetime.date(2024, 1, 8)] * 5
+    contract = ["H24"] * 5
+    with_contract = compute_block_ids_with_contract(pd.Series(ts), pd.Series(trading_date), pd.Series(contract), 60.0)
+    plain = compute_block_ids(pd.Series(ts), pd.Series(trading_date), 60.0)
+    np.testing.assert_array_equal(with_contract, plain)
+
+
+def test_log_hl_acf_never_crosses_a_synthetic_roll_boundary(tmp_path):
+    """Adversarial de extremo a extremo: se fabrica un `contract` que cambia
+    DENTRO de lo que compute_block_ids (sin contrato) trataria como un solo
+    bloque continuo (mismo trading_date, delta=60s) -- la version
+    contract-aware de esta etapa debe romper el bloque ahi, y por tanto la
+    ACF de log_hl no debe fabricar un par entre las dos mitades."""
+    ts = pd.date_range("2024-01-08 09:30:00", periods=10, freq="1min")
+    trading_date = [datetime.date(2024, 1, 8)] * 10
+    contract = ["H24"] * 5 + ["M24"] * 5
+    variables = pd.DataFrame({
+        "timestamp": ts, "source_file": "f1", "contract": contract, "trading_date": trading_date, "segment_id": 1,
+        "open": 100.0, "high": 100.5, "low": 99.5, "close": np.linspace(100.0, 109.0, 10), "volume": 10,
+    })
+    variables["log_hl"] = np.log(variables["high"] / variables["low"])
+    block_ids = compute_block_ids_with_contract(variables["timestamp"], variables["trading_date"], variables["contract"], 60.0)
+    # bloque roto exactamente en el cambio de contrato (posicion 5)
+    assert block_ids[4] != block_ids[5]
+    acf = compute_acf(variables["log_hl"].to_numpy(dtype=float), block_ids, max_lag=5)
+    # rezago 5 exigiria un par que cruza el cambio de contrato -- no debe existir
+    row5 = acf.loc[acf["lag"] == 5].iloc[0]
+    assert row5["n_pairs"] == 0
+    assert row5["estimable"] == False
+
+
+# ---------------------------------------------------------------------------
+# M. year_month_labels / ventanas rodantes / bootstrap por grupo
+# ---------------------------------------------------------------------------
+
+def test_year_month_labels_formats_as_yyyy_mm():
+    dates = [datetime.date(2024, 1, 8), datetime.date(2024, 1, 20), datetime.date(2024, 2, 3)]
+    labels = year_month_labels(dates)
+    np.testing.assert_array_equal(labels, ["2024-01", "2024-01", "2024-02"])
+
+
+def test_bootstrap_rho_by_group_all_groups_is_reproducible():
+    rng = np.random.default_rng(0)
+    n = 400
+    values = rng.normal(0.0, 1.0, size=n)
+    block_ids = np.zeros(n, dtype=int)
+    trading_date = np.repeat(np.arange(20), 20)
+    group_labels = np.tile(["A", "B"], n // 2)
+
+    r1 = bootstrap_rho_by_group_all_groups(values, block_ids, trading_date, group_labels, lag=1, n_boot=15, seed=3)
+    r2 = bootstrap_rho_by_group_all_groups(values, block_ids, trading_date, group_labels, lag=1, n_boot=15, seed=3)
+    pd.testing.assert_frame_equal(r1.sort_values("group").reset_index(drop=True), r2.sort_values("group").reset_index(drop=True))
+
+
+def test_bootstrap_rho_by_group_all_groups_covers_every_distinct_group():
+    rng = np.random.default_rng(1)
+    n = 300
+    values = rng.normal(0.0, 1.0, size=n)
+    block_ids = np.zeros(n, dtype=int)
+    trading_date = np.repeat(np.arange(15), 20)
+    group_labels = np.array(["X"] * 100 + ["Y"] * 100 + ["Z"] * 100)
+
+    out = bootstrap_rho_by_group_all_groups(values, block_ids, trading_date, group_labels, lag=1, n_boot=10, seed=2)
+    assert set(out["group"]) == {"X", "Y", "Z"}
+    assert (out["n_boot_used"] >= 0).all()
+
+
+def test_decide_th19_requires_both_significance_and_materiality():
+    material_and_significant = pd.DataFrame([
+        {"variable": "abs_r", "raw_adjusted": "raw", "kind_of_row": "rho_calibration", "lag": 1, "rho_real_abs": 0.4, "exceeds_calibration_threshold": True},
+    ])
+    r = decide_th19(material_and_significant)
+    assert r["verdict"] == "VOLATILITY_CLUSTERING_DETECTABLE"
+
+    tiny_but_significant = pd.DataFrame([
+        {"variable": "abs_r", "raw_adjusted": "raw", "kind_of_row": "rho_calibration", "lag": 1, "rho_real_abs": 0.001, "exceeds_calibration_threshold": True},
+    ])
+    r2 = decide_th19(tiny_but_significant, materiality_threshold=TH19_MIN_MATERIAL_RHO)
+    assert r2["verdict"] == "NO_VOLATILITY_CLUSTERING_MATERIAL"
+
+
+def test_classify_th21_genuine_vs_artifact_vs_mixed():
+    genuine = [{"variable": "abs_r", "fraction_survives": 0.9}, {"variable": "log_hl", "fraction_survives": 0.8}]
+    assert classify_th21(genuine)["verdict"] == "CLUSTERING_GENUINO"
+
+    artifact = [{"variable": "abs_r", "fraction_survives": 0.02}, {"variable": "log_hl", "fraction_survives": 0.05}]
+    assert classify_th21(artifact)["verdict"] == "ARTEFACTO_DE_ESTACIONALIDAD"
+
+    mixed = [{"variable": "abs_r", "fraction_survives": 0.9}, {"variable": "log_hl", "fraction_survives": 0.05}]
+    assert classify_th21(mixed)["verdict"] == "MIXTO"
+
+
+def test_th20_status_label_not_habilitada_vs_resuelta():
+    assert th20_status_label(False, {}) == "NO_HABILITADA"
+    assert th20_status_label(True, {"abs_r_adjusted": {"estimable": True}}) == "RESUELTA"
+    assert th20_status_label(True, {"abs_r_adjusted": {"estimable": False, "n_points": 2}}) == "INDETERMINADA"
+
+
+# ---------------------------------------------------------------------------
+# N. Persistencia por ventana rodante -- estructura y contenido
+# ---------------------------------------------------------------------------
+
+def test_run_tda09_produces_rolling_window_persistence_with_ci(tmp_path):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=25)
+    result = run_tda09_analysis(config, verbose=False)
+
+    rolling = result.persistence_rolling_window
+    assert not rolling.empty
+    assert "year_month" in rolling.columns
+    assert set(rolling["variable"]) == {"abs_r", "log_hl"}
+    at_ci_lag = rolling[rolling["lag"] == GROUP_BOOTSTRAP_LAG]
+    assert "rho_ci_lo" in at_ci_lag.columns and "rho_ci_hi" in at_ci_lag.columns
+    other_lags = rolling[rolling["lag"] != GROUP_BOOTSTRAP_LAG]
+    assert other_lags["rho_ci_lo"].isna().all()  # el IC bootstrap solo se calcula en GROUP_BOOTSTRAP_LAG
+
+
+def test_run_tda09_persistence_by_year_and_segment_include_bootstrap_ci(tmp_path):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=25)
+    result = run_tda09_analysis(config, verbose=False)
+
+    for tab in (result.persistence_by_year, result.persistence_by_segment):
+        assert {"rho_ci_lo", "rho_ci_hi"}.issubset(tab.columns)
+        at_lag1 = tab[tab["lag"] == 1]
+        # al menos algunas filas deben tener un IC valido (no todas NaN)
+        assert at_lag1["rho_ci_lo"].notna().any()
+
+
+# ---------------------------------------------------------------------------
+# O. Reproducibilidad de la corrida completa
+# ---------------------------------------------------------------------------
+
+def test_run_tda09_analysis_is_reproducible_given_fixed_seeds(tmp_path):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=20)
+
+    r1 = run_tda09_analysis(config, verbose=False)
+    r2 = run_tda09_analysis(config, verbose=False)
+
+    pd.testing.assert_frame_equal(r1.acf_table, r2.acf_table)
+    pd.testing.assert_frame_equal(r1.bootstrap_table, r2.bootstrap_table)
+    pd.testing.assert_frame_equal(r1.persistence_by_year, r2.persistence_by_year)
+    pd.testing.assert_frame_equal(r1.persistence_rolling_window, r2.persistence_rolling_window)
+    assert r1.th19_verdict == r2.th19_verdict
+    assert r1.th21_verdict == r2.th21_verdict
+
+
+# ---------------------------------------------------------------------------
+# P. Progreso visible -- 8 etapas con tiempo por etapa y tiempo acumulado
+# ---------------------------------------------------------------------------
+
+def test_run_tda09_analysis_prints_8_stages_with_progress(tmp_path, capsys):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=15)
+
+    run_tda09_analysis(config, verbose=True)
+    captured = capsys.readouterr()
+    for i in range(1, 9):
+        assert f"[TDA09 {i}/8]" in captured.out
+
+
+def test_run_tda09_analysis_silent_when_verbose_false(tmp_path, capsys):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=15)
+
+    run_tda09_analysis(config, verbose=False)
+    captured = capsys.readouterr()
+    assert "[TDA09" not in captured.out
+
+
+def test_stage_timings_are_recorded_for_all_8_stages(tmp_path):
+    config = _make_config(tmp_path, research_files=["00_mnq_03_24.Last.txt"])
+    _prepare_full_fixture(config, n_days=15)
+
+    result = run_tda09_analysis(config, verbose=False)
+    assert len(result.stage_timings) >= 8
+    assert all(v >= 0 for k, v in result.stage_timings.items() if not k.startswith("_"))
