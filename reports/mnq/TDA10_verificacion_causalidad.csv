@@ -1,0 +1,7 @@
+family,param,n_indices_checked,passed,all_changed_shortly_after
+rolling_std,30.0,6,True,True
+rolling_std,120.0,6,True,True
+rolling_std,390.0,6,True,True
+ewma,20.0,6,True,True
+ewma,60.0,6,True,True
+ewma,240.0,6,True,True

@@ -199,6 +199,27 @@ class SnapshotConfig:
     tda09_acf_raw_vs_adjusted_png_name: str = ""
     tda09_decay_png_name: str = ""
 
+    # TDA-10 -- Escala versus forma: origen de las colas. Misma logica de
+    # opcionalidad que TDA-02..TDA-09. La grilla de ventanas/half-lives, los
+    # umbrales del veredicto y la ventana de causalidad son constantes
+    # predeclaradas en ``tda10_scale_vs_shape.py`` -- solo ``n_boot``
+    # (bootstrap de bloques por jornada para la CI de curtosis del
+    # estimador primario) es genuinamente configurable, mismo criterio que
+    # TDA-07/08/09 aplicaron a su propio bootstrap.
+    tda10_n_boot: int = 300
+    tda10_report_name: str = ""
+    tda10_kurtosis_csv_name: str = ""
+    tda10_kurtosis_bootstrap_ci_csv_name: str = ""
+    tda10_quantile_by_decile_csv_name: str = ""
+    tda10_quantile_by_segment_csv_name: str = ""
+    tda10_quantile_by_year_csv_name: str = ""
+    tda10_sensitivity_csv_name: str = ""
+    tda10_causality_check_csv_name: str = ""
+    tda10_qq_points_csv_name: str = ""
+    tda10_qq_primary_png_name: str = ""
+    tda10_qq_sensitivity_png_name: str = ""
+    tda10_quantile_profile_png_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -575,6 +596,54 @@ class SnapshotConfig:
     def tda09_decay_png_path(self) -> Path:
         return self.reports_dir / self.tda09_decay_png_name
 
+    @property
+    def tda10_report_path(self) -> Path:
+        return self.reports_dir / self.tda10_report_name
+
+    @property
+    def tda10_kurtosis_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_kurtosis_csv_name
+
+    @property
+    def tda10_kurtosis_bootstrap_ci_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_kurtosis_bootstrap_ci_csv_name
+
+    @property
+    def tda10_quantile_by_decile_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_quantile_by_decile_csv_name
+
+    @property
+    def tda10_quantile_by_segment_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_quantile_by_segment_csv_name
+
+    @property
+    def tda10_quantile_by_year_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_quantile_by_year_csv_name
+
+    @property
+    def tda10_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_sensitivity_csv_name
+
+    @property
+    def tda10_causality_check_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_causality_check_csv_name
+
+    @property
+    def tda10_qq_points_csv_path(self) -> Path:
+        return self.reports_dir / self.tda10_qq_points_csv_name
+
+    @property
+    def tda10_qq_primary_png_path(self) -> Path:
+        return self.reports_dir / self.tda10_qq_primary_png_name
+
+    @property
+    def tda10_qq_sensitivity_png_path(self) -> Path:
+        return self.reports_dir / self.tda10_qq_sensitivity_png_name
+
+    @property
+    def tda10_quantile_profile_png_path(self) -> Path:
+        return self.reports_dir / self.tda10_quantile_profile_png_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -627,6 +696,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     tda08 = raw.get("tda08", {})
     tda08h = raw.get("tda08h", {})
     tda09 = raw.get("tda09", {})
+    tda10 = raw.get("tda10", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -757,4 +827,17 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda09_acf_triple_png_name=tda09.get("acf_triple_png", ""),
         tda09_acf_raw_vs_adjusted_png_name=tda09.get("acf_raw_vs_adjusted_png", ""),
         tda09_decay_png_name=tda09.get("decay_png", ""),
+        tda10_n_boot=int(tda10.get("n_boot", 300)),
+        tda10_report_name=tda10.get("report_name", ""),
+        tda10_kurtosis_csv_name=tda10.get("kurtosis_csv", ""),
+        tda10_kurtosis_bootstrap_ci_csv_name=tda10.get("kurtosis_bootstrap_ci_csv", ""),
+        tda10_quantile_by_decile_csv_name=tda10.get("quantile_by_decile_csv", ""),
+        tda10_quantile_by_segment_csv_name=tda10.get("quantile_by_segment_csv", ""),
+        tda10_quantile_by_year_csv_name=tda10.get("quantile_by_year_csv", ""),
+        tda10_sensitivity_csv_name=tda10.get("sensitivity_csv", ""),
+        tda10_causality_check_csv_name=tda10.get("causality_check_csv", ""),
+        tda10_qq_points_csv_name=tda10.get("qq_points_csv", ""),
+        tda10_qq_primary_png_name=tda10.get("qq_primary_png", ""),
+        tda10_qq_sensitivity_png_name=tda10.get("qq_sensitivity_png", ""),
+        tda10_quantile_profile_png_name=tda10.get("quantile_profile_png", ""),
     )
