@@ -390,3 +390,30 @@ tda10:
   qq_primary_png: TDA10_qq_primario.png
   qq_sensitivity_png: TDA10_qq_sensibilidad.png
   quantile_profile_png: TDA10_perfil_cuantiles_decil.png
+
+# TDA-11 -- modelo parametrico de volatilidad (CONDICIONAL, TH23/TH24/TH25).
+# Entrada: variables + mascara de validez de TDA-04 (seccion `tda04`),
+# r_tilde de TDA-06 (seccion `tda06`), segmentacion de TDA-06, y el
+# `TDA09_clock_attribution.csv` de TDA-09 (seccion `tda09`) para verificar
+# la puerta de entrada -- ninguna se redeclara aqui. `n_boot` es el
+# bootstrap de bloques por jornada de TH25 (misma convencion que
+# TDA-07/08/09/10). `n_workers` controla la paralelizacion CPU de los
+# ajustes GARCH por año/segmento (docs/project_hardware.md) -- 0 =
+# automatico (`default_n_workers`, maximo ~20, reservando ~4 nucleos para
+# el sistema). La escala de ajuste GARCH, la grilla de rezagos/m de
+# diagnostico y los umbrales de decision (utilidad informativa, umbral de
+# asimetria, tamaño minimo de subperiodo) son constantes predeclaradas en
+# `tda11_parametric_volatility.py`, no valores de configuracion.
+tda11:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  n_workers: 0
+  report_name: TDA11_modelo_parametrico_volatilidad.md
+  entry_gate_csv: TDA11_puerta_de_entrada.csv
+  benchmarks_csv: TDA11_benchmarks_comparativa.csv
+  garch_params_csv: TDA11_garch_parametros.csv
+  garch_diagnostics_csv: TDA11_garch_diagnosticos_residuos.csv
+  asymmetry_csv: TDA11_asimetria_th25.csv
+  usefulness_csv: TDA11_utilidad_informativa.csv
+  acf_comparison_png: TDA11_acf_residuos_comparacion.png
+  stability_png: TDA11_persistencia_estabilidad.png

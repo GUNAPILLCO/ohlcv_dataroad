@@ -1,0 +1,2 @@
+useful,best_benchmark_q_abs_z_m,garch_q_abs_z_m,relative_reduction,reduces_dependence,alpha,separates_impact,reduction_threshold,alpha_threshold
+True,91023.02099117932,5892.695785764588,0.9352614786721304,True,0.051908178007925715,True,0.2,0.01

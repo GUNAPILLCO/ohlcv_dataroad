@@ -1,0 +1,2 @@
+th21_verdict,stop9_activated,gate_open,reason
+CLUSTERING_GENUINO,False,True,"TH21 recomputado = CLUSTERING_GENUINO y STOP-9 = NO ACTIVADO (criterio de entrada 1 satisfecho). La pregunta escrita (WRITTEN_QUESTION) esta declarada y pertenece a caracterizacion, no a prediccion (criterios 2 y 3). Puerta ABIERTA -- se construyen los benchmarks."

@@ -220,6 +220,27 @@ class SnapshotConfig:
     tda10_qq_sensitivity_png_name: str = ""
     tda10_quantile_profile_png_name: str = ""
 
+    # TDA-11 -- Modelo parametrico de volatilidad (CONDICIONAL). Misma
+    # logica de opcionalidad que TDA-02..TDA-10. La escala de ajuste
+    # GARCH, la grilla de rezagos/m de diagnostico, los umbrales de
+    # decision (utilidad informativa, materialidad de asimetria) y el
+    # tamaño minimo de muestra por subperiodo son constantes
+    # predeclaradas en ``tda11_parametric_volatility.py`` -- solo
+    # ``n_boot`` (bootstrap de bloques por jornada para TH25) y
+    # ``n_workers`` (paralelizacion CPU de los ajustes por año/segmento,
+    # ver docs/project_hardware.md) son genuinamente configurables.
+    tda11_n_boot: int = 300
+    tda11_n_workers: int = 0  # 0 = automatico (default_n_workers)
+    tda11_report_name: str = ""
+    tda11_entry_gate_csv_name: str = ""
+    tda11_benchmarks_csv_name: str = ""
+    tda11_garch_params_csv_name: str = ""
+    tda11_garch_diagnostics_csv_name: str = ""
+    tda11_asymmetry_csv_name: str = ""
+    tda11_usefulness_csv_name: str = ""
+    tda11_acf_comparison_png_name: str = ""
+    tda11_stability_png_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -644,6 +665,42 @@ class SnapshotConfig:
     def tda10_quantile_profile_png_path(self) -> Path:
         return self.reports_dir / self.tda10_quantile_profile_png_name
 
+    @property
+    def tda11_report_path(self) -> Path:
+        return self.reports_dir / self.tda11_report_name
+
+    @property
+    def tda11_entry_gate_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_entry_gate_csv_name
+
+    @property
+    def tda11_benchmarks_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_benchmarks_csv_name
+
+    @property
+    def tda11_garch_params_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_garch_params_csv_name
+
+    @property
+    def tda11_garch_diagnostics_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_garch_diagnostics_csv_name
+
+    @property
+    def tda11_asymmetry_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_asymmetry_csv_name
+
+    @property
+    def tda11_usefulness_csv_path(self) -> Path:
+        return self.reports_dir / self.tda11_usefulness_csv_name
+
+    @property
+    def tda11_acf_comparison_png_path(self) -> Path:
+        return self.reports_dir / self.tda11_acf_comparison_png_name
+
+    @property
+    def tda11_stability_png_path(self) -> Path:
+        return self.reports_dir / self.tda11_stability_png_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -697,6 +754,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     tda08h = raw.get("tda08h", {})
     tda09 = raw.get("tda09", {})
     tda10 = raw.get("tda10", {})
+    tda11 = raw.get("tda11", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -840,4 +898,15 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda10_qq_primary_png_name=tda10.get("qq_primary_png", ""),
         tda10_qq_sensitivity_png_name=tda10.get("qq_sensitivity_png", ""),
         tda10_quantile_profile_png_name=tda10.get("quantile_profile_png", ""),
+        tda11_n_boot=int(tda11.get("n_boot", 300)),
+        tda11_n_workers=int(tda11.get("n_workers", 0)),
+        tda11_report_name=tda11.get("report_name", ""),
+        tda11_entry_gate_csv_name=tda11.get("entry_gate_csv", ""),
+        tda11_benchmarks_csv_name=tda11.get("benchmarks_csv", ""),
+        tda11_garch_params_csv_name=tda11.get("garch_params_csv", ""),
+        tda11_garch_diagnostics_csv_name=tda11.get("garch_diagnostics_csv", ""),
+        tda11_asymmetry_csv_name=tda11.get("asymmetry_csv", ""),
+        tda11_usefulness_csv_name=tda11.get("usefulness_csv", ""),
+        tda11_acf_comparison_png_name=tda11.get("acf_comparison_png", ""),
+        tda11_stability_png_name=tda11.get("stability_png", ""),
     )
