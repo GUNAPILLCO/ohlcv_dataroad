@@ -31,10 +31,12 @@ from ohlcv_dataroad.ingest.holdout_guard import HoldoutIsolationError
 from ohlcv_dataroad.ingest.tda07_marginal_distribution import RTildeInvariantError, TimestampAlignmentError
 from ohlcv_dataroad.ingest.tda10_scale_vs_shape import (
     ALL_ESTIMATOR_CONFIGS,
+    BORDERLINE_MARGIN,
     EWMA_HALFLIVES_MINUTES,
     FRACTION_REMOVED_FORM_THRESHOLD,
     FRACTION_REMOVED_SCALE_THRESHOLD,
     LookaheadLeakageError,
+    MIN_VALID_SIGMA_HAT,
     PopulationMismatchError,
     PRIMARY_ESTIMATOR,
     PRIMARY_ESTIMATOR_CLOCK_ADJUSTED,
@@ -203,7 +205,9 @@ def render_report(result: TDA10Result, config: SnapshotConfig, elapsed_total_sec
 
     kurt_year_prim = kurt[(kurt["scope"] == "YEAR") & (kurt["family"] == PRIMARY_ESTIMATOR[0]) & (kurt["param"] == PRIMARY_ESTIMATOR[1]) & (kurt["input_series"] == PRIMARY_ESTIMATOR[2])].sort_values("scope_value")
 
-    ci = result.kurtosis_bootstrap_ci
+    ci_all = result.kurtosis_bootstrap_ci
+    ci_raw = ci_all.loc[ci_all["config"] == prim_label].iloc[0]
+    ci_adj = ci_all.loc[ci_all["config"] == prim_adj_label].iloc[0]
 
     prim_decile = result.quantile_by_decile[result.quantile_by_decile["config"] == prim_label]
     prim_segment = result.quantile_by_segment[result.quantile_by_segment["config"] == prim_label]
@@ -211,39 +215,58 @@ def render_report(result: TDA10Result, config: SnapshotConfig, elapsed_total_sec
 
     sens = result.sensitivity_table.copy()
     sens["config"] = [_config_label(f, p, s) for f, p, s in zip(sens["family"], sens["param"], sens["input_series"])]
+    sens_raw = sens.loc[sens["input_series"] == "raw"].copy()
+    sens_clk = sens.loc[sens["input_series"] == "clock_adjusted"].copy()
+    total_sigma_floor_excluded = int(sens["n_sigma_floor_excluded"].sum())
+    borderline_rows = sens.loc[sens["is_borderline"]]
 
     th22 = result.th22_verdict
+    raw_v, raw_v_full = result.raw_block_verdict, result.raw_block_verdict_full
+    clk_v, clk_v_full = result.clock_adjusted_block_verdict, result.clock_adjusted_block_verdict_full
     stop13 = result.stop13_suggestion
 
     stage_lines = "\n".join(
         f"| {name} | {seconds:.1f}s |" for name, seconds in result.stage_timings.items() if not name.startswith("_")
     )
 
-    label_counts = ", ".join(f"{k}={v}" for k, v in th22.get("counts", {}).items())
+    def _label_counts(d: dict) -> str:
+        return ", ".join(f"{k}={v}" for k, v in d.get("counts", {}).items()) or "(sin datos)"
+
+    def _block_summary(name: str, v_trimmed: dict, v_full: dict) -> str:
+        agree_pct = _fmt(v_trimmed["agreement_fraction"], 2)
+        return (
+            f"**{name}** — {v_trimmed['n_configs']} configuraciones. Distribución de etiquetas (métrica RECORTADA, "
+            f"oficial): {_label_counts(v_trimmed)}. Acuerdo de la etiqueta mayoritaria: **{agree_pct}** "
+            f"({'robusto' if v_trimmed['robust'] else 'INSUFICIENTE, umbral='+str(ROBUSTNESS_AGREEMENT_FRACTION)}). "
+            f"Veredicto del bloque: **`{v_trimmed['verdict']}`**. "
+            f"Diagnóstico con la métrica COMPLETA/sin recortar (transparencia, nunca decide): "
+            f"{_label_counts(v_full)}, acuerdo={_fmt(v_full['agreement_fraction'], 2)}, "
+            f"veredicto={v_full['verdict']}."
+        )
 
     verdict_explanation = {
         "ESCALA_DOMINA": (
             "La curtosis cae drasticamente al estandarizar por volatilidad causal reciente, y los cuantiles de "
             "z_t son razonablemente estables entre horas del dia, deciles de volatilidad y anios -- de forma "
-            "robusta entre estimadores y ventanas. En palabras simples: los movimientos que parecian extremos "
-            "en r_1m dejan de parecerlo, en su gran mayoria, una vez que se compara cada retorno contra la "
-            "volatilidad que ya era previsible en ese momento. La mayor parte de las colas gruesas de MNQ es "
-            "un efecto de ESCALA (la volatilidad cambia en el tiempo), no de FORMA."
+            "robusta entre estimadores y ventanas del bloque RAW/CAUSAL. En palabras simples: los movimientos que "
+            "parecian extremos en r_1m dejan de parecerlo, en su gran mayoria, una vez que se compara cada retorno "
+            "contra la volatilidad que ya era previsible en ese momento. La mayor parte de las colas gruesas de "
+            "MNQ es un efecto de ESCALA (la volatilidad cambia en el tiempo), no de FORMA."
         ),
         "FORMA_SUSTANCIAL": (
             "Incluso despues de estandarizar causalmente por la volatilidad reciente, una fraccion grande del "
             "exceso de curtosis sobrevive, y/o los cuantiles de z_t difieren de forma sistematica entre horas "
-            "del dia, deciles de volatilidad o anios -- de forma robusta entre estimadores y ventanas. En "
-            "palabras simples: aun comparando cada retorno contra lo que era esperable en ese momento, los "
-            "movimientos extremos de MNQ siguen siendo anormalmente extremos. Hay estructura de FORMA genuina, "
-            "no solo de escala."
+            "del dia, deciles de volatilidad o anios -- de forma robusta entre estimadores y ventanas del bloque "
+            "RAW/CAUSAL. En palabras simples: aun comparando cada retorno contra lo que era esperable en ese "
+            "momento, los movimientos extremos de MNQ siguen siendo anormalmente extremos. Hay estructura de "
+            "FORMA genuina, no solo de escala."
         ),
         "MIXTO": (
-            "El resultado no es uniforme: una parte sustancial de la curtosis desaparece al estandarizar, pero "
-            "persiste evidencia de forma (perfiles de cuantiles que no se superponen del todo, o una conclusion "
-            "que cambia segun el estimador/ventana/anio). En palabras simples: la escala explica una parte real "
-            "del fenomeno, pero no toda -- ni 'todo es escala' ni 'todo es forma' describe correctamente a MNQ "
-            "con la evidencia de esta etapa."
+            "El bloque RAW/CAUSAL (la pregunta principal, la unica que usa exclusivamente sigma_hat causal) no "
+            "alcanza el umbral de robustez predeclarado -- ni 'todo es escala' ni 'todo es forma' describe "
+            "correctamente el resultado causal puro. En palabras simples: la escala explica una parte real del "
+            "fenomeno, pero no toda, y esa conclusion no es la misma segun el estimador/ventana que se use dentro "
+            "del bloque causal."
         ),
     }[th22["verdict"]]
 
@@ -284,81 +307,121 @@ Dos familias, cada una con una grilla pequeña y predeclarada (nunca ajustada tr
 
 Las 6 configuraciones **pasaron** la prueba — ninguna usa información de `r[idx]` o posterior para calcular `sigma_hat` en `t<=idx` (si alguna hubiera fallado, `LookaheadLeakageError` habría detenido la etapa antes de construir ningún `z_t`).
 
-## 4. Resultado de curtosis (global, versión completa)
+## 4. Resultado de curtosis — versión COMPLETA (sin recortar)
 
-Curtosis de `r` (restringido a la población donde `z` está definido) vs. curtosis de `z`, fracción eliminada, las 12 configuraciones, alcance GLOBAL:
+Curtosis de `r` (restringido a la población donde `z` está definido) vs. curtosis de `z`, fracción eliminada **sin recortar**, las 12 configuraciones, alcance GLOBAL — se reporta íntegramente (roadmap, tabla central) pero **no decide el veredicto** (ver §6 y §13 para el porqué):
 
 {_md_table(kurt_global, ["config", "n", "kurt_r", "kurt_z", "fraction_removed"], float_nd=3)}
 
-**Bootstrap de bloques por jornada (IC 95%, `n_boot={ci['n_boot']}`) — configuración primaria `{prim_label}`**:
+**Piso numérico de `sigma_hat` (`MIN_VALID_SIGMA_HAT={MIN_VALID_SIGMA_HAT:g}`)**: protege la división `z_t=r_t/sigma_hat_(t-1)` de un `sigma_hat` positivo pero numéricamente indistinguible de cero (residual de punto flotante en una ventana de precios casi constantes, no volatilidad real) — sin él, un solo punto así puede disparar un `z_t` de millones de desviaciones estándar y arrastrar la curtosis sin recortar de esa configuración a valores sin sentido. **No es un mecanismo para descartar extremos reales**: solo excluye `sigma_hat` por debajo de `{MIN_VALID_SIGMA_HAT:g}` — más de 3 órdenes de magnitud por debajo del retorno más pequeño posible dado el tick de MNQ (~1,47×10⁻⁵) — nunca un retorno o una desviación grande. Filas afectadas, contadas automáticamente (columna `n_sigma_floor_excluded` de `{config.tda10_sensitivity_csv_name}`), por configuración:
 
-| | punto | IC 95% lo | IC 95% hi |
-|---|---:|---:|---:|
-| kurt_r | {_fmt(ci['kurt_r_point'], 3)} | {_fmt(ci['kurt_r_ci_lo'], 3)} | {_fmt(ci['kurt_r_ci_hi'], 3)} |
-| kurt_z | {_fmt(ci['kurt_z_point'], 3)} | {_fmt(ci['kurt_z_ci_lo'], 3)} | {_fmt(ci['kurt_z_ci_hi'], 3)} |
-| fraction_removed (versión completa) | {_fmt(th22['primary_fraction_removed_full'], 4)} | {_fmt(ci['fraction_removed_ci_lo'], 4)} | {_fmt(ci['fraction_removed_ci_hi'], 4)} |
+{_md_table(sens[["config", "n_sigma_floor_excluded"]].loc[sens["n_sigma_floor_excluded"] > 0], ["config", "n_sigma_floor_excluded"], float_nd=0) if (sens["n_sigma_floor_excluded"] > 0).any() else "_(ninguna configuración tuvo filas por debajo del piso — 0 en las 12)_"}
 
-El IC de bootstrap es sobre la versión **completa** (sin recortar) — por eso puede ser negativo/amplio (ver nota más abajo: el momento de cuarto orden sin recortar es frágil ante un puñado de observaciones). El veredicto de §11 usa la versión **recortada** por ese motivo (`fraction_removed_trimmed` = {_fmt(th22['primary_fraction_removed_trimmed'], 4)} para `{prim_label}`).
+Total de filas afectadas en las 12 configuraciones combinadas: **{total_sigma_floor_excluded}** (sobre una población de {len(result.r1m_population):,} filas por configuración) — la razón por la que la curtosis SIN recortar de la(s) configuración(es) afectada(s) puede ser extrema y no es la métrica que decide el veredicto (ver §6).
 
-**Nota sobre `rolling_std_30` y el piso numérico de `sigma_hat`**: la ventana rodante más corta (30 barras) puede, en tramos de precio casi constante, producir un `sigma_hat` numéricamente indistinguible de cero (residual de punto flotante, no volatilidad real) — dividir por ese valor dispararía un `z_t` de millones de desviaciones estándar y contaminaría por completo la curtosis sin recortar de esa única configuración. Se protegió explícitamente (`MIN_VALID_SIGMA_HAT=1e-8`, verificado sobre el conjunto de investigación real: exactamente 1 de 1.914.530 filas por debajo del piso, únicamente en `rolling_std_30`) — sin esa protección, `kurt_z` de esa configuración se dispara a más de 1,9 millones por un solo punto. Es la razón adicional, más allá de la recomendación de TDA-07, por la que el veredicto usa la versión recortada y no la completa.
+## 5. Resultado de curtosis — versión RECORTADA 0.1% (convención TDA-07)
 
-## 5. Resultado con recorte 0.1% (convención TDA-07)
-
-Misma tabla, columnas `*_trimmed` (recorte del 0.1% total, 0.05% por cola, igual convención que TDA-07):
+Misma tabla, columnas `*_trimmed` (recorte del 0.1% total, 0.05% por cola, igual convención que TDA-07). **Esta es la métrica que alimenta el veredicto formal** (`classify_config`, ver §13):
 
 {_md_table(kurt_global, ["config", "kurt_r_trimmed", "kurt_z_trimmed", "fraction_removed_trimmed"], float_nd=3)}
 
-La diferencia entre la fracción eliminada completa y la recortada es en sí misma informativa: si la fracción recortada es mucho menor, la reducción de curtosis de la versión completa depende en gran parte de un puñado de observaciones extremas (consistente con TDA-07, que ya mostró que la curtosis recortada de `r_1m` es mucho más estable que la cruda).
+La diferencia entre la fracción eliminada completa (§4) y la recortada (aquí) es en sí misma informativa: si la recortada es mucho menor (o, como en `rolling_std_30_raw`, la completa se ve artificialmente MENOR por el artefacto numérico de §4), la reducción de curtosis de la versión completa depende en gran parte de un puñado de observaciones — consistente con TDA-07, que ya mostró que la curtosis recortada de `r_1m` es mucho más estable que la cruda.
 
-## 6. Estabilidad por año (configuración primaria `{prim_label}`)
+## 6. Qué metrica decide el veredicto — auditoría de transparencia
+
+El roadmap pide reportar la curtosis en ambas versiones; esta etapa las reporta y además **clasifica ambas por separado** (`config_label_full` vs `config_label_trimmed`, tabla completa en §10) para que quede explícito qué concluye cada una. La decisión de que `classify_config` use exclusivamente `fraction_removed_trimmed` (nunca `fraction_removed_full`) se tomó **después** de observar, sobre el conjunto de investigación real, que la versión completa de `rolling_std_30` se disparaba por el artefacto numérico de §4 — no se ocultó esa decisión, ni se ajustó ningún UMBRAL después de verla (`{FRACTION_REMOVED_SCALE_THRESHOLD}`/`{FRACTION_REMOVED_FORM_THRESHOLD}`/`{PROFILE_STABILITY_SCALE_THRESHOLD}`/`{PROFILE_STABILITY_FORM_THRESHOLD}` son idénticos a la primera ejecución). Está justificada, además, de forma independiente por TDA-07 (informe, §12, escrito antes de que TDA-10 existiera): "la curtosis recortada... es la cifra más estable disponible... para juzgar cuánta de la no-normalidad es genuina".
+
+## 7. Incertidumbre bootstrap de la métrica primaria (completa + recortada)
+
+Bootstrap de bloques por jornada (G5, `n_boot={int(ci_raw['n_boot'])}`), configuración primaria `{prim_label}` (obligatorio) y su contraparte `{prim_adj_label}` (diagnóstico retrospectivo secundario, barato con el mismo motor):
+
+**`{prim_label}` (RAW/CAUSAL, la pregunta principal)**:
+
+| | punto | IC 95% lo | IC 95% hi |
+|---|---:|---:|---:|
+| kurt_r (completa) | {_fmt(ci_raw['kurt_r_full_point'], 3)} | {_fmt(ci_raw['kurt_r_full_ci_lo'], 3)} | {_fmt(ci_raw['kurt_r_full_ci_hi'], 3)} |
+| kurt_z (completa) | {_fmt(ci_raw['kurt_z_full_point'], 3)} | {_fmt(ci_raw['kurt_z_full_ci_lo'], 3)} | {_fmt(ci_raw['kurt_z_full_ci_hi'], 3)} |
+| fraction_removed (completa) | {_fmt(ci_raw['fraction_removed_full_point'], 4)} | {_fmt(ci_raw['fraction_removed_full_ci_lo'], 4)} | {_fmt(ci_raw['fraction_removed_full_ci_hi'], 4)} |
+| kurt_r (**recortada**) | {_fmt(ci_raw['kurt_r_trimmed_point'], 3)} | {_fmt(ci_raw['kurt_r_trimmed_ci_lo'], 3)} | {_fmt(ci_raw['kurt_r_trimmed_ci_hi'], 3)} |
+| kurt_z (**recortada**) | {_fmt(ci_raw['kurt_z_trimmed_point'], 3)} | {_fmt(ci_raw['kurt_z_trimmed_ci_lo'], 3)} | {_fmt(ci_raw['kurt_z_trimmed_ci_hi'], 3)} |
+| fraction_removed (**recortada, la que decide el veredicto**) | {_fmt(ci_raw['fraction_removed_trimmed_point'], 4)} | {_fmt(ci_raw['fraction_removed_trimmed_ci_lo'], 4)} | {_fmt(ci_raw['fraction_removed_trimmed_ci_hi'], 4)} |
+
+**`{prim_adj_label}` (CLOCK_ADJUSTED/RETROSPECTIVO, diagnóstico secundario)**:
+
+| | punto | IC 95% lo | IC 95% hi |
+|---|---:|---:|---:|
+| kurt_r (completa) | {_fmt(ci_adj['kurt_r_full_point'], 3)} | {_fmt(ci_adj['kurt_r_full_ci_lo'], 3)} | {_fmt(ci_adj['kurt_r_full_ci_hi'], 3)} |
+| kurt_z (completa) | {_fmt(ci_adj['kurt_z_full_point'], 3)} | {_fmt(ci_adj['kurt_z_full_ci_lo'], 3)} | {_fmt(ci_adj['kurt_z_full_ci_hi'], 3)} |
+| fraction_removed (completa) | {_fmt(ci_adj['fraction_removed_full_point'], 4)} | {_fmt(ci_adj['fraction_removed_full_ci_lo'], 4)} | {_fmt(ci_adj['fraction_removed_full_ci_hi'], 4)} |
+| kurt_r (recortada) | {_fmt(ci_adj['kurt_r_trimmed_point'], 3)} | {_fmt(ci_adj['kurt_r_trimmed_ci_lo'], 3)} | {_fmt(ci_adj['kurt_r_trimmed_ci_hi'], 3)} |
+| kurt_z (recortada) | {_fmt(ci_adj['kurt_z_trimmed_point'], 3)} | {_fmt(ci_adj['kurt_z_trimmed_ci_lo'], 3)} | {_fmt(ci_adj['kurt_z_trimmed_ci_hi'], 3)} |
+| fraction_removed (recortada) | {_fmt(ci_adj['fraction_removed_trimmed_point'], 4)} | {_fmt(ci_adj['fraction_removed_trimmed_ci_lo'], 4)} | {_fmt(ci_adj['fraction_removed_trimmed_ci_hi'], 4)} |
+
+El IC de la fracción **completa** puede ser negativo/amplio (momento de cuarto orden, frágil ante un puñado de observaciones — ver §4/§6); el IC de la fracción **recortada** (la que decide el veredicto) es la incertidumbre que corresponde a §13.
+
+## 8. Estabilidad por año (configuración primaria `{prim_label}`)
 
 {_md_table(kurt_year_prim, ["scope_value", "n", "kurt_r", "kurt_z", "fraction_removed", "fraction_removed_trimmed"], float_nd=3)}
 
-## 7. Estabilidad por segmento horario (headline: primario raw y clock_adjusted)
+## 9. Estabilidad por segmento horario y por decil de volatilidad (headline: primario raw)
 
 Cuantiles de `z_t` por segmento (TDA-06) — `n` y cuantiles `NaN` si el segmento no alcanza el mínimo de muestra:
 
 {_md_table(prim_segment, ["group", "n", "std_z", "q0.01", "q0.05", "q0.95", "q0.99"], float_nd=4)}
 
-## 8. Estabilidad entre deciles de volatilidad (headline: primario raw)
+Por decil de `sigma_hat_(t-1)` (0=más tranquilo, 9=más volátil):
 
 {_md_table(prim_decile, ["group", "n", "std_z", "q0.01", "q0.05", "q0.95", "q0.99"], float_nd=4)}
 
 Ver también `{config.tda10_quantile_by_year_csv_name}` (misma tabla por año) y `{config.tda10_quantile_profile_png_name}` (perfil visual, primario raw y clock_adjusted lado a lado).
 
-## 9. Sensibilidad a estimador/ventana (las 12 configuraciones)
+## 10. Sensibilidad a estimador/ventana (las 12 configuraciones, ambas métricas)
 
-{_md_table(sens, ["config", "fraction_removed_full", "fraction_removed_trimmed", "decile_stability_ratio", "segment_stability_ratio", "year_stability_ratio", "config_label"], float_nd=3)}
+{_md_table(sens, ["config", "fraction_removed_full", "fraction_removed_trimmed", "max_stability_ratio", "config_label_full", "config_label_trimmed", "is_borderline"], float_nd=3)}
 
-`fraction_removed_full` es la versión SIN recortar — se reporta por transparencia (roadmap, tabla central) pero es el motivo por el que un estimador de ventana corta puede mostrar valores extremos (ver §4: un único `sigma_hat` numéricamente indistinguible de cero, dentro de una ventana de precios casi constantes, puede disparar un `z_t` de millones de desviaciones — protegido explícitamente por `MIN_VALID_SIGMA_HAT`, pero incluso protegido, un puñado de sorpresas genuinas puede seguir dominando un momento de cuarto orden sin recortar). **La clasificación de cada configuración usa `fraction_removed_trimmed`** — la cifra que TDA-07 (informe, §12) recomendó explícitamente como referencia más estable antes de esta etapa.
+`config_label_full`/`config_label_trimmed`: la clasificación (`classify_config`) de CADA configuración con cada métrica de curtosis — muestra explícitamente qué hubiera concluido la versión completa frente a la recortada (§6). **Solo `config_label_trimmed` alimenta el veredicto formal** (§13).
 
-**Robustez**: {th22['n_configs']} configuraciones evaluadas, distribución de etiquetas: {label_counts}. La etiqueta mayoritaria (`{th22['verdict'] if th22['robust'] else max(th22['counts'], key=lambda k: th22['counts'][k]) if th22['counts'] else 'N/A'}`) cubre una fracción **{_fmt(th22['agreement_fraction'], 2)}** de las configuraciones — {'suficiente' if th22['robust'] else 'INSUFICIENTE'} para declarar el veredicto robusto (umbral predeclarado: {ROBUSTNESS_AGREEMENT_FRACTION}).
+**Configuraciones BORDERLINE** (distancia a algún umbral `<= {BORDERLINE_MARGIN}`, meta-información descriptiva — nunca cambia `classify_config` ni los umbrales): {(', '.join(f"`{c}` (distancia mínima={_fmt(d, 4)})" for c, d in zip(borderline_rows['config'], borderline_rows['min_abs_distance_to_any_threshold']))) if not borderline_rows.empty else '_(ninguna configuración quedó a menos de ' + str(BORDERLINE_MARGIN) + ' de un umbral)_'}. Estos resultados no deben leerse como diferencias fuertes frente al umbral — ver `{config.tda10_sensitivity_csv_name}` (columnas `dist_*`) para el detalle firmado por umbral.
 
-**Patrón por escala DETERMINISTA vs DINÁMICA** (§3, ajuste de reloj): en la tabla de arriba, {sens.loc[(sens['input_series']=='clock_adjusted') & (sens['config_label']=='ESCALA_DOMINA')].shape[0]} de las 6 configuraciones `clock_adjusted` (que primero retiran `s(m)`, RETROSPECTIVO, y luego aplican el estimador causal) clasifican como `ESCALA_DOMINA`, frente a solo {sens.loc[(sens['input_series']=='raw') & (sens['config_label']=='ESCALA_DOMINA')].shape[0]} de las 6 `raw` (que solo aplican el estimador causal, sin retirar antes el patrón horario). Esto sugiere que buena parte de lo que aparenta ser FORMA cuando se usa exclusivamente un estimador causal dinámico es, en realidad, escala DETERMINISTA (el patrón horario de TDA-06) que ese estimador —reactivo pero lento— no captura bien por sí solo. Esta distinción (determinista vs dinámica) es precisamente la que la tarea pidió no confundir; **no cambia el veredicto GLOBAL** (que se basa en las 12 configuraciones, no solo en las 6 `clock_adjusted`, y la versión `clock_adjusted` no es causal de principio a fin — depende de `s(m)` RETROSPECTIVO), pero es evidencia relevante para TDA-11/12.
+## 11. Separación RAW/CAUSAL vs CLOCK_ADJUSTED/RETROSPECTIVO
 
-## 10. QQ-plots
+Las 12 configuraciones NO tienen el mismo estatus epistemológico: `raw` es causal de principio a fin; `clock_adjusted` depende de `s(m)` (TDA-06, RETROSPECTIVO). Por eso el veredicto NO es una votación ciega de las 12 — se reportan tres resúmenes separados:
+
+### A. RAW / CAUSAL — la pregunta principal
+
+{_block_summary("RAW/CAUSAL", raw_v, raw_v_full)}
+
+### B. CLOCK_ADJUSTED / RETROSPECTIVO — diagnóstico secundario (nunca disponible causalmente en producción)
+
+{_block_summary("CLOCK_ADJUSTED/RETROSPECTIVO", clk_v, clk_v_full)}
+
+### C. GLOBAL / SÍNTESIS
+
+El veredicto FORMAL de TH22 (§13) es **siempre** el del bloque A (RAW/CAUSAL) — nunca el de B, y nunca una mezcla aritmética de ambos. El bloque B se usa solo para calificar la interpretación: {'los dos bloques COINCIDEN en la misma etiqueta (`' + th22['verdict'] + '`) -- el diagnóstico retrospectivo refuerza el resultado causal.' if th22['clock_adjusted_agrees_with_raw'] else 'los dos bloques DIVERGEN — el bloque RAW/CAUSAL da `' + raw_v['verdict'] + '` mientras que el diagnóstico CLOCK_ADJUSTED/RETROSPECTIVO da `' + clk_v['verdict'] + '`. Esto sugiere que buena parte de lo que el bloque causal puro ve como FORMA podría deberse a la componente DETERMINISTA de reloj (patrón horario, TDA-06) que un estimador causal dinámico, aplicado solo sobre `r_1m`, no captura bien por sí solo — evidencia relevante para TDA-11/TDA-12, pero que NO cambia el veredicto formal de esta etapa (el bloque B es RETROSPECTIVO, no disponible causalmente).'}
+
+## 12. QQ-plots
 
 - `{config.tda10_qq_primary_png_name}`: `r_1m` crudo vs. normal, y `z_t` (primario) vs. normal — cuánta cola desaparece al retirar la escala dinámica.
 - `{config.tda10_qq_sensitivity_png_name}`: `z_t` superpuesto para las 6 configuraciones "raw" y las 6 "clock_adjusted" — sensibilidad visual del QQ a estimador/ventana/half-life.
 - `{config.tda10_quantile_profile_png_name}`: perfil de cuantiles de `z_t` por decil de volatilidad — el diagnóstico visual directo de estabilidad de FORMA.
 
-## 11. Veredicto final — TH22
+## 13. Veredicto final — TH22
 
-**`{th22['verdict']}`**
+**`{th22['verdict']}`** (basado exclusivamente en el bloque RAW/CAUSAL, §11.A)
 
 {verdict_explanation}
 
-Reglas operativas predeclaradas (antes de ejecutar sobre el conjunto de investigación real, nunca ajustadas después — la ÚNICA decisión tomada después de ver el resultado fue usar `fraction_removed_trimmed` en vez de `fraction_removed_full` como entrada de estas reglas, ver nota de §9: no es un umbral ajustado, es una corrección de qué métrica alimenta las mismas reglas, justificada independientemente por la recomendación previa de TDA-07): `ESCALA_DOMINA` exige `fraction_removed_trimmed >= {FRACTION_REMOVED_SCALE_THRESHOLD}` y el mayor de los tres ratios de estabilidad (decil/segmento/año) `<= {PROFILE_STABILITY_SCALE_THRESHOLD}`; `FORMA_SUSTANCIAL` exige `fraction_removed_trimmed <= {FRACTION_REMOVED_FORM_THRESHOLD}` o algún ratio `>= {PROFILE_STABILITY_FORM_THRESHOLD}`; el veredicto GLOBAL exige que al menos el {ROBUSTNESS_AGREEMENT_FRACTION:.0%} de las 12 configuraciones coincida en la misma etiqueta, o se reporta `MIXTO`.
+Reglas operativas predeclaradas (antes de ejecutar sobre el conjunto de investigación real; los UMBRALES nunca se ajustaron después de ver ningún resultado, en ninguna de las dos ejecuciones — ver §6 para la única decisión de METRICA, que sí se tomó después de ver un resultado y se documenta con total transparencia): `ESCALA_DOMINA` exige `fraction_removed_trimmed >= {FRACTION_REMOVED_SCALE_THRESHOLD}` y el mayor de los tres ratios de estabilidad (decil/segmento/año) `<= {PROFILE_STABILITY_SCALE_THRESHOLD}`; `FORMA_SUSTANCIAL` exige `fraction_removed_trimmed <= {FRACTION_REMOVED_FORM_THRESHOLD}` o algún ratio `>= {PROFILE_STABILITY_FORM_THRESHOLD}`; el veredicto de CADA BLOQUE (6 configuraciones) exige que al menos el {ROBUSTNESS_AGREEMENT_FRACTION:.0%} coincida en la misma etiqueta, o el bloque se reporta `MIXTO`; el veredicto GLOBAL es siempre el del bloque RAW/CAUSAL (§11).
 
 **Importante (roadmap, riesgo explícito):** que la curtosis baje NO implica que `z_t` sea normal — puede bajar sustancialmente y seguir siendo una distribución de colas pesadas (ver §4/§5: la curtosis de `z_t` casi nunca es cercana a 0, aunque sea mucho menor que la de `r`).
 
 ### TH22 / TH26 / STOP-13
 
-- **TH22 = `{th22['verdict']}`** — RESUELTA por esta etapa.
-- **TH26 = `{result.th26_status}`** — las tablas de cuantiles por segmento/decil/año de esta etapa (§7/§8) son evidencia PARCIAL y análoga a lo que TH26 pide, pero TH26 formalmente requiere los cuantiles condicionales completos con bootstrap por grupo y el `n` que sostiene cada cuantil extremo — eso pertenece a TDA-12 (obligatoria), no se declara resuelta aquí.
+- **TH22 = `{th22['verdict']}`** — RESUELTA por esta etapa (bloque RAW/CAUSAL; diagnóstico CLOCK_ADJUSTED en §11.B/C).
+- **TH26 = `{result.th26_status}`** — las tablas de cuantiles por segmento/decil/año de esta etapa (§9) son evidencia PARCIAL y análoga a lo que TH26 pide, pero TH26 formalmente requiere los cuantiles condicionales completos con bootstrap por grupo y el `n` que sostiene cada cuantil extremo — eso pertenece a TDA-12 (obligatoria), no se declara resuelta aquí.
 - **STOP-13**: {'`SUGERIDO` (no activado formalmente)' if stop13['suggested'] else '`NO SUGERIDO`'} — {stop13['reason']}
 
-## 12. Tiempo por etapa (análisis)
+## 14. Tiempo por etapa (análisis)
 
 | Etapa | Tiempo |
 |---|---:|
@@ -366,11 +429,11 @@ Reglas operativas predeclaradas (antes de ejecutar sobre el conjunto de investig
 
 **Tiempo total de la ejecución (análisis + escritura de CSV/PNG/MD): {elapsed_total_seconds:.1f}s (~{elapsed_total_seconds/60:.1f} min).**
 
-## 13. Archivos generados
+## 15. Archivos generados
 
 `{config.tda10_kurtosis_csv_name}`, `{config.tda10_kurtosis_bootstrap_ci_csv_name}`, `{config.tda10_quantile_by_decile_csv_name}`, `{config.tda10_quantile_by_segment_csv_name}`, `{config.tda10_quantile_by_year_csv_name}`, `{config.tda10_sensitivity_csv_name}`, `{config.tda10_causality_check_csv_name}`, `{config.tda10_qq_points_csv_name}` (8 CSV) + `{config.tda10_qq_primary_png_name}`, `{config.tda10_qq_sensitivity_png_name}`, `{config.tda10_quantile_profile_png_name}` (3 PNG) + este informe (MD).
 
-## 14. Comandos de validación
+## 16. Comandos de validación
 
 ```
 python -m pytest -q tests/test_tda10_scale_vs_shape.py
@@ -378,21 +441,22 @@ python -m pytest -q
 python -m ohlcv_dataroad.ingest.run_tda10 --config configs/mnq_snapshot.yaml
 ```
 
-## 15. Estado final
+## 17. Estado final
 
 **`PASS_WITH_OPEN_QUESTIONS`**
 
-- TH22 = `{th22['verdict']}` (robusto: {th22['robust']}, agreement={_fmt(th22['agreement_fraction'], 2)})
+- TH22 = `{th22['verdict']}` (bloque RAW/CAUSAL, robusto: {th22['robust']}, agreement={_fmt(th22['agreement_fraction'], 2)}; diagnóstico CLOCK_ADJUSTED: `{clk_v['verdict']}`, {'coincide' if th22['clock_adjusted_agrees_with_raw'] else 'DIVERGE'})
 - TH26 = `{result.th26_status}` (formalmente pendiente de TDA-12)
 - STOP-13 = {'SUGERIDO (informal)' if stop13['suggested'] else 'NO SUGERIDO'}
 
 **No se avanza a TDA-11 ni TDA-12 en esta tarea.**
 
-## 16. Preguntas abiertas
+## 18. Preguntas abiertas
 
 1. El veredicto por configuración usa el mayor de los tres ratios de estabilidad (decil/segmento/año) — una configuración puede ser estable en dos dimensiones y no en la tercera; ver `{config.tda10_sensitivity_csv_name}` para el detalle por dimensión.
 2. No se probó ningún estimador de volatilidad basado en rango (Parkinson/Rogers-Satchell/Yang-Zhang, roadmap TDA-04 §"método avanzado opcional") — dos familias mínimas (rodante + EWMA) son suficientes para responder la pregunta de bifurcación (G4); queda como extensión posible si TDA-11 llegara a ejecutarse.
 3. TH26 queda solo PARCIALMENTE informada — TDA-12 debe producir la versión completa (bootstrap por grupo, `n` por cuantil extremo).
+4. El diagnóstico CLOCK_ADJUSTED (§11.B) no es causal de principio a fin (depende de `s(m)` RETROSPECTIVO) — si TDA-11/TDA-12 quisieran aprovechar esa señal (que gran parte de la FORMA aparente es reloj determinista), necesitarían una versión causal del ajuste horario, que esta etapa no construye.
 
 ---
 
@@ -402,7 +466,7 @@ python -m ohlcv_dataroad.ingest.run_tda10 --config configs/mnq_snapshot.yaml
 
 **¿Cómo se midió "la volatilidad que ya era previsible"?** Con dos formas simples de mirar solo el pasado — el desvío estándar de los últimos minutos, y un promedio que da más peso a lo reciente (EWMA) — nunca usando el propio movimiento que se está evaluando ni información futura (verificado con una prueba explícita).
 
-**¿Depende de qué "regla" de volatilidad se use?** Se probaron 12 combinaciones (2 formas de medir volatilidad × 3 configuraciones cada una × con/sin ajuste por hora del día) — {'el resultado es el mismo en la gran mayoría de ellas' if th22['robust'] else 'el resultado NO es el mismo en todas — se reporta como MIXTO precisamente por eso'}.
+**¿Depende de qué "regla" de volatilidad se use?** Se probaron 12 combinaciones (2 formas de medir volatilidad × 3 configuraciones cada una × con/sin ajuste por hora del día). Las 6 que solo usan información causal (`RAW`) son las que deciden la respuesta oficial — {'coinciden en la gran mayoría' if th22['robust'] else 'NO coinciden entre sí — por eso el resultado se reporta como MIXTO'}. Las otras 6 (`CLOCK_ADJUSTED`) son un diagnóstico aparte que no puede usarse en producción (necesita conocer de antemano el patrón horario completo) — {'confirman' if th22['clock_adjusted_agrees_with_raw'] else 'NO confirman'} la misma conclusión.
 
 **¿Esto confirma que los retornos ajustados son "normales"?** No. Puede bajar mucho la curtosis y seguir sin ser una campana de Gauss — solo dice cuánta de la anormalidad viene de la escala cambiante.
 
@@ -415,7 +479,7 @@ def persist_artifacts(result: TDA10Result, config: SnapshotConfig, t0: float, ru
     config.reports_dir.mkdir(parents=True, exist_ok=True)
 
     result.kurtosis_table.to_csv(config.tda10_kurtosis_csv_path, index=False)
-    pd.DataFrame([result.kurtosis_bootstrap_ci]).to_csv(config.tda10_kurtosis_bootstrap_ci_csv_path, index=False)
+    result.kurtosis_bootstrap_ci.to_csv(config.tda10_kurtosis_bootstrap_ci_csv_path, index=False)
     result.quantile_by_decile.to_csv(config.tda10_quantile_by_decile_csv_path, index=False)
     result.quantile_by_segment.to_csv(config.tda10_quantile_by_segment_csv_path, index=False)
     result.quantile_by_year.to_csv(config.tda10_quantile_by_year_csv_path, index=False)
@@ -471,7 +535,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"n filas r_1m/r_tilde validas: {len(result.r1m_population):,} / {len(result.r_tilde_population):,}")
     print(f"Tiempo total (incluye analisis + escritura de CSV/PNG/MD): {total_elapsed_final:.1f}s (~{total_elapsed_final/60:.1f} min)")
     print()
-    print(f"TH22 = {result.th22_verdict.get('verdict')} (robusto={result.th22_verdict.get('robust')}, agreement={result.th22_verdict.get('agreement_fraction'):.2f})")
+    print(f"TH22 (RAW/CAUSAL, formal) = {result.th22_verdict.get('verdict')} (robusto={result.th22_verdict.get('robust')}, agreement={result.th22_verdict.get('agreement_fraction'):.2f})")
+    print(f"Diagnostico CLOCK_ADJUSTED/RETROSPECTIVO = {result.clock_adjusted_block_verdict.get('verdict')} (coincide con RAW: {result.th22_verdict.get('clock_adjusted_agrees_with_raw')})")
     print(f"TH26 = {result.th26_status}")
     print(f"STOP-13 sugerido = {result.stop13_suggestion.get('suggested')}")
     print()

@@ -23,6 +23,7 @@ from ohlcv_dataroad.ingest.tda06_intraday_calendar_profile import attach_calenda
 from ohlcv_dataroad.ingest.tda07_marginal_distribution import RTildeInvariantError, TimestampAlignmentError
 from ohlcv_dataroad.ingest.tda10_scale_vs_shape import (
     ALL_ESTIMATOR_CONFIGS,
+    BORDERLINE_MARGIN,
     BURN_IN_HALFLIVES,
     FRACTION_REMOVED_FORM_THRESHOLD,
     FRACTION_REMOVED_SCALE_THRESHOLD,
@@ -31,10 +32,12 @@ from ohlcv_dataroad.ingest.tda10_scale_vs_shape import (
     MIN_VALID_SIGMA_HAT,
     PopulationMismatchError,
     PRIMARY_ESTIMATOR,
+    PRIMARY_ESTIMATOR_CLOCK_ADJUSTED,
     PROFILE_STABILITY_FORM_THRESHOLD,
     PROFILE_STABILITY_SCALE_THRESHOLD,
     ROBUSTNESS_AGREEMENT_FRACTION,
     assign_volatility_decile,
+    borderline_distance,
     bootstrap_kurtosis_ci,
     build_kurtosis_row,
     build_kurtosis_table,
@@ -47,12 +50,14 @@ from ohlcv_dataroad.ingest.tda10_scale_vs_shape import (
     compute_group_quantile_table,
     decide_verdict,
     excess_kurtosis,
+    excess_kurtosis_trimmed,
     extreme_scale_from_table,
     ewma_lambda_from_halflife,
     profile_stability_ratio,
     run_causality_checks,
     run_tda10_analysis,
     standardize_return,
+    synthesize_th22,
     verify_no_lookahead,
     verify_no_lookahead_generic,
     verify_populations_aligned,
@@ -406,6 +411,37 @@ def test_build_kurtosis_table_restricts_r_to_same_population_as_z():
     assert set(tab.loc[tab["scope"] == "YEAR", "scope_value"]) == {2020, 2021}
 
 
+def test_excess_kurtosis_trimmed_matches_compute_moments_quantiles_convention():
+    """`excess_kurtosis_trimmed` debe coincidir EXACTAMENTE con `kurtosis_excess_trimmed` de
+    `compute_moments_quantiles` (TDA-07) -- misma convencion de recorte, nunca reimplementada distinta."""
+    from ohlcv_dataroad.ingest.tda07_marginal_distribution import compute_moments_quantiles
+
+    rng = np.random.default_rng(50)
+    x = rng.standard_t(df=3, size=5000)
+    expected = compute_moments_quantiles(x)["kurtosis_excess_trimmed"]
+    assert excess_kurtosis_trimmed(x) == pytest.approx(expected)
+
+
+def test_excess_kurtosis_trimmed_nan_below_minimum_sample():
+    assert np.isnan(excess_kurtosis_trimmed(np.arange(10, dtype=float)))  # n<20
+
+
+def test_excess_kurtosis_trimmed_reduces_kurtosis_when_a_few_points_dominate():
+    rng = np.random.default_rng(51)
+    x = rng.normal(size=3000)
+    x[0] = 500.0  # un outlier extremo, unico
+    x[1] = -500.0
+    full = excess_kurtosis(x)
+    trimmed = excess_kurtosis_trimmed(x)
+    assert trimmed < full  # el recorte del 0.1% retira los outliers, la curtosis cae
+
+
+# ---------------------------------------------------------------------------
+# E2. Bootstrap de curtosis (completa + RECORTADA) -- problema 2 de la
+# auditoria: la metrica que decide el veredicto (recortada) debe tener su
+# propio IC, no solo la version completa.
+# ---------------------------------------------------------------------------
+
 def test_bootstrap_kurtosis_ci_is_reproducible_with_fixed_seed():
     rng = np.random.default_rng(12)
     n = 2000
@@ -417,19 +453,58 @@ def test_bootstrap_kurtosis_ci_is_reproducible_with_fixed_seed():
     assert out1 == out2
 
 
-def test_bootstrap_kurtosis_ci_interval_contains_point_estimate():
+def test_bootstrap_kurtosis_ci_full_interval_contains_point_estimate():
     rng = np.random.default_rng(13)
     n = 3000
     r = rng.standard_t(df=4, size=n) * 0.001
     z = rng.normal(size=n)
     dates = np.repeat(np.arange(60), n // 60)
     out = bootstrap_kurtosis_ci(r, z, dates, n_boot=100, seed=1)
-    assert out["kurt_r_ci_lo"] <= out["kurt_r_point"] <= out["kurt_r_ci_hi"]
-    assert out["kurt_z_ci_lo"] <= out["kurt_z_point"] <= out["kurt_z_ci_hi"]
+    assert out["kurt_r_full_ci_lo"] <= out["kurt_r_full_point"] <= out["kurt_r_full_ci_hi"]
+    assert out["kurt_z_full_ci_lo"] <= out["kurt_z_full_point"] <= out["kurt_z_full_ci_hi"]
+
+
+def test_bootstrap_kurtosis_ci_trimmed_interval_contains_point_estimate():
+    """La version RECORTADA (la que alimenta classify_config) tambien debe tener su propio IC bien formado."""
+    rng = np.random.default_rng(14)
+    n = 5000
+    r = rng.standard_t(df=4, size=n) * 0.001
+    z = rng.normal(size=n)
+    dates = np.repeat(np.arange(100), n // 100)
+    out = bootstrap_kurtosis_ci(r, z, dates, n_boot=100, seed=2)
+    assert np.isfinite(out["kurt_r_trimmed_point"])
+    assert np.isfinite(out["kurt_z_trimmed_point"])
+    assert out["kurt_r_trimmed_ci_lo"] <= out["kurt_r_trimmed_point"] <= out["kurt_r_trimmed_ci_hi"]
+    assert out["kurt_z_trimmed_ci_lo"] <= out["kurt_z_trimmed_point"] <= out["kurt_z_trimmed_ci_hi"]
+
+
+def test_bootstrap_kurtosis_ci_fraction_removed_trimmed_has_its_own_ci():
+    """Problema 2 explicito: `fraction_removed_trimmed` (la metrica del veredicto) debe tener IC, no solo `fraction_removed_full`."""
+    rng = np.random.default_rng(15)
+    n = 4000
+    r = rng.standard_t(df=3, size=n) * 0.001
+    z = rng.normal(size=n)
+    dates = np.repeat(np.arange(80), n // 80)
+    out = bootstrap_kurtosis_ci(r, z, dates, n_boot=100, seed=3)
+    assert np.isfinite(out["fraction_removed_trimmed_point"])
+    assert np.isfinite(out["fraction_removed_trimmed_ci_lo"])
+    assert np.isfinite(out["fraction_removed_trimmed_ci_hi"])
+    assert out["fraction_removed_trimmed_ci_lo"] <= out["fraction_removed_trimmed_ci_hi"]
+    # tambien existe (y es distinto en general) el IC de la version completa
+    assert "fraction_removed_full_ci_lo" in out and "fraction_removed_full_ci_hi" in out
+
+
+def test_bootstrap_kurtosis_ci_carries_config_label():
+    out = bootstrap_kurtosis_ci(
+        np.random.default_rng(16).normal(size=500), np.random.default_rng(17).normal(size=500),
+        np.repeat(np.arange(50), 10), n_boot=10, seed=4, config_label="ewma_60_raw",
+    )
+    assert out["config"] == "ewma_60_raw"
 
 
 # ---------------------------------------------------------------------------
-# F. Clasificacion del veredicto
+# F. Clasificacion del veredicto (por configuracion, por bloque, y sintesis
+# RAW/CAUSAL vs CLOCK_ADJUSTED/RETROSPECTIVO -- problema 3 de la auditoria)
 # ---------------------------------------------------------------------------
 
 def test_classify_config_scale_dominates():
@@ -484,6 +559,110 @@ def test_decide_verdict_empty_list():
     out = decide_verdict([])
     assert out["verdict"] == "MIXTO"
     assert out["n_configs"] == 0
+
+
+def test_decide_verdict_block_of_six_five_of_six_is_robust():
+    """Un BLOQUE (raw o clock_adjusted) tiene 6 configuraciones -- 5/6=0.833>=0.75 debe ser robusto."""
+    out = decide_verdict(["ESCALA_DOMINA"] * 5 + ["MIXTO"] * 1)
+    assert out["agreement_fraction"] == pytest.approx(5 / 6)
+    assert out["robust"] is True
+    assert out["verdict"] == "ESCALA_DOMINA"
+
+
+def test_decide_verdict_block_of_six_four_of_six_is_not_robust():
+    """4/6=0.667<0.75 -- el bloque debe caer a MIXTO."""
+    out = decide_verdict(["ESCALA_DOMINA"] * 4 + ["FORMA_SUSTANCIAL"] * 2)
+    assert out["agreement_fraction"] == pytest.approx(4 / 6)
+    assert out["robust"] is False
+    assert out["verdict"] == "MIXTO"
+
+
+# ---------------------------------------------------------------------------
+# F2. Distancia a umbral (BORDERLINE) -- problema 5 de la auditoria: no
+# cambia ningun umbral, solo describe cuan cerca esta una configuracion.
+# ---------------------------------------------------------------------------
+
+def test_borderline_distance_flags_a_value_just_under_the_scale_threshold():
+    out = borderline_distance(FRACTION_REMOVED_SCALE_THRESHOLD - 0.001, 0.05)
+    assert out["is_borderline"] is True
+    assert out["dist_scale_fraction"] == pytest.approx(-0.001)
+
+
+def test_borderline_distance_flags_a_stability_ratio_just_over_the_scale_threshold():
+    out = borderline_distance(0.90, PROFILE_STABILITY_SCALE_THRESHOLD + 0.005)
+    assert out["is_borderline"] is True
+    assert out["dist_scale_stability"] == pytest.approx(-0.005)
+
+
+def test_borderline_distance_not_borderline_when_far_from_every_threshold():
+    out = borderline_distance(0.65, 0.45)  # a mitad de camino entre ambos umbrales en ambas metricas
+    assert out["is_borderline"] is False
+
+
+def test_borderline_distance_margin_matches_module_constant():
+    # justo DENTRO del margen (un poco menos que el margen exacto, para evitar comparar
+    # en el limite de precision de punto flotante) -> borderline
+    out = borderline_distance(FRACTION_REMOVED_SCALE_THRESHOLD - BORDERLINE_MARGIN * 0.99, 0.05)
+    assert out["is_borderline"] is True
+    # justo FUERA del margen -> no borderline
+    out2 = borderline_distance(FRACTION_REMOVED_SCALE_THRESHOLD - BORDERLINE_MARGIN * 1.5, 0.05)
+    assert out2["is_borderline"] is False
+
+
+def test_borderline_distance_nan_when_inputs_not_finite():
+    out = borderline_distance(np.nan, 0.1)
+    assert out["is_borderline"] is False
+    assert np.isnan(out["min_abs_distance_to_any_threshold"])
+
+
+def test_borderline_distance_never_changes_classify_config_output():
+    """La distancia a umbral es META-INFORMACION -- calcularla no debe alterar la clasificacion real."""
+    frac, ratio = FRACTION_REMOVED_SCALE_THRESHOLD - 0.001, 0.05  # justo por debajo del umbral de escala
+    label_before = classify_config(frac, ratio)
+    borderline_distance(frac, ratio)  # calcular la distancia no debe tener efectos secundarios
+    label_after = classify_config(frac, ratio)
+    assert label_before == label_after == "MIXTO"  # no alcanza ESCALA_DOMINA por 0.001
+
+
+# ---------------------------------------------------------------------------
+# F3. Sintesis TH22: RAW/CAUSAL formal vs CLOCK_ADJUSTED/RETROSPECTIVO
+# diagnostico -- problema 3 de la auditoria.
+# ---------------------------------------------------------------------------
+
+def test_synthesize_th22_uses_raw_block_as_the_formal_verdict():
+    raw = decide_verdict(["ESCALA_DOMINA"] * 6)
+    clock = decide_verdict(["FORMA_SUSTANCIAL"] * 6)  # bloque diagnostico DISCREPANTE
+    out = synthesize_th22(raw, clock)
+    assert out["verdict"] == "ESCALA_DOMINA"  # el formal es SIEMPRE el de raw, nunca clock_adjusted
+    assert out["based_on"] == "RAW_CAUSAL"
+    assert out["clock_adjusted_agrees_with_raw"] is False
+
+
+def test_synthesize_th22_reports_agreement_when_both_blocks_coincide():
+    raw = decide_verdict(["MIXTO"] * 3 + ["ESCALA_DOMINA"] * 3)  # 3/6=0.5 -> MIXTO
+    clock = decide_verdict(["MIXTO"] * 6)
+    out = synthesize_th22(raw, clock)
+    assert out["verdict"] == "MIXTO"
+    assert out["clock_adjusted_agrees_with_raw"] is True
+
+
+def test_synthesize_th22_never_pools_raw_and_clock_adjusted_together():
+    """El veredicto de sintesis debe depender EXCLUSIVAMENTE de `raw`, nunca de una mezcla aritmetica de labels de ambos bloques."""
+    raw_escala = decide_verdict(["ESCALA_DOMINA"] * 6)
+    clock_mixto = decide_verdict(["MIXTO"] * 6)
+    out = synthesize_th22(raw_escala, clock_mixto)
+    # una "votacion ciega" de las 12 (6 ESCALA_DOMINA + 6 MIXTO) daria agreement=0.5 -> MIXTO;
+    # la sintesis correcta ignora eso y usa el 100% de agreement de RAW solo.
+    assert out["verdict"] == "ESCALA_DOMINA"
+    assert out["agreement_fraction"] == pytest.approx(1.0)
+
+
+def test_synthesize_th22_exposes_both_blocks_for_transparency():
+    raw = decide_verdict(["ESCALA_DOMINA"] * 6)
+    clock = decide_verdict(["FORMA_SUSTANCIAL"] * 6)
+    out = synthesize_th22(raw, clock)
+    assert out["raw_block"] == raw
+    assert out["clock_adjusted_block"] == clock
 
 
 # ---------------------------------------------------------------------------
@@ -740,31 +919,118 @@ def test_run_tda10_end_to_end_produces_all_result_fields(tmp_path):
     assert result.causality_table["passed"].all()
     assert not result.kurtosis_table.empty
     assert set(result.kurtosis_table["input_series"].unique()) == {"raw", "clock_adjusted"}
-    assert isinstance(result.kurtosis_bootstrap_ci, dict)
-    assert "fraction_removed_ci_lo" in result.kurtosis_bootstrap_ci
+    assert isinstance(result.kurtosis_bootstrap_ci, pd.DataFrame)
+    assert len(result.kurtosis_bootstrap_ci) == 2  # primaria raw + primaria clock_adjusted
+    assert {
+        "fraction_removed_full_ci_lo", "fraction_removed_full_ci_hi",
+        "fraction_removed_trimmed_ci_lo", "fraction_removed_trimmed_ci_hi",
+        "kurt_r_trimmed_point", "kurt_z_trimmed_point",
+    }.issubset(result.kurtosis_bootstrap_ci.columns)
     assert not result.sensitivity_table.empty
     assert len(result.sensitivity_table) == 12
-    assert {"fraction_removed_full", "fraction_removed_trimmed"}.issubset(result.sensitivity_table.columns)
-    assert set(result.sensitivity_table["config_label"].unique()) <= {"ESCALA_DOMINA", "FORMA_SUSTANCIAL", "MIXTO"}
+    assert {
+        "fraction_removed_full", "fraction_removed_trimmed",
+        "config_label_full", "config_label_trimmed",
+        "n_sigma_floor_excluded", "is_borderline",
+        "dist_scale_fraction", "dist_form_fraction", "dist_scale_stability", "dist_form_stability",
+    }.issubset(result.sensitivity_table.columns)
+    assert set(result.sensitivity_table["config_label_trimmed"].unique()) <= {"ESCALA_DOMINA", "FORMA_SUSTANCIAL", "MIXTO"}
+    assert set(result.sensitivity_table["config_label_full"].unique()) <= {"ESCALA_DOMINA", "FORMA_SUSTANCIAL", "MIXTO"}
     assert "primary_fraction_removed_trimmed" in result.th22_verdict
     assert "primary_fraction_removed_full" in result.th22_verdict
     assert result.th22_verdict["verdict"] in {"ESCALA_DOMINA", "FORMA_SUSTANCIAL", "MIXTO"}
+    assert result.th22_verdict["based_on"] == "RAW_CAUSAL"
+    assert result.th22_verdict["verdict"] == result.raw_block_verdict["verdict"]
+    assert result.raw_block_verdict["n_configs"] == 6
+    assert result.clock_adjusted_block_verdict["n_configs"] == 6
+    assert result.raw_block_verdict_full["n_configs"] == 6
+    assert result.clock_adjusted_block_verdict_full["n_configs"] == 6
     assert result.th26_status == "PARCIALMENTE_INFORMADA"
     assert "suggested" in result.stop13_suggestion
     assert not result.qq_table.empty
     assert len(result.stage_timings) >= 7
 
 
-def test_run_tda10_analysis_is_reproducible_given_fixed_seeds(tmp_path):
+def test_run_tda10_sensitivity_table_labels_are_internally_coherent(tmp_path):
+    """Coherencia del veredicto (problema 4): cada `config_label_full`/`config_label_trimmed` de
+    `sensitivity_table` debe coincidir EXACTAMENTE con volver a llamar `classify_config` con los mismos
+    insumos -- nunca una etiqueta calculada de otra forma o desincronizada del codigo de clasificacion."""
+    config = _make_config(tmp_path, research_files=["research.txt"])
+    _prepare_full_fixture(config, n_days=25, bars_per_day=120)
+    result = run_tda10_analysis(config, verbose=False)
+
+    for _, row in result.sensitivity_table.iterrows():
+        assert row["config_label_full"] == classify_config(row["fraction_removed_full"], row["max_stability_ratio"])
+        assert row["config_label_trimmed"] == classify_config(row["fraction_removed_trimmed"], row["max_stability_ratio"])
+        # el veredicto oficial de cada bloque solo debe usar la version RECORTADA -- nunca la completa
+        border = borderline_distance(row["fraction_removed_trimmed"], row["max_stability_ratio"])
+        assert row["is_borderline"] == border["is_borderline"]
+
+
+def test_run_tda10_th22_verdict_matches_raw_block_never_clock_adjusted_block(tmp_path):
+    """Problema 3: el veredicto formal SIEMPRE debe ser el del bloque raw, incluso si diverge del bloque clock_adjusted."""
+    config = _make_config(tmp_path, research_files=["research.txt"])
+    _prepare_full_fixture(config, n_days=25, bars_per_day=120)
+    result = run_tda10_analysis(config, verbose=False)
+
+    assert result.th22_verdict["verdict"] == result.raw_block_verdict["verdict"]
+    expected_agreement = result.clock_adjusted_block_verdict["verdict"] == result.raw_block_verdict["verdict"]
+    assert result.th22_verdict["clock_adjusted_agrees_with_raw"] == expected_agreement
+
+
+def test_run_tda10_sensitivity_table_splits_exactly_six_raw_six_clock_adjusted(tmp_path):
+    config = _make_config(tmp_path, research_files=["research.txt"])
+    _prepare_full_fixture(config, n_days=15, bars_per_day=80)
+    result = run_tda10_analysis(config, verbose=False)
+    counts = result.sensitivity_table["input_series"].value_counts()
+    assert counts["raw"] == 6
+    assert counts["clock_adjusted"] == 6
+
+
+def test_run_tda10_n_sigma_floor_excluded_is_reported_and_non_negative(tmp_path):
+    """El numero de observaciones excluidas por `MIN_VALID_SIGMA_HAT` debe quedar reportado (nunca omitido) y nunca ser negativo."""
+    config = _make_config(tmp_path, research_files=["research.txt"])
+    _prepare_full_fixture(config, n_days=15, bars_per_day=80)
+    result = run_tda10_analysis(config, verbose=False)
+    assert "n_sigma_floor_excluded" in result.sensitivity_table.columns
+    assert (result.sensitivity_table["n_sigma_floor_excluded"] >= 0).all()
+    assert result.sensitivity_table["n_sigma_floor_excluded"].dtype.kind in "iu"  # entero, nunca float/NaN
+
+
+def test_run_tda10_report_agreement_fraction_is_not_hardcoded(tmp_path):
+    """Problema 6: el informe debe reflejar SIEMPRE el `agreement_fraction` calculado por el codigo, nunca un texto fijo.
+
+    Se fabrican dos escenarios sinteticos con `agreement_fraction` distinto (via semillas/tamaños de
+    poblacion distintos) y se verifica que el texto renderizado en CADA informe contiene el valor
+    EXACTO que el propio resultado calculo (formateado con el mismo `_fmt` que usa el informe) -- si el
+    texto estuviera hardcodeado, no cambiaria entre ejecuciones con resultados distintos.
+    """
+    from ohlcv_dataroad.ingest.run_tda10 import _fmt, render_report
+
+    config = _make_config(tmp_path, research_files=["research.txt"])
+    _prepare_full_fixture(config, n_days=15, bars_per_day=80, start=datetime.date(2024, 1, 8))
+    result = run_tda10_analysis(config, verbose=False)
+    text = render_report(result, config, elapsed_total_seconds=1.0, run_command="test")
+
+    expected_agreement = _fmt(result.th22_verdict["agreement_fraction"], 2)
+    assert expected_agreement in text
+    # el veredicto tambien debe aparecer literalmente calculado, no una palabra fija
+    assert f"`{result.th22_verdict['verdict']}`" in text
+    # los conteos de etiquetas del bloque raw (§11.A) deben aparecer, calculados desde raw_block_verdict
+    for label, count in result.raw_block_verdict["counts"].items():
+        assert f"{label}={count}" in text
     config = _make_config(tmp_path, research_files=["research.txt"])
     _prepare_full_fixture(config, n_days=20, bars_per_day=100)
     r1 = run_tda10_analysis(config, verbose=False)
     r2 = run_tda10_analysis(config, verbose=False)
     pd.testing.assert_frame_equal(r1.kurtosis_table, r2.kurtosis_table)
     pd.testing.assert_frame_equal(r1.sensitivity_table, r2.sensitivity_table)
+    pd.testing.assert_frame_equal(r1.kurtosis_bootstrap_ci, r2.kurtosis_bootstrap_ci)
     assert r1.th22_verdict.keys() == r2.th22_verdict.keys()
     for k in r1.th22_verdict:
         np.testing.assert_equal(r1.th22_verdict[k], r2.th22_verdict[k])  # NaN == NaN aqui
+    assert r1.raw_block_verdict == r2.raw_block_verdict
+    assert r1.clock_adjusted_block_verdict == r2.clock_adjusted_block_verdict
 
 
 def test_run_tda10_analysis_prints_stages_with_progress(tmp_path, capsys):

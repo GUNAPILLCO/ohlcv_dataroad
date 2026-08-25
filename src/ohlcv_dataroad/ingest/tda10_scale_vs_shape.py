@@ -47,7 +47,48 @@ abajo para el detalle y la justificacion de cada valor):
 4. Umbrales de clasificacion del veredicto (ESCALA DOMINA / FORMA
    SUSTANCIAL / MIXTO) -- declarados en las constantes ``*_THRESHOLD``
    mas abajo, ANTES de ejecutar el analisis sobre el conjunto de
-   investigacion real. Nunca se ajustan despues de ver el resultado.
+   investigacion real. Nunca se ajustaron despues de ver el resultado
+   (verificado en la AUDITORIA POST-CIERRE, ver punto 5).
+
+AUDITORIA POST-CIERRE (posterior a la primera ejecucion sobre el conjunto
+de investigacion real, commit ``cd8c95a``) -- transparencia obligatoria
+sobre la UNICA decision que se tomo despues de ver un resultado de esta
+etapa:
+
+5. **Que metrica alimenta el veredicto.** El roadmap pide reportar la
+   curtosis en su version COMPLETA (sin recortar) y en su version
+   RECORTADA (0.1%, convencion TDA-07) -- ``fraction_removed_full`` y
+   ``fraction_removed_trimmed``. Las reglas de clasificacion
+   (``classify_config``) usan ``fraction_removed_trimmed`` como la unica
+   entrada de curtosis. Esta eleccion de METRICA (no de UMBRAL: los
+   valores ``FRACTION_REMOVED_SCALE_THRESHOLD``/``FRACTION_REMOVED_FORM_THRESHOLD``
+   nunca cambiaron) se tomo DESPUES de observar, sobre el conjunto de
+   investigacion real, que ``fraction_removed_full`` de la configuracion
+   ``rolling_std_30`` se disparaba a valores sin sentido (un solo
+   ``sigma_hat`` numericamente nulo, ver ``MIN_VALID_SIGMA_HAT`` mas
+   abajo, arrastraba la curtosis cruda de esa UNICA configuracion a
+   >1,9 millones). Esa decision esta justificada de forma INDEPENDIENTE
+   por TDA-07 (informe, seccion 12, escrito ANTES de que TDA-10
+   existiera: "la curtosis recortada... es la cifra mas estable
+   disponible... para juzgar cuanta de la no-normalidad es genuina"),
+   pero se documenta aqui con total transparencia como una decision de
+   METRICA tomada DESPUES de ver el resultado -- no se oculta, y AMBAS
+   metricas (completa y recortada) se calculan, se reportan y se
+   CLASIFICAN por separado en la tabla de sensibilidad
+   (``config_label_full`` vs ``config_label_trimmed``) para que el
+   lector pueda juzgar que hubiera concluido la version completa.
+6. **Separacion RAW/CAUSAL vs CLOCK_ADJUSTED/RETROSPECTIVO.** Las 12
+   configuraciones de sensibilidad NO tienen el mismo estatus
+   epistemologico: las 6 ``raw`` son causales de principio a fin; las 6
+   ``clock_adjusted`` dependen de ``s(m)`` (TDA-06, RETROSPECTIVO --
+   estimado sobre TODA la muestra). El veredicto FORMAL de TH22 se basa
+   EXCLUSIVAMENTE en el bloque ``RAW/CAUSAL`` (``synthesize_th22``) --
+   nunca en una votacion ciega de las 12 configuraciones tratadas como
+   equivalentes. El bloque ``CLOCK_ADJUSTED/RETROSPECTIVO`` se reporta
+   como diagnostico secundario (cuanto de lo que parece FORMA en el
+   analisis causal puede deberse al patron horario deterministico ya
+   caracterizado en TDA-06) -- informa la interpretacion, nunca decide
+   el veredicto ni se presenta como disponible causalmente en produccion.
 
 Que NO hace este modulo (deliberadamente, fuera de alcance de TDA-10):
 
@@ -85,6 +126,7 @@ from ohlcv_dataroad.ingest.holdout_guard import (
 )
 from ohlcv_dataroad.ingest.tda07_marginal_distribution import (
     QUANTILE_LEVELS,
+    TRIM_FRACTION_EACH_TAIL,
     RTildeInvariantError,
     TimestampAlignmentError,
     build_r1m_population,
@@ -117,7 +159,9 @@ __all__ = [
     "PROFILE_STABILITY_SCALE_THRESHOLD",
     "PROFILE_STABILITY_FORM_THRESHOLD",
     "ROBUSTNESS_AGREEMENT_FRACTION",
+    "BORDERLINE_MARGIN",
     "CAUSALITY_CHECK_N_INDICES",
+    "MIN_VALID_SIGMA_HAT",
     "ewma_lambda_from_halflife",
     "causal_rolling_sigma",
     "causal_ewma_sigma",
@@ -132,11 +176,14 @@ __all__ = [
     "extreme_scale_from_table",
     "profile_stability_ratio",
     "excess_kurtosis",
+    "excess_kurtosis_trimmed",
     "build_kurtosis_row",
     "build_kurtosis_table",
     "bootstrap_kurtosis_ci",
     "classify_config",
+    "borderline_distance",
     "decide_verdict",
+    "synthesize_th22",
     "build_qq_table",
     "verify_populations_aligned",
     "TDA10Result",
@@ -212,13 +259,19 @@ MIN_N_FOR_STABILITY_GROUP = 200
 # --- Umbrales del veredicto (predeclarados, roadmap seccion "criterios de
 # interpretacion" de TDA-10 + regla operativa G4/G5 de esta tarea: "si
 # necesitas reglas operativas adicionales, definelas antes de mirar los
-# resultados") ---------------------------------------------------------
+# resultados") -- NINGUNO de estos VALORES cambio en la auditoria
+# post-cierre (ver docstring de modulo, punto 5): lo unico que cambio fue
+# que METRICA de curtosis se le pasa a estas reglas (recortada, no
+# completa) -----------------------------------------------------------
 #
 # Fraccion de exceso de curtosis ELIMINADA por estandarizar (r->z),
-# GLOBAL, version SIN recortar (la version recortada se reporta pero no
-# entra en la regla de decision -- ver informe, seccion de interpretacion,
-# para el porque: el recorte purga precisamente los eventos que la
-# pregunta de "forma" quiere estudiar).
+# GLOBAL. `classify_config` recibe SIEMPRE la version RECORTADA
+# (`fraction_removed_trimmed`) -- la version completa/cruda
+# (`fraction_removed_full`) se calcula y se reporta integramente (tabla
+# central, roadmap), e incluso se CLASIFICA por separado con estas MISMAS
+# reglas para comparacion (`config_label_full`), pero NUNCA decide el
+# veredicto formal (ver docstring de modulo, punto 5, para la
+# justificacion completa de por que).
 FRACTION_REMOVED_SCALE_THRESHOLD = 0.80  # >=80% eliminado: "cae drasticamente" (roadmap)
 FRACTION_REMOVED_FORM_THRESHOLD = 0.50   # <=50% eliminado: "sobrevive una fraccion grande" (roadmap)
 
@@ -229,10 +282,23 @@ FRACTION_REMOVED_FORM_THRESHOLD = 0.50   # <=50% eliminado: "sobrevive una fracc
 PROFILE_STABILITY_SCALE_THRESHOLD = 0.30
 PROFILE_STABILITY_FORM_THRESHOLD = 0.60
 
-# Robustez: fraccion minima de las 12 configuraciones de sensibilidad que
-# deben coincidir en la misma etiqueta para que el veredicto HOLISTICO
-# adopte esa etiqueta en vez de `MIXTO` (ver `decide_verdict`).
+# Robustez: fraccion minima de las configuraciones de un BLOQUE (6
+# `raw` o 6 `clock_adjusted` -- nunca las 12 mezcladas, ver
+# `synthesize_th22`) que deben coincidir en la misma etiqueta para que el
+# veredicto de ESE bloque adopte esa etiqueta en vez de `MIXTO` (ver
+# `decide_verdict`). Con n=6, esto exige 5 o 6 configuraciones de acuerdo
+# (5/6=0.833, 4/6=0.667<0.75).
 ROBUSTNESS_AGREEMENT_FRACTION = 0.75
+
+# Margen DESCRIPTIVO (predeclarado en esta auditoria, antes de recalcular
+# el conjunto de investigacion real con los cambios de esta tarea) para
+# marcar una configuracion como "BORDERLINE" -- su fraccion recortada o
+# su ratio de estabilidad esta a una distancia menor o igual a este
+# margen de alguno de los 4 umbrales de arriba. Es META-INFORMACION
+# (nunca cambia `classify_config` ni el veredicto): existe para que el
+# lector no lea "0.799 < 0.80" como una diferencia fuerte cuando en
+# realidad esta a un milesimo del umbral.
+BORDERLINE_MARGIN = 0.02
 
 CAUSALITY_CHECK_N_INDICES = 6
 CAUSALITY_CHECK_SEED = 42
@@ -598,6 +664,27 @@ def excess_kurtosis(x: np.ndarray) -> float:
     return float(m4 / m2**2 - 3.0)
 
 
+def excess_kurtosis_trimmed(x: np.ndarray) -> float:
+    """Exceso de curtosis recortada -- MISMA convencion que `compute_moments_quantiles` (TDA-07): retira
+    `TRIM_FRACTION_EACH_TAIL` (0.05%, 0.1% total) de cada cola antes de aplicar `excess_kurtosis`.
+
+    Version LIGERA (sin el resto de cuantiles que calcula `compute_moments_quantiles`) para el
+    bootstrap de bloques por jornada -- misma logica de recorte, reutilizada explicitamente (nunca
+    reimplementada con una convencion distinta) para que la curtosis recortada de esta funcion
+    coincida EXACTAMENTE con la de `build_kurtosis_row`/`compute_moments_quantiles` en el punto
+    (no solo en el bootstrap).
+
+    Mismo umbral minimo que TDA-07 (`n>=20`): recortar el 0.1% de una muestra menor retiraria una
+    fraccion de un solo punto o menos -- no es un recorte interpretable, se devuelve `NaN` explicito.
+    """
+    x = np.asarray(x, dtype=float)
+    if x.size < 20:
+        return float("nan")
+    lo_cut, hi_cut = np.quantile(x, [TRIM_FRACTION_EACH_TAIL, 1.0 - TRIM_FRACTION_EACH_TAIL])
+    trimmed = x[(x >= lo_cut) & (x <= hi_cut)]
+    return excess_kurtosis(trimmed)
+
+
 def build_kurtosis_row(family: str, param: float, input_series: str, scope: str, scope_value, r_sub: np.ndarray, z_sub: np.ndarray) -> dict:
     """Una fila de la tabla central: momentos completos (`compute_moments_quantiles`, TDA-07) de `r` y `z` restringidos a la MISMA poblacion, mas la fraccion eliminada (version completa y recortada 0.1%)."""
     mr = compute_moments_quantiles(r_sub)
@@ -635,45 +722,79 @@ def build_kurtosis_table(
     return pd.DataFrame(rows)
 
 
+def _bootstrap_ci_bounds(arr: np.ndarray, min_finite: int = 10) -> tuple[float, float]:
+    finite = arr[np.isfinite(arr)]
+    if finite.size < min_finite:
+        return float("nan"), float("nan")
+    return float(np.percentile(finite, 2.5)), float(np.percentile(finite, 97.5))
+
+
 def bootstrap_kurtosis_ci(
     r: np.ndarray, z: np.ndarray, trading_date: np.ndarray, n_boot: int, seed: int = KURTOSIS_BOOTSTRAP_SEED,
+    config_label: str = "",
 ) -> dict:
-    """IC 95% por bootstrap de BLOQUES de jornada (G5) para `kurt_r`, `kurt_z` y `fraction_removed`, GLOBAL, en la poblacion restringida a `z` finito.
+    """IC 95% por bootstrap de BLOQUES de jornada (G5) para `kurt_r`/`kurt_z`/`fraction_removed`, GLOBAL, en AMBAS versiones (completa y recortada 0.1%), en la poblacion restringida a `z` finito.
 
-    Reutiliza `day_block_bootstrap` (TDA-07) DOS veces -- una para `r`, una
-    para `z` -- con la MISMA `trading_date` y la MISMA semilla: como
+    Reutiliza `day_block_bootstrap` (TDA-07) para `r` y `z`, en cada
+    version, con la MISMA `trading_date` y la MISMA semilla: como
     `day_block_bootstrap` resamplea los dias con un generador determinista
-    inicializado igual en ambas llamadas, la replica `b` de `r` y la
+    inicializado igual en cada llamada, la replica `b` de `r` y la
     replica `b` de `z` corresponden EXACTAMENTE al mismo conjunto de dias
     remuestreados -- permite calcular `fraction_removed` por replica
     (`1 - kurt_z_b/kurt_r_b`) sin escribir un motor de bootstrap nuevo.
+    Se reutiliza la MISMA semilla en las 4 llamadas (r/z x full/trimmed)
+    para que las 4 series de replicas compartan el mismo remuestreo de
+    dias -- la incertidumbre reportada es comparable entre ambas
+    versiones de la metrica.
+
+    Auditoria post-cierre (problema 2): la version RECORTADA es la que
+    alimenta el veredicto (`classify_config`), por lo que exigir su
+    propio intervalo de incertidumbre -- y no solo el de la version
+    completa -- es obligatorio (G5: "todo resultado se reporta como
+    terna"). Ambas versiones se calculan siempre; el llamador decide para
+    que configuracion(es) invocar esta funcion (ver `run_tda10_analysis`,
+    etapa 5: como minimo la primaria `ewma_60_raw`, y `ewma_60_clock_adjusted`
+    como diagnostico retrospectivo secundario si el costo lo permite).
     """
     mask = np.isfinite(np.asarray(z, dtype=float))
     r_valid = np.asarray(r, dtype=float)[mask]
     z_valid = np.asarray(z, dtype=float)[mask]
     date_valid = np.asarray(trading_date)[mask]
 
-    kurt_r_boot = day_block_bootstrap(r_valid, date_valid, excess_kurtosis, n_boot, seed)
-    kurt_z_boot = day_block_bootstrap(z_valid, date_valid, excess_kurtosis, n_boot, seed)
+    kurt_r_full_boot = day_block_bootstrap(r_valid, date_valid, excess_kurtosis, n_boot, seed)
+    kurt_z_full_boot = day_block_bootstrap(z_valid, date_valid, excess_kurtosis, n_boot, seed)
+    kurt_r_trimmed_boot = day_block_bootstrap(r_valid, date_valid, excess_kurtosis_trimmed, n_boot, seed)
+    kurt_z_trimmed_boot = day_block_bootstrap(z_valid, date_valid, excess_kurtosis_trimmed, n_boot, seed)
 
-    with np.errstate(invalid="ignore", divide="ignore"):
-        frac_boot = 1.0 - kurt_z_boot / kurt_r_boot
-    frac_boot = np.where((kurt_r_boot > 0) & np.isfinite(kurt_r_boot) & np.isfinite(kurt_z_boot), frac_boot, np.nan)
+    def _fraction_boot(kurt_r_boot: np.ndarray, kurt_z_boot: np.ndarray) -> np.ndarray:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            frac = 1.0 - kurt_z_boot / kurt_r_boot
+        return np.where((kurt_r_boot > 0) & np.isfinite(kurt_r_boot) & np.isfinite(kurt_z_boot), frac, np.nan)
 
-    def _ci(arr: np.ndarray) -> tuple[float, float]:
-        finite = arr[np.isfinite(arr)]
-        if finite.size < 10:
-            return float("nan"), float("nan")
-        return float(np.percentile(finite, 2.5)), float(np.percentile(finite, 97.5))
+    frac_full_boot = _fraction_boot(kurt_r_full_boot, kurt_z_full_boot)
+    frac_trimmed_boot = _fraction_boot(kurt_r_trimmed_boot, kurt_z_trimmed_boot)
 
-    kr_lo, kr_hi = _ci(kurt_r_boot)
-    kz_lo, kz_hi = _ci(kurt_z_boot)
-    fr_lo, fr_hi = _ci(frac_boot)
+    kr_full_lo, kr_full_hi = _bootstrap_ci_bounds(kurt_r_full_boot)
+    kz_full_lo, kz_full_hi = _bootstrap_ci_bounds(kurt_z_full_boot)
+    fr_full_lo, fr_full_hi = _bootstrap_ci_bounds(frac_full_boot)
+    kr_trim_lo, kr_trim_hi = _bootstrap_ci_bounds(kurt_r_trimmed_boot)
+    kz_trim_lo, kz_trim_hi = _bootstrap_ci_bounds(kurt_z_trimmed_boot)
+    fr_trim_lo, fr_trim_hi = _bootstrap_ci_bounds(frac_trimmed_boot)
+
     return {
-        "n_boot": n_boot,
-        "kurt_r_point": excess_kurtosis(r_valid), "kurt_r_ci_lo": kr_lo, "kurt_r_ci_hi": kr_hi,
-        "kurt_z_point": excess_kurtosis(z_valid), "kurt_z_ci_lo": kz_lo, "kurt_z_ci_hi": kz_hi,
-        "fraction_removed_ci_lo": fr_lo, "fraction_removed_ci_hi": fr_hi,
+        "config": config_label, "n_boot": n_boot, "n": int(z_valid.size),
+        "kurt_r_full_point": excess_kurtosis(r_valid), "kurt_r_full_ci_lo": kr_full_lo, "kurt_r_full_ci_hi": kr_full_hi,
+        "kurt_z_full_point": excess_kurtosis(z_valid), "kurt_z_full_ci_lo": kz_full_lo, "kurt_z_full_ci_hi": kz_full_hi,
+        "fraction_removed_full_point": float(
+            1.0 - excess_kurtosis(z_valid) / excess_kurtosis(r_valid)
+        ) if excess_kurtosis(r_valid) > 0 else float("nan"),
+        "fraction_removed_full_ci_lo": fr_full_lo, "fraction_removed_full_ci_hi": fr_full_hi,
+        "kurt_r_trimmed_point": excess_kurtosis_trimmed(r_valid), "kurt_r_trimmed_ci_lo": kr_trim_lo, "kurt_r_trimmed_ci_hi": kr_trim_hi,
+        "kurt_z_trimmed_point": excess_kurtosis_trimmed(z_valid), "kurt_z_trimmed_ci_lo": kz_trim_lo, "kurt_z_trimmed_ci_hi": kz_trim_hi,
+        "fraction_removed_trimmed_point": float(
+            1.0 - excess_kurtosis_trimmed(z_valid) / excess_kurtosis_trimmed(r_valid)
+        ) if excess_kurtosis_trimmed(r_valid) > 0 else float("nan"),
+        "fraction_removed_trimmed_ci_lo": fr_trim_lo, "fraction_removed_trimmed_ci_hi": fr_trim_hi,
     }
 
 
@@ -715,8 +836,36 @@ def classify_config(fraction_removed_trimmed: float, max_profile_stability_ratio
     return "MIXTO"
 
 
+def borderline_distance(fraction_removed_trimmed: float, max_profile_stability_ratio: float) -> dict:
+    """Distancia FIRMADA de una configuracion a cada uno de los 4 umbrales de decision -- META-INFORMACION descriptiva, nunca usada por `classify_config` (ver `BORDERLINE_MARGIN`).
+
+    Signo: positivo significa "del lado que favorece ESCALA_DOMINA / se
+    aleja de FORMA_SUSTANCIAL" en cada comparacion; no se usa para
+    decidir nada, solo para que el informe pueda decir "a 0.001 del
+    umbral" en vez de presentar "0.799 < 0.80" como si fuera una
+    diferencia fuerte.
+    """
+    if not np.isfinite(fraction_removed_trimmed) or not np.isfinite(max_profile_stability_ratio):
+        return {
+            "dist_scale_fraction": float("nan"), "dist_form_fraction": float("nan"),
+            "dist_scale_stability": float("nan"), "dist_form_stability": float("nan"),
+            "min_abs_distance_to_any_threshold": float("nan"), "is_borderline": False,
+        }
+    d_scale_frac = fraction_removed_trimmed - FRACTION_REMOVED_SCALE_THRESHOLD
+    d_form_frac = fraction_removed_trimmed - FRACTION_REMOVED_FORM_THRESHOLD
+    d_scale_stab = PROFILE_STABILITY_SCALE_THRESHOLD - max_profile_stability_ratio
+    d_form_stab = max_profile_stability_ratio - PROFILE_STABILITY_FORM_THRESHOLD
+    distances = [d_scale_frac, d_form_frac, d_scale_stab, d_form_stab]
+    min_abs = float(min(abs(d) for d in distances))
+    return {
+        "dist_scale_fraction": float(d_scale_frac), "dist_form_fraction": float(d_form_frac),
+        "dist_scale_stability": float(d_scale_stab), "dist_form_stability": float(d_form_stab),
+        "min_abs_distance_to_any_threshold": min_abs, "is_borderline": bool(min_abs <= BORDERLINE_MARGIN),
+    }
+
+
 def decide_verdict(config_labels: list[str]) -> dict:
-    """Veredicto HOLISTICO (TH22): la etiqueta mayoritaria si alcanza `ROBUSTNESS_AGREEMENT_FRACTION` de las configuraciones evaluadas; `MIXTO` en cualquier otro caso (incluida la propia mayoria si esta es `MIXTO`)."""
+    """Veredicto de UN BLOQUE de configuraciones (p.ej. las 6 `raw`, o las 6 `clock_adjusted` -- NUNCA una mezcla de estatus epistemologicos distintos, ver `synthesize_th22`): la etiqueta mayoritaria si alcanza `ROBUSTNESS_AGREEMENT_FRACTION` de las configuraciones del bloque; `MIXTO` en cualquier otro caso (incluida la propia mayoria si esta es `MIXTO`)."""
     n = len(config_labels)
     if n == 0:
         return {"verdict": "MIXTO", "agreement_fraction": float("nan"), "counts": {}, "robust": False, "n_configs": 0}
@@ -728,6 +877,37 @@ def decide_verdict(config_labels: list[str]) -> dict:
     robust = agreement >= ROBUSTNESS_AGREEMENT_FRACTION
     verdict = top_label if (robust and top_label != "MIXTO") else "MIXTO"
     return {"verdict": verdict, "agreement_fraction": float(agreement), "counts": counts, "robust": bool(robust), "n_configs": n}
+
+
+def synthesize_th22(raw_verdict: dict, clock_adjusted_verdict: dict) -> dict:
+    """Sintesis GLOBAL de TH22 (auditoria post-cierre, problema 3) -- NUNCA una votacion ciega de las 12 configuraciones.
+
+    El veredicto FORMAL es SIEMPRE el del bloque ``RAW/CAUSAL``
+    (``raw_verdict``): la pregunta principal de TDA-10 usa `sigma_hat`
+    CAUSAL, y `r_tilde` (bloque `clock_adjusted`) depende de `s(m)`
+    RETROSPECTIVO -- nunca disponible causalmente en produccion, nunca
+    apto para decidir la pregunta principal.
+
+    El bloque ``clock_adjusted_verdict`` se reporta como DIAGNOSTICO
+    secundario -- informa la interpretacion (cuanto de lo que el bloque
+    RAW ve como FORMA podria deberse al patron horario deterministico ya
+    caracterizado en TDA-06) pero nunca cambia el veredicto formal. Si
+    ambos bloques coinciden, se documenta como refuerzo; si divergen, se
+    documenta como una calificacion adicional explicita en el texto del
+    informe -- NUNCA como una cuarta categoria formal de TH22.
+    """
+    agrees = raw_verdict["verdict"] == clock_adjusted_verdict["verdict"]
+    return {
+        "verdict": raw_verdict["verdict"],
+        "based_on": "RAW_CAUSAL",
+        "raw_block": raw_verdict,
+        "clock_adjusted_block": clock_adjusted_verdict,
+        "clock_adjusted_agrees_with_raw": bool(agrees),
+        "robust": raw_verdict["robust"],
+        "agreement_fraction": raw_verdict["agreement_fraction"],
+        "n_configs": raw_verdict["n_configs"],
+        "counts": raw_verdict["counts"],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -825,13 +1005,17 @@ class TDA10Result:
 
     causality_table: pd.DataFrame
     kurtosis_table: pd.DataFrame
-    kurtosis_bootstrap_ci: dict
+    kurtosis_bootstrap_ci: pd.DataFrame  # 1 fila por configuracion evaluada (primaria raw + clock_adjusted), full+trimmed
     quantile_by_decile: pd.DataFrame   # solo configs "headline" (primario raw + clock_adjusted)
     quantile_by_segment: pd.DataFrame
     quantile_by_year: pd.DataFrame
-    sensitivity_table: pd.DataFrame    # una fila por cada una de las 12 configuraciones
+    sensitivity_table: pd.DataFrame    # una fila por cada una de las 12 configuraciones, con ambas metricas y etiquetas
     qq_table: pd.DataFrame
 
+    raw_block_verdict: dict = field(default_factory=dict)
+    clock_adjusted_block_verdict: dict = field(default_factory=dict)
+    raw_block_verdict_full: dict = field(default_factory=dict)          # diagnostico: mismo bloque, clasificado con fraction_removed_full
+    clock_adjusted_block_verdict_full: dict = field(default_factory=dict)
     th22_verdict: dict = field(default_factory=dict)
     th26_status: str = "PARCIALMENTE_INFORMADA"
     stop13_suggestion: dict = field(default_factory=dict)
@@ -898,15 +1082,26 @@ def run_tda10_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA10Res
         kurtosis_rows.append(tab)
     kurtosis_table = pd.concat(kurtosis_rows, ignore_index=True)
 
-    # --- Etapa 5: bootstrap CI (primario GLOBAL) ----------------------------
-    timer.stage("Bootstrap de bloques por jornada (IC 95%) para la configuracion primaria")
+    # --- Etapa 5: bootstrap CI (primario GLOBAL, full+trimmed) -------------
+    # Auditoria post-cierre (problema 2): la metrica que decide el veredicto
+    # (fraction_removed_trimmed) debe tener su propio IC, no solo la version
+    # completa. Se calcula para la configuracion PRIMARIA (obligatorio) y,
+    # por ser computacionalmente barato (mismo motor, mismo n_boot), tambien
+    # para su contraparte clock_adjusted como diagnostico retrospectivo
+    # secundario (problema 3).
+    timer.stage("Bootstrap de bloques por jornada (IC 95%, completa+recortada) para primaria raw y clock_adjusted")
     prim_family, prim_param, prim_input = PRIMARY_ESTIMATOR
-    prim_pop = pop_by_series[prim_input]
-    prim_r = r_by_series[prim_input]
-    prim_z = z_by_config[PRIMARY_ESTIMATOR]
-    kurtosis_bootstrap_ci = bootstrap_kurtosis_ci(
-        prim_r, prim_z, prim_pop["trading_date"].to_numpy(), n_boot=config.tda10_n_boot,
-    )
+    bootstrap_rows = []
+    for key in (PRIMARY_ESTIMATOR, PRIMARY_ESTIMATOR_CLOCK_ADJUSTED):
+        family, param, input_series = key
+        pop = pop_by_series[input_series]
+        r_series = r_by_series[input_series]
+        z_series = z_by_config[key]
+        label = f"{family}_{param:g}_{input_series}"
+        bootstrap_rows.append(
+            bootstrap_kurtosis_ci(r_series, z_series, pop["trading_date"].to_numpy(), n_boot=config.tda10_n_boot, config_label=label)
+        )
+    kurtosis_bootstrap_ci = pd.DataFrame(bootstrap_rows)
 
     # --- Etapa 6: estabilidad de FORMA (decil / segmento / año) ------------
     timer.stage("Estabilidad de forma por decil de volatilidad, segmento y año (headline + sensibilidad)")
@@ -955,21 +1150,52 @@ def run_tda10_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA10Res
         else:
             fraction_removed_full = float("nan")
             fraction_removed_trimmed = float("nan")
-        label = classify_config(fraction_removed_trimmed, max_ratio)
+        # Auditoria post-cierre (problemas 1 y 4): se CLASIFICA con AMBAS
+        # metricas para que el informe pueda mostrar explicitamente que
+        # concluye cada una -- solo `config_label_trimmed` alimenta el
+        # veredicto formal (`synthesize_th22`); `config_label_full` es
+        # diagnostico de transparencia.
+        label_full = classify_config(fraction_removed_full, max_ratio)
+        label_trimmed = classify_config(fraction_removed_trimmed, max_ratio)
+        border = borderline_distance(fraction_removed_trimmed, max_ratio)
+
+        # Cuenta explicita de cuantas filas de ESTA configuracion tenian un
+        # `sigma_hat` positivo pero por debajo de `MIN_VALID_SIGMA_HAT`
+        # (excluidas por el piso numerico, no por la guardia original
+        # `sigma_hat<=0`) -- auditoria post-cierre, seccion "ARTEFACTO
+        # NUMERICO": el numero de observaciones afectadas queda reportado
+        # explicitamente, nunca solo mencionado en prosa.
+        n_sigma_floor_excluded = int(np.sum(np.isfinite(sigma_hat) & (sigma_hat > 0) & (sigma_hat <= MIN_VALID_SIGMA_HAT)))
 
         sensitivity_rows.append({
             "family": family, "param": param, "input_series": input_series,
             "fraction_removed_full": fraction_removed_full, "fraction_removed_trimmed": fraction_removed_trimmed,
             "decile_stability_ratio": decile_ratio, "segment_stability_ratio": segment_ratio, "year_stability_ratio": year_ratio,
-            "max_stability_ratio": max_ratio, "config_label": label,
+            "max_stability_ratio": max_ratio,
+            "config_label_full": label_full, "config_label_trimmed": label_trimmed,
+            "n_sigma_floor_excluded": n_sigma_floor_excluded,
+            **border,
         })
     sensitivity_table = pd.DataFrame(sensitivity_rows)
 
-    # --- Etapa 7: QQ + veredicto TH22 + STOP-13 (sugerencia) ----------------
-    timer.stage("QQ-plots, veredicto TH22 y sugerencia de STOP-13")
+    # --- Etapa 7: QQ + veredicto TH22 (RAW/CAUSAL formal + CLOCK_ADJUSTED
+    # diagnostico) + STOP-13 (sugerencia) ------------------------------------
+    timer.stage("QQ-plots, veredicto TH22 (RAW/CAUSAL vs CLOCK_ADJUSTED) y sugerencia de STOP-13")
     qq_table = build_qq_table(r_raw, z_by_config)
 
-    th22_verdict = decide_verdict(sensitivity_table["config_label"].tolist())
+    raw_mask = sensitivity_table["input_series"] == "raw"
+    clock_mask = sensitivity_table["input_series"] == "clock_adjusted"
+
+    # Veredicto OFICIAL por bloque (metrica recortada -- problema 3).
+    raw_block_verdict = decide_verdict(sensitivity_table.loc[raw_mask, "config_label_trimmed"].tolist())
+    clock_adjusted_block_verdict = decide_verdict(sensitivity_table.loc[clock_mask, "config_label_trimmed"].tolist())
+    # Diagnostico de transparencia: mismos bloques, clasificados con la
+    # metrica completa/sin recortar (problema 1 -- "que hubiera concluido
+    # la version completa").
+    raw_block_verdict_full = decide_verdict(sensitivity_table.loc[raw_mask, "config_label_full"].tolist())
+    clock_adjusted_block_verdict_full = decide_verdict(sensitivity_table.loc[clock_mask, "config_label_full"].tolist())
+
+    th22_verdict = synthesize_th22(raw_block_verdict, clock_adjusted_block_verdict)
     th22_verdict["primary_config"] = f"{prim_family}_{prim_param:g}_{prim_input}"
     th22_verdict["primary_fraction_removed_full"] = float(
         kurt_global.loc[(prim_family, float(prim_param), prim_input), "fraction_removed"]
@@ -982,8 +1208,8 @@ def run_tda10_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA10Res
         stop13_suggestion = {
             "suggested": True,
             "reason": (
-                "TDA-10 encontro ESCALA_DOMINA de forma robusta (agreement="
-                f"{th22_verdict['agreement_fraction']:.2f} de las {th22_verdict['n_configs']} configuraciones). "
+                "TDA-10 encontro ESCALA_DOMINA de forma robusta en el bloque RAW/CAUSAL (agreement="
+                f"{th22_verdict['agreement_fraction']:.2f} de las {th22_verdict['n_configs']} configuraciones raw). "
                 "Esto SUGIERE que STOP-13 (no ejecutar EVT) sera probable, pero la activacion FORMAL de STOP-13 "
                 "corresponde a TDA-12 (roadmap, criterios de interpretacion de TDA-12), no a esta etapa."
             ),
@@ -992,7 +1218,7 @@ def run_tda10_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA10Res
         stop13_suggestion = {
             "suggested": False,
             "reason": (
-                f"TDA-10 no encontro ESCALA_DOMINA robusta (veredicto={th22_verdict['verdict']}, "
+                f"TDA-10 no encontro ESCALA_DOMINA robusta en el bloque RAW/CAUSAL (veredicto={th22_verdict['verdict']}, "
                 f"agreement={th22_verdict['agreement_fraction']:.2f}). No se sugiere STOP-13; "
                 "TDA-12 debe evaluar formalmente si procede EVT."
             ),
@@ -1005,6 +1231,8 @@ def run_tda10_analysis(config: SnapshotConfig, verbose: bool = True) -> TDA10Res
         causality_table=causality_table, kurtosis_table=kurtosis_table, kurtosis_bootstrap_ci=kurtosis_bootstrap_ci,
         quantile_by_decile=quantile_by_decile, quantile_by_segment=quantile_by_segment, quantile_by_year=quantile_by_year,
         sensitivity_table=sensitivity_table, qq_table=qq_table,
+        raw_block_verdict=raw_block_verdict, clock_adjusted_block_verdict=clock_adjusted_block_verdict,
+        raw_block_verdict_full=raw_block_verdict_full, clock_adjusted_block_verdict_full=clock_adjusted_block_verdict_full,
         th22_verdict=th22_verdict, th26_status="PARCIALMENTE_INFORMADA", stop13_suggestion=stop13_suggestion,
         stage_timings=stage_timings,
     )
