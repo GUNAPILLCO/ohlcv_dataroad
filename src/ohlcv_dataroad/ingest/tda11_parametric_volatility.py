@@ -91,7 +91,8 @@ conjunto de investigacion real -- misma disciplina que TDA-06..10)
    cierre del segmento de un dia y la apertura del mismo segmento al
    dia siguiente). Es la MISMA simplificacion, ya predeclarada y
    documentada, que TDA-10 adopto para sus propios estimadores
-   causales -- no una decision nueva de esta etapa. El DIAGNOSTICO de
+   causales -- no una decision nueva de esta etapa (su impacto se MIDE
+   desde la auditoria correctiva, ver punto 11). El DIAGNOSTICO de
    residuos (ACF/portmanteau), en cambio, SI respeta bloques de
    continuidad genuina (`compute_block_ids_with_contract`, TDA-09) para
    no fabricar dependencia artificial en el propio diagnostico.
@@ -132,6 +133,66 @@ conjunto de investigacion real -- misma disciplina que TDA-06..10)
    (`MIN_VALID_SIGMA_HAT`): es una correccion de VALIDEZ NUMERICA del
    ajuste, no una decision metodologica sobre que responde la pregunta.
 
+---------------------------------------------------------------------
+AUDITORIA CORRECTIVA (posterior al primer cierre de TDA-11; cada punto
+fue DEMOSTRADO y MEDIDO sobre el conjunto de investigacion antes de
+cambiar nada -- ver el informe, secciones 5, 6, 8, 10 y 17)
+---------------------------------------------------------------------
+
+9.  **C2 -- convergencia VERIFICADA, no declarada.** El punto 8 no
+    bastaba: sobre los datos reales, los 4 intentos de la grilla de
+    `eps` reportaron `convergence_flag=0` terminando en puntos MUY
+    distintos (log-verosimilitud separada por decenas de miles de
+    unidades). El ajuste PRIMARIO y los de año/segmento si coincidian
+    con el optimo; el SECUNDARIO (`raw`) y la sensibilidad Student-t NO
+    (69.663 y 11.558 unidades de log-verosimilitud por debajo del
+    optimo real, con `alpha`/`beta` materialmente distintos). Desde esta
+    auditoria `fit_garch11` (a) refina el mejor intento de `arch` con
+    un optimizador independiente sobre la MISMA verosimilitud y la
+    MISMA restriccion (`_refine_garch`), (b) exige que esa
+    verosimilitud coincida con la de `arch` en el punto final
+    (`GARCH_LLF_CROSSCHECK_RTOL`), y (c) declara un ajuste
+    `converged_verified` SOLO si el gradiente proyectado (condicion de
+    primer orden, KKT) de la log-verosimilitud media es menor que
+    `GARCH_KKT_GRADIENT_TOL`. Un ajuste con parametros finitos pero sin
+    esa verificacion NUNCA se usa: el primario detiene la etapa
+    (`GARCHFitError`), un subperiodo queda `NOT_CONVERGED`.
+10. **C1 -- persistencia en el borde de la restriccion.** `arch` impone
+    `alpha+beta<=1`. Cuando el estimador queda en ese borde
+    (`at_constraint_boundary=True`), el valor `1.0000` es el TOPE que
+    permite el software, no una estimacion libre: no demuestra IGARCH
+    ni memoria infinita, y los IC individuales de `alpha`/`beta`
+    (calculados sin tener en cuenta la restriccion activa) son solo
+    orientativos.
+11. **H1 -- continuidad temporal.** La concatenacion del punto 4 se
+    CONSERVA como procedimiento primario (medido: 0,16 % de los pares
+    adyacentes de la poblacion global cruzan un hueco/sesion/contrato).
+    Se añade una sensibilidad predeclarada con dos tratamientos
+    alternativos de cada frontera de bloque
+    (`BOUNDARY_SENSITIVITY_MODES`): `reset` (la varianza condicional
+    olvida todo y vuelve a la varianza muestral -- extremo opuesto a
+    concatenar) y `gap_forecast` (la varianza se propaga a traves del
+    hueco con el pronostico del propio GARCH a `g` minutos de reloj --
+    el tratamiento coherente con el modelo para observaciones
+    faltantes). Es DESCRIPTIVA: mide cuanto dependen `alpha`/`beta` de
+    la convencion, no elige "el mejor" modelo ni predice nada.
+12. **H2 -- comparacion sobre poblacion COMUN.** La decision de utilidad
+    informativa se toma con GARCH y los 3 benchmarks restringidos a
+    EXACTAMENTE las mismas filas (interseccion de `z` finitos), mismos
+    bloques y mismos pares. La diferencia medida frente a la version
+    anterior (cada serie sobre su propia poblacion) fue de 180 filas
+    sobre 1,9 millones (`Q(60)` cambia <0,02 %): inmaterial, pero ahora
+    es igual por construccion. Se añade ademas una sensibilidad
+    POST-HOC, claramente rotulada, contra un EWMA cuya velocidad de
+    memoria se iguala a la `beta` estimada por GARCH: NO interviene en
+    la regla predeclarada de STOP-11 (los benchmarks y umbrales no se
+    tocan despues de ver el resultado), solo informa QUE aporta GARCH.
+13. **C3 -- `Q(m)` no estimable.** Un GARCH puede ser estimable en un
+    segmento cuyos bloques de continuidad duran <= `m` barras, donde
+    `Q(m)` NO lo es. `residual_diagnostics` devuelve
+    `q_abs_z_m_status` explicito; nunca se rellena ni se sustituye por
+    un `Q` de menor alcance.
+
 Que NO hace este modulo (fuera de alcance, deliberado):
 
 - No entrena modelos de ML, no crea targets/features/señales.
@@ -156,6 +217,9 @@ import arch
 import numpy as np
 import pandas as pd
 from arch import arch_model
+from scipy.optimize import minimize
+from scipy.signal import lfilter
+from scipy.special import gammaln
 from scipy.stats import chi2
 
 from ohlcv_dataroad.config import SnapshotConfig
@@ -193,6 +257,10 @@ __all__ = [
     "GARCH_SCALE_FACTOR",
     "GARCH_OPTIMIZER_EPS_GRID",
     "GARCH_OPTIMIZER_MAXITER",
+    "GARCH_REFINE_STARTS",
+    "GARCH_KKT_GRADIENT_TOL",
+    "GARCH_LLF_CROSSCHECK_RTOL",
+    "BOUNDARY_SENSITIVITY_MODES",
     "MIN_N_FOR_GARCH_FIT",
     "RANGE_BENCHMARK_HALFLIFE",
     "ROLLING_BENCHMARK_WINDOW",
@@ -217,7 +285,14 @@ __all__ = [
     "causal_range_sigma",
     "compute_half_life",
     "is_stationary",
+    "garch_backcast",
+    "garch_sigma2_path",
+    "garch_mean_neg_loglik",
+    "kkt_projected_gradient",
+    "kkt_check_garch",
+    "compute_gap_minutes",
     "fit_garch11",
+    "fit_garch11_boundary_sensitivity",
     "residual_diagnostics",
     "ljung_box_pvalue",
     "compute_benchmark_z",
@@ -266,6 +341,30 @@ GARCH_SCALE_FACTOR = 1e4
 # del MLE, un criterio objetivo, nunca subjetivo).
 GARCH_OPTIMIZER_EPS_GRID: tuple[float | None, ...] = (None, 1e-7, 1e-6, 1e-5)
 GARCH_OPTIMIZER_MAXITER = 500
+
+# --- Auditoria correctiva C2 (docstring de modulo, punto 9) -------------
+# Arranques ADICIONALES `(alpha, alpha+beta)` del refinamiento
+# independiente -- grilla pequeña y fija; se suman al mejor intento de
+# `arch`. Gana la menor log-verosimilitud negativa (criterio objetivo).
+GARCH_REFINE_STARTS: tuple[tuple[float, float], ...] = ((0.05, 0.98), (0.10, 0.95), (0.20, 0.995))
+# Un ajuste es `converged_verified` solo si el mayor componente (en
+# valor absoluto) del gradiente PROYECTADO de la log-verosimilitud
+# negativa MEDIA (por observacion) es menor que este umbral. Fijado con
+# la evidencia de la auditoria, en el hueco entre las dos poblaciones
+# observadas y lejos de ambas: optimos reales <= 6e-5 (incluidos casos
+# sinteticos IID con verosimilitud plana); falsos "exitos" de SLSQP
+# >= 2,9e-2. NO es un umbral de decision cientifica (no interviene en
+# STOP-11/TH23-25): es un control de validez numerica.
+GARCH_KKT_GRADIENT_TOL = 1e-3
+GARCH_KKT_STEP = 1e-6
+# La verosimilitud propia (usada para refinar) debe coincidir con la de
+# `arch` en el punto final con esta tolerancia relativa (medido: <=2e-16).
+GARCH_LLF_CROSSCHECK_RTOL = 1e-8
+# Valor devuelto por la verosimilitud en un punto no admisible.
+_INFEASIBLE = 1e10
+
+# --- Auditoria correctiva H1 (docstring de modulo, punto 11) ------------
+BOUNDARY_SENSITIVITY_MODES = ("reset", "gap_forecast")
 
 # Tamaño minimo de muestra para intentar un ajuste GARCH de subperiodo
 # (año o segmento) -- 2019 es un año parcial con ~7.000 filas (TDA-09,
@@ -494,64 +593,373 @@ def compute_half_life(persistence: float) -> float | None:
     return float(np.log(0.5) / np.log(persistence))
 
 
-def fit_garch11(
-    r: np.ndarray, dist: str = "normal", scale: float = GARCH_SCALE_FACTOR, asymmetric: bool = False,
-) -> dict:
-    """Ajusta GARCH(1,1) (o GJR-GARCH(1,1,1) si `asymmetric=True`) sobre `r` -- media CERO (TDA-08: dependencia en media despreciable, STOP-8a).
+def garch_backcast(x: np.ndarray) -> float:
+    """Valor de pre-muestra de la varianza -- MISMA formula que `arch` (`GARCH.backcast`): media exponencial (peso 0,94) de los primeros `min(75, n)` cuadrados.
 
-    `r` se reescala por `scale` antes de ajustar (ver constante de modulo,
-    punto 5 del docstring) -- `alpha`/`beta`/`gamma`/persistencia se
-    reportan SIN escala (invariantes); `omega` se des-escala dividiendo
-    por `scale**2`. Inferencia ROBUSTA (`cov_type="robust"`, sandwich
-    Bollerslev-Wooldridge) siempre, sea cual sea `dist`.
-
-    MULTI-ARRANQUE (auditoria post-primera-ejecucion sobre el conjunto de
-    investigacion real -- ver docstring de modulo, punto 8): se detecto
-    que, con `n~10^6` y la curtosis genuina de MNQ, `scipy.optimize.minimize`
-    (SLSQP, usado internamente por `arch`) puede reportar "convergencia
-    exitosa" (`convergence_flag=0`) tras UNA sola iteracion, devolviendo
-    LITERALMENTE el punto de PARTIDA sin haberse movido -- verificado
-    comparando `res.params` contra `GARCH.starting_values(resid)`
-    (coincidian byte a byte) y confirmando un gradiente (`jac`) de
-    magnitud grande (cientos de miles) en el supuesto "optimo". La causa
-    raiz (verificada empiricamente, no solo sospechada): con `n~10^6`,
-    la log-verosimilitud NEGATIVA sumada es del orden de `10^6-10^7`; el
-    paso de diferencias finitas POR DEFECTO de SLSQP (`eps~1.49e-8`,
-    calibrado para problemas de magnitud O(1)) queda por debajo del
-    "piso de ruido" de redondeo de punto flotante de un objetivo de ese
-    tamaño, produciendo un gradiente por diferencias finitas dominado por
-    ruido numerico en vez de la derivada real -- SLSQP entonces "converge"
-    trivialmente. Fue reproducido y corregido de forma DEMOSTRABLE, no
-    solo hipotetica: variando `eps` (el paso de diferencias finitas) se
-    escapa de ese punto espurio, pero NINGUN valor unico de `eps`
-    funciona de forma fiable en todos los subperiodos -- por eso se
-    ajusta con una GRILLA PEQUEÑA y predeclarada de valores de `eps`
-    (`GARCH_OPTIMIZER_EPS_GRID`) y se conserva el ajuste con la MENOR
-    log-verosimilitud negativa (el criterio es la propia funcion objetivo
-    del MLE, nunca una eleccion subjetiva) -- practica estandar de
-    "multi-start" para verosimilitudes numericamente dificiles, NO una
-    reimplementacion del optimizador (cada intento sigue siendo
-    `arch_model(...).fit()` sin modificar).
-
-    Salida: `dict` con `omega`/`alpha`/`beta`/`gamma` (si `asymmetric`),
-    sus IC 95% robustos, `persistence`, `half_life`, `stationary`
-    (bool), `convergence_flag` (0=exito del intento SELECCIONADO), `n`,
-    `loglikelihood`, `standardized_resid` (array, MISMA longitud que `r`,
-    alineado posicion a posicion), `dist`, `asymmetric`, `eps_selected`
-    (que intento de la grilla gano), `n_multistart_attempts_finite`,
-    `converged_cleanly` (`True` si AL MENOS UN intento de la grilla
-    reporto `convergence_flag==0` -- el intento seleccionado siempre se
-    toma de ese subconjunto cuando existe; `False` solo si NINGUN
-    intento convergio limpiamente, en cuyo caso se usa igualmente el de
-    menor log-verosimilitud entre todos, documentado como no confiable).
-    Lanza `GARCHFitError` si NINGUN intento de la grilla produce
-    parametros finitos.
+    Se replica (en vez de llamar a `arch`) para que `garch_sigma2_path`
+    sea una funcion pura y testeable; `fit_garch11` comprueba en cada
+    ajuste que la verosimilitud resultante coincide con la de `arch`.
     """
-    r = np.asarray(r, dtype=float)
-    n = r.size
-    o = 1 if asymmetric else 0
-    am = arch_model(r * scale, mean="Zero", vol="GARCH", p=1, o=o, q=1, dist=dist)
+    x = np.asarray(x, dtype=float)
+    tau = min(75, x.size)
+    w = 0.94 ** np.arange(tau)
+    w = w / w.sum()
+    return float(np.sum(w * x[:tau]))
 
+
+def compute_gap_minutes(timestamp) -> np.ndarray:
+    """Minutos de reloj transcurridos entre cada fila y la ANTERIOR de la misma poblacion (`1.0` = contiguas; primera fila = `1.0`)."""
+    ts = pd.to_datetime(pd.Series(np.asarray(timestamp))).to_numpy().astype("datetime64[ns]").astype(np.int64)
+    gap = np.ones(ts.size, dtype=float)
+    if ts.size > 1:
+        gap[1:] = np.diff(ts) / 60e9
+    return gap
+
+
+def _block_starts(block_ids: np.ndarray) -> np.ndarray:
+    b = np.asarray(block_ids)
+    if b.size == 0:
+        return np.array([], dtype=int)
+    return np.flatnonzero(np.concatenate([[True], b[1:] != b[:-1]]))
+
+
+def garch_sigma2_path(
+    x: np.ndarray, omega: float, alpha: float, beta: float, gamma: float = 0.0, neg: np.ndarray | None = None,
+    block_starts: np.ndarray | None = None, boundary: str = "carry", gap_minutes: np.ndarray | None = None,
+) -> np.ndarray:
+    """Varianza condicional GARCH(1,1)/GJR: ``sigma2_t = omega + (alpha + gamma*1[r_(t-1)<0])*x_(t-1) + beta*sigma2_(t-1)``, con `x = r^2`.
+
+    `boundary` decide que ocurre en el PRIMER elemento de cada bloque de
+    continuidad (`block_starts`, indices de inicio):
+
+    - ``"carry"`` (procedimiento PRIMARIO de TDA-11, identico a `arch`
+      sobre la serie concatenada): la recursion ignora la frontera -- la
+      ultima barra del bloque anterior se trata como `t-1`.
+    - ``"reset"``: la varianza vuelve a la varianza muestral (`mean(x)`,
+      media cero) -- el modelo "olvida todo" en cada hueco. Extremo
+      opuesto a ``"carry"``.
+    - ``"gap_forecast"``: la varianza que ``"carry"`` asignaria se
+      propaga `g-1` pasos adicionales con el pronostico del propio
+      GARCH (`g = gap_minutes` en el inicio del bloque, minutos de reloj
+      del hueco): ``vbar + p^(g-1)*(sigma2_carry - vbar)`` con
+      ``vbar = omega/(1-p)``, `p` la persistencia; en el limite `p=1`,
+      ``sigma2_carry + (g-1)*omega``. Trata los minutos del hueco como
+      observaciones faltantes del mismo proceso.
+
+    La recursion dentro de cada bloque es un filtro lineal de primer
+    orden (`scipy.signal.lfilter`), exacto y sin bucle por observacion.
+    """
+    x = np.asarray(x, dtype=float)
+    n = x.size
+    bc = garch_backcast(x)
+    eff = alpha * x if (neg is None or gamma == 0.0) else (alpha + gamma * neg) * x
+    u = np.empty(n)
+    u[0] = omega + (alpha + 0.5 * gamma + beta) * bc
+    u[1:] = omega + eff[:-1]
+    if boundary == "carry":
+        return lfilter([1.0], [1.0, -beta], u)
+    if boundary not in BOUNDARY_SENSITIVITY_MODES:
+        raise ValueError(f"boundary desconocido: {boundary!r}")
+    if boundary == "gap_forecast" and gap_minutes is None:
+        raise ValueError("boundary='gap_forecast' requiere gap_minutes")
+
+    y = np.empty(n)
+    p = alpha + beta + 0.5 * gamma
+    reset_value = float(x.mean())
+    starts = np.array([0], dtype=int) if block_starts is None else np.asarray(block_starts, dtype=int)
+    ends = np.append(starts[1:], n)
+    prev = None
+    for a, b in zip(starts, ends):
+        if boundary == "reset":
+            init = reset_value
+        elif prev is None:
+            init = u[0]
+        else:
+            carried = u[a] + beta * prev
+            g = max(float(gap_minutes[a]) - 1.0, 0.0)
+            if p < 1.0:
+                vbar = omega / (1.0 - p)
+                init = vbar + (p ** g) * (carried - vbar)
+            else:
+                init = carried + g * omega
+        if b - a == 1:
+            y[a] = init
+        else:
+            seg = u[a:b].copy()
+            seg[0] = init
+            y[a:b] = lfilter([1.0], [1.0, -beta], seg)
+        prev = y[b - 1]
+    return y
+
+
+def _unpack_theta(theta: np.ndarray, asymmetric: bool, dist: str) -> tuple[float, float, float, float, float, float | None]:
+    """``theta = [log10(omega), alpha, (gamma), persistencia, (nu)]`` -> ``(omega, alpha, gamma, beta, persistencia, nu)``.
+
+    Se optimiza sobre la PERSISTENCIA (no sobre `beta`) para que la
+    restriccion de `arch` (`alpha+beta+gamma/2<=1`) sea una cota simple
+    de una coordenada, y sobre `log10(omega)` porque `omega` recorre
+    varios ordenes de magnitud.
+    """
+    i = 2
+    gamma = 0.0
+    if asymmetric:
+        gamma = float(theta[i])
+        i += 1
+    persistence = float(theta[i])
+    i += 1
+    nu = float(theta[i]) if dist == "t" else None
+    alpha = float(theta[1])
+    return 10.0 ** float(theta[0]), alpha, gamma, persistence - alpha - 0.5 * gamma, persistence, nu
+
+
+def _theta_bounds(x: np.ndarray, asymmetric: bool, dist: str) -> list[tuple[float, float]]:
+    """Cotas de `theta` -- las mismas regiones admisibles que `arch` (`alpha,beta>=0`, persistencia `<=1`, `nu` en `(2.05, 500)`)."""
+    log_v = float(np.log10(x.mean()))
+    bounds = [(log_v - 10.0, log_v + 1.0), (0.0, 1.0)]
+    if asymmetric:
+        bounds.append((-1.0, 2.0))
+    bounds.append((0.0, 1.0))
+    if dist == "t":
+        bounds.append((2.05, 500.0))
+    return bounds
+
+
+def garch_mean_neg_loglik(
+    theta: np.ndarray, x: np.ndarray, neg: np.ndarray | None = None, asymmetric: bool = False, dist: str = "normal",
+    block_starts: np.ndarray | None = None, boundary: str = "carry", gap_minutes: np.ndarray | None = None,
+) -> float:
+    """Log-verosimilitud negativa MEDIA (por observacion) de GARCH(1,1)/GJR, media cero, innovacion gaussiana o Student-t estandarizada.
+
+    Se trabaja con la MEDIA (no la suma) para que el objetivo sea de
+    orden 1 sea cual sea `n` -- la suma, de orden `10^6-10^7` sobre el
+    conjunto de investigacion, es lo que vuelve poco fiables las
+    diferencias finitas del optimizador interno de `arch` (punto 8 del
+    docstring de modulo). Devuelve `_INFEASIBLE` fuera de la region
+    admisible (misma region que `arch`).
+    """
+    omega, alpha, gamma, beta, persistence, nu = _unpack_theta(np.asarray(theta, dtype=float), asymmetric, dist)
+    return _garch_mean_neg_loglik_params(omega, alpha, gamma, beta, persistence, nu, x, neg, dist, block_starts, boundary, gap_minutes)
+
+
+def _garch_mean_neg_loglik_params(
+    omega: float, alpha: float, gamma: float, beta: float, persistence: float, nu: float | None,
+    x: np.ndarray, neg: np.ndarray | None, dist: str,
+    block_starts: np.ndarray | None = None, boundary: str = "carry", gap_minutes: np.ndarray | None = None,
+) -> float:
+    """Nucleo de `garch_mean_neg_loglik` sobre parametros EXPLICITOS -- lo comparten la parametrizacion `theta` (optimizacion) y la parametrizacion de caja `phi` (verificacion KKT, `kkt_check_garch`)."""
+    if alpha < 0.0 or beta < 0.0 or alpha + gamma < 0.0 or persistence > 1.0 or (nu is not None and nu <= 2.05):
+        return _INFEASIBLE
+    s2 = garch_sigma2_path(x, omega, alpha, beta, gamma, neg, block_starts, boundary, gap_minutes)
+    if not np.all(s2 > 0.0):
+        return _INFEASIBLE
+    if dist == "t":
+        ll = (
+            gammaln((nu + 1.0) / 2.0) - gammaln(nu / 2.0) - 0.5 * np.log(np.pi * (nu - 2.0))
+            - 0.5 * np.log(s2) - (nu + 1.0) / 2.0 * np.log1p(x / (s2 * (nu - 2.0)))
+        )
+    elif dist == "normal":
+        ll = -0.5 * (np.log(2.0 * np.pi) + np.log(s2) + x / s2)
+    else:
+        raise ValueError(f"dist no soportada: {dist!r}")
+    value = -float(np.mean(ll))
+    return value if np.isfinite(value) else _INFEASIBLE
+
+
+def kkt_projected_gradient(theta: np.ndarray, objective, bounds: list[tuple[float, float]], step: float = GARCH_KKT_STEP) -> np.ndarray:
+    """Gradiente PROYECTADO de `objective` en `theta` (diferencias finitas) -- la condicion de primer orden de un minimo con restricciones.
+
+    En un minimo interior todo el gradiente es ~0. Si una coordenada
+    esta sobre una cota (o sobre el borde de la region admisible, donde
+    `objective` devuelve `_INFEASIBLE`) y el objetivo solo mejoraria
+    SALIENDO de ella, ese componente no viola la optimalidad y se
+    proyecta a 0 (condicion de Karush-Kuhn-Tucker). Un componente
+    grande que apunta hacia el INTERIOR significa que el optimizador se
+    detuvo antes de tiempo -- exactamente lo que `convergence_flag=0` de
+    SLSQP no detecta. Devuelve `NaN` en una coordenada si no se puede
+    evaluar hacia ningun lado.
+
+    ALCANCE MATEMATICO (2a revision de la auditoria correctiva): para
+    restricciones de CAJA (`lo_i <= theta_i <= hi_i`, cada una sobre una
+    sola coordenada) las condiciones KKT de un minimo son EXACTAMENTE
+    "gradiente proyectado = 0": `df/dtheta_i = 0` en coordenadas libres,
+    `>= 0` en una cota inferior activa, `<= 0` en una superior activa
+    (los multiplicadores son esas mismas derivadas, y la calificacion de
+    restricciones se cumple siempre porque los gradientes de las cotas
+    activas son vectores canonicos distintos). Para una restriccion que
+    ACOPLA coordenadas (p. ej. `beta = p - alpha >= 0`) esta comprobacion
+    coordenada a coordenada es necesaria pero NO suficiente: no examina
+    las direcciones que se deslizan a lo largo de la cara activa. Por eso
+    la verificacion de un ajuste GARCH nunca se hace sobre `theta`
+    directamente, sino mediante `kkt_check_garch`, que primero cambia a
+    coordenadas en las que TODAS las restricciones son de caja.
+
+    Una coordenada a menos de `step` de su cota se trata como activa.
+    Es una condicion de PRIMER orden: acredita un punto estacionario
+    restringido (candidato a minimo local), no un minimo global.
+    """
+    theta = np.asarray(theta, dtype=float)
+    f0 = objective(theta)
+    grad = np.zeros(theta.size)
+    for i, (lo, hi) in enumerate(bounds):
+        f_up = f_dn = _INFEASIBLE
+        if theta[i] + step <= hi:
+            up = theta.copy()
+            up[i] = theta[i] + step
+            f_up = objective(up)
+        if theta[i] - step >= lo:
+            dn = theta.copy()
+            dn[i] = theta[i] - step
+            f_dn = objective(dn)
+        ok_up, ok_dn = f_up < _INFEASIBLE, f_dn < _INFEASIBLE
+        if ok_up and ok_dn:
+            grad[i] = (f_up - f_dn) / (2.0 * step)
+        elif ok_dn:
+            # No se puede subir (cota/borde superior activo): solo viola
+            # la optimalidad si BAJAR mejora el objetivo (derivada > 0).
+            grad[i] = max((f0 - f_dn) / step, 0.0)
+        elif ok_up:
+            # No se puede bajar (cota/borde inferior activo): solo viola
+            # la optimalidad si SUBIR mejora el objetivo (derivada < 0).
+            grad[i] = min((f_up - f0) / step, 0.0)
+        else:
+            grad[i] = np.nan
+    return grad
+
+
+def _theta_to_phi(theta: np.ndarray, asymmetric: bool, dist: str) -> np.ndarray:
+    """`theta` -> coordenadas de caja `phi = [log10(omega), w, (v), p, (nu)]`, ver `kkt_check_garch`."""
+    _, alpha, gamma, _, persistence, nu = _unpack_theta(np.asarray(theta, dtype=float), asymmetric, dist)
+    arch_part = alpha + 0.5 * gamma                      # = w * p
+    w = float(np.clip(arch_part / persistence, 0.0, 1.0)) if persistence > 0.0 else 0.0
+    phi = [float(theta[0]), w]
+    if asymmetric:
+        phi.append(float(np.clip(alpha / (2.0 * arch_part), 0.0, 1.0)) if arch_part > 0.0 else 0.5)
+    phi.append(persistence)
+    if dist == "t":
+        phi.append(nu)
+    return np.asarray(phi, dtype=float)
+
+
+def _phi_to_params(phi: np.ndarray, asymmetric: bool, dist: str) -> tuple[float, float, float, float, float, float | None]:
+    """`phi` -> `(omega, alpha, gamma, beta, persistencia, nu)`; toda `phi` dentro de su caja da parametros admisibles."""
+    i = 2
+    w = float(phi[1])
+    v = 0.5
+    if asymmetric:
+        v = float(phi[i])
+        i += 1
+    persistence = float(phi[i])
+    i += 1
+    nu = float(phi[i]) if dist == "t" else None
+    arch_part = w * persistence
+    alpha = 2.0 * arch_part * v if asymmetric else arch_part
+    gamma = 2.0 * arch_part * (1.0 - 2.0 * v) if asymmetric else 0.0
+    return 10.0 ** float(phi[0]), alpha, gamma, (1.0 - w) * persistence, persistence, nu
+
+
+def kkt_check_garch(
+    theta: np.ndarray, x: np.ndarray, neg: np.ndarray | None = None, asymmetric: bool = False, dist: str = "normal",
+    block_starts: np.ndarray | None = None, boundary: str = "carry", gap_minutes: np.ndarray | None = None,
+) -> np.ndarray:
+    """Gradiente proyectado (KKT) de la log-verosimilitud negativa media, evaluado en coordenadas donde TODAS las restricciones son de caja.
+
+    La region admisible de GARCH(1,1)/GJR (la misma que impone `arch`) es
+    `omega>0`, `alpha>=0`, `alpha+gamma>=0`, `beta>=0`,
+    `alpha+gamma/2+beta<=1`: en `(alpha, beta)` o en `theta` hay
+    restricciones que acoplan parametros. Con
+
+        p = alpha + gamma/2 + beta          (persistencia)      en [0, 1]
+        w = (alpha + gamma/2) / p           (parte ARCH de p)   en [0, 1]
+        v = alpha / (2*alpha + gamma)       (solo GJR)          en [0, 1]
+
+    cada restriccion pasa a ser la cota de UNA coordenada:
+    `beta>=0 <=> w<=1`, `alpha>=0 <=> v>=0` (y `w>=0`),
+    `alpha+gamma>=0 <=> v<=1`, `alpha+gamma/2+beta<=1 <=> p<=1`. El
+    cambio de variables es suave e invertible para `p>0` (y `w>0` en
+    GJR), asi que un punto es KKT del problema original si y solo si lo
+    es en `phi` -- donde `kkt_projected_gradient` es exacto (ver su
+    docstring). En los bordes degenerados `p=0` o `w=0` alguna coordenada
+    deja de estar identificada y su derivada es 0: no produce un falso
+    rechazo. `omega` solo tiene las cotas amplias de busqueda (10 ordenes
+    de magnitud por debajo y 1 por encima de la varianza muestral), que
+    no son restricciones del modelo; si quedaran activas el punto se
+    trataria igualmente con la regla de cota.
+    """
+    phi = _theta_to_phi(theta, asymmetric, dist)
+    log_v = float(np.log10(x.mean()))
+    bounds = [(log_v - 10.0, log_v + 1.0), (0.0, 1.0)] + ([(0.0, 1.0)] if asymmetric else []) + [(0.0, 1.0)]
+    if dist == "t":
+        bounds.append((2.05, 500.0))
+
+    def objective_phi(p_: np.ndarray) -> float:
+        omega, alpha, gamma, beta, persistence, nu = _phi_to_params(p_, asymmetric, dist)
+        return _garch_mean_neg_loglik_params(omega, alpha, gamma, beta, persistence, nu, x, neg, dist, block_starts, boundary, gap_minutes)
+
+    return kkt_projected_gradient(phi, objective_phi, bounds)
+
+
+def _refine_garch(
+    x: np.ndarray, neg: np.ndarray | None, asymmetric: bool, dist: str, extra_starts: tuple = (),
+    block_starts: np.ndarray | None = None, boundary: str = "carry", gap_minutes: np.ndarray | None = None,
+) -> tuple[np.ndarray, float, np.ndarray]:
+    """Minimiza `garch_mean_neg_loglik` -- multi-arranque L-BFGS-B (cotas) + pulido Nelder-Mead (sin derivadas) -- y devuelve `(theta, objetivo, gradiente proyectado)`.
+
+    Determinista (sin aleatoriedad). Arranques: `extra_starts` (el mejor
+    intento de `arch`, si existe) + `GARCH_REFINE_STARTS`. Nunca devuelve
+    un punto peor que el mejor arranque. El gradiente proyectado se
+    calcula con `kkt_check_garch` (coordenadas de caja), no sobre `theta`.
+    """
+    bounds = _theta_bounds(x, asymmetric, dist)
+    lo = np.array([b[0] for b in bounds])
+    hi = np.array([b[1] for b in bounds])
+
+    def objective(theta: np.ndarray) -> float:
+        return garch_mean_neg_loglik(theta, x, neg, asymmetric, dist, block_starts, boundary, gap_minutes)
+
+    def objective_box(theta: np.ndarray) -> float:
+        if np.any(theta < lo) or np.any(theta > hi):
+            return _INFEASIBLE
+        return objective(theta)
+
+    log_v = float(np.log10(x.mean()))
+    candidates = [np.clip(np.asarray(t, dtype=float), lo, hi) for t in extra_starts]
+    for alpha0, p0 in GARCH_REFINE_STARTS:
+        theta0 = [log_v + np.log10(1.0 - p0), alpha0] + ([0.0] if asymmetric else []) + [p0] + ([8.0] if dist == "t" else [])
+        candidates.append(np.asarray(theta0, dtype=float))
+
+    best_theta, best_value = None, np.inf
+    for theta0 in candidates:
+        value0 = objective(theta0)
+        if value0 < best_value:
+            best_theta, best_value = theta0, value0
+        res = minimize(objective, theta0, method="L-BFGS-B", bounds=bounds, options={"maxiter": 500, "ftol": 1e-15, "gtol": 1e-10})
+        if np.isfinite(res.fun) and res.fun < best_value:
+            best_theta, best_value = np.clip(res.x, lo, hi), float(res.fun)
+    if best_theta is None or best_value >= _INFEASIBLE:
+        raise GARCHFitError("El refinamiento independiente no encontro ningun punto admisible con log-verosimilitud finita.")
+
+    for _ in range(3):
+        nm = minimize(objective_box, best_theta, method="Nelder-Mead", options={"xatol": 1e-10, "fatol": 1e-14, "maxiter": 4000, "maxfev": 4000})
+        gain = best_value - float(nm.fun)
+        if nm.fun < best_value:
+            best_theta, best_value = np.asarray(nm.x, dtype=float), float(nm.fun)
+        if gain < 1e-12:
+            break
+
+    return best_theta, best_value, kkt_check_garch(best_theta, x, neg, asymmetric, dist, block_starts, boundary, gap_minutes)
+
+
+def _arch_multistart(am) -> tuple[object | None, float | None, int, bool]:
+    """Etapa A (punto 8 del docstring de modulo): grilla de `eps` sobre `arch_model(...).fit()`. Devuelve `(mejor intento, eps, n intentos finitos, converged_cleanly)`.
+
+    Preferencia: entre los intentos con `convergence_flag==0`, el de
+    MENOR log-verosimilitud negativa; solo si NINGUNO reporto exito se
+    recurre al mejor entre todos los finitos. Un intento con
+    `convergence_flag!=0` nunca se prefiere sobre uno que si lo reporto.
+    Desde la auditoria correctiva este resultado es solo un ARRANQUE del
+    refinamiento (`_refine_garch`): `convergence_flag==0` NO acredita
+    convergencia (punto 9 del docstring de modulo).
+    """
     finite_attempts: list[tuple[float, float | None, object]] = []  # (neg_llf, eps, result)
     for eps in GARCH_OPTIMIZER_EPS_GRID:
         options = {"maxiter": GARCH_OPTIMIZER_MAXITER}
@@ -565,49 +973,136 @@ def fit_garch11(
         if not np.isfinite(neg_llf) or not np.isfinite(attempt.params.to_numpy()).all():
             continue
         finite_attempts.append((neg_llf, eps, attempt))
-
     if not finite_attempts:
-        raise GARCHFitError(
-            f"Ninguno de los {len(GARCH_OPTIMIZER_EPS_GRID)} intentos de la grilla de multi-arranque "
-            f"(GARCH_OPTIMIZER_EPS_GRID) produjo un ajuste con log-verosimilitud finita (n={n})."
-        )
-
-    # Preferencia: entre los intentos con `convergence_flag==0` (exito
-    # reportado por SLSQP), el de MENOR log-verosimilitud negativa. Solo
-    # si NINGUNO reporto exito se recurre al mejor entre TODOS los
-    # intentos finitos (documentado explicitamente via `converged_cleanly`
-    # en la salida) -- un intento con `convergence_flag!=0` (p.ej. "Positive
-    # directional derivative for linesearch") puede evaluar una
-    # log-verosimilitud engañosamente baja en un punto que scipy NUNCA
-    # declaro optimo; nunca se prefiere sobre un intento que si convergio.
+        return None, None, 0, False
     clean = [t for t in finite_attempts if int(t[2].convergence_flag) == 0]
     pool = clean if clean else finite_attempts
-    best_neg_llf, best_eps, res = min(pool, key=lambda t: t[0])
-    converged_cleanly = bool(clean)
+    _, best_eps, best = min(pool, key=lambda t: t[0])
+    return best, best_eps, len(finite_attempts), bool(clean)
 
-    params = res.params
-    conf = res.conf_int()
+
+def fit_garch11(
+    r: np.ndarray, dist: str = "normal", scale: float = GARCH_SCALE_FACTOR, asymmetric: bool = False,
+) -> dict:
+    """Ajusta GARCH(1,1) (o GJR-GARCH(1,1,1) si `asymmetric=True`) sobre `r` -- media CERO (TDA-08: dependencia en media despreciable, STOP-8a).
+
+    `r` se reescala por `scale` antes de ajustar (punto 5 del docstring
+    de modulo) -- `alpha`/`beta`/`gamma`/persistencia se reportan SIN
+    escala (invariantes); `omega` se des-escala dividiendo por
+    `scale**2`. Inferencia ROBUSTA (sandwich Bollerslev-Wooldridge)
+    siempre, sea cual sea `dist`.
+
+    Tres pasos (puntos 8 y 9 del docstring de modulo):
+
+    A. `_arch_multistart`: grilla de `eps` sobre el optimizador de
+       `arch` (SLSQP). Auditoria correctiva: sobre los datos reales los
+       4 intentos reportaron exito en puntos distintos, y en 2 de los 3
+       ajustes globales NINGUNO era el optimo -- por eso este paso ya
+       solo aporta un ARRANQUE.
+    B. `_refine_garch`: optimizador independiente sobre la MISMA
+       verosimilitud y la MISMA restriccion (`alpha+beta(+gamma/2)<=1`),
+       con el objetivo normalizado por `n`.
+    C. Resultado e inferencia desde `arch` en el punto final
+       (`am.fix`, `am.compute_param_cov(robust=True)`), exigiendo que la
+       verosimilitud propia coincida con la de `arch`
+       (`GARCH_LLF_CROSSCHECK_RTOL`) -- `arch` sigue siendo la
+       referencia del modelo; solo se sustituyo la busqueda del optimo.
+
+    Salida: `dict` con `omega`/`alpha`/`beta`/`gamma`/`nu`, IC 95%
+    robustos, `persistence`, `half_life`, `stationary`, `n`,
+    `loglikelihood`, `standardized_resid` (misma longitud que `r`),
+    `dist`, `asymmetric`, y los campos de validez numerica:
+
+    - `converged_verified`: UNICO campo que acredita convergencia --
+      gradiente proyectado maximo `< GARCH_KKT_GRADIENT_TOL`.
+    - `kkt_max_abs_gradient`: ese gradiente.
+    - `at_constraint_boundary`: la persistencia quedo en el tope
+      `alpha+beta<=1` que impone `arch` (punto 10 del docstring).
+    - `loglikelihood_arch_multistart`, `refinement_llf_gain`: cuanto
+      mejoro el paso B sobre el paso A (~0 si `arch` ya estaba en el
+      optimo; grande si no).
+    - `convergence_flag`, `converged_cleanly`, `eps_selected`,
+      `n_multistart_attempts_finite/total`: lo que reporto el paso A --
+      se conservan por trazabilidad, NO acreditan convergencia.
+
+    Lanza `GARCHFitError` si la entrada no es finita, si no existe
+    ningun punto admisible, o si la verosimilitud propia y la de `arch`
+    discrepan.
+    """
+    if dist not in ("normal", "t"):
+        raise ValueError(f"dist no soportada: {dist!r}")
+    r = np.asarray(r, dtype=float)
+    n = r.size
+    if n == 0 or not np.isfinite(r).all():
+        raise GARCHFitError(f"La serie de entrada esta vacia o contiene valores no finitos (n={n}).")
+    y = r * scale
+    x = y ** 2
+    if not float(x.mean()) > 0.0:
+        raise GARCHFitError("La serie de entrada tiene varianza nula.")
+    o = 1 if asymmetric else 0
+    am = arch_model(y, mean="Zero", vol="GARCH", p=1, o=o, q=1, dist=dist)
+
+    # --- A: multi-arranque de arch (solo un arranque del refinamiento) ---
+    arch_best, best_eps, n_finite, converged_cleanly = _arch_multistart(am)
+    extra_starts = []
+    llf_arch_multistart = float("nan")
+    if arch_best is not None:
+        pa = arch_best.params
+        gamma_arch = float(pa["gamma[1]"]) if asymmetric else 0.0
+        theta_arch = [np.log10(float(pa["omega"])), float(pa["alpha[1]"])]
+        if asymmetric:
+            theta_arch.append(gamma_arch)
+        theta_arch.append(float(pa["alpha[1]"]) + float(pa["beta[1]"]) + 0.5 * gamma_arch)
+        if dist == "t":
+            theta_arch.append(float(pa["nu"]))
+        extra_starts.append(theta_arch)
+        llf_arch_multistart = float(arch_best.loglikelihood)
+
+    # --- B: refinamiento independiente, misma verosimilitud/restriccion ---
+    neg = (y < 0.0).astype(float) if asymmetric else None
+    theta, mean_nll, kkt = _refine_garch(x, neg, asymmetric, dist, extra_starts=tuple(extra_starts))
+    omega_s, alpha, gamma_v, beta, persistence, nu = _unpack_theta(theta, asymmetric, dist)
+    kkt_max = float(np.max(np.abs(kkt))) if np.isfinite(kkt).all() else float("nan")
+    converged_verified = bool(np.isfinite(kkt_max) and kkt_max < GARCH_KKT_GRADIENT_TOL)
+
+    # --- C: resultado e inferencia desde arch en el punto final ----------
+    names = ["omega", "alpha[1]"] + (["gamma[1]"] if asymmetric else []) + ["beta[1]"] + (["nu"] if dist == "t" else [])
+    values = [omega_s, alpha] + ([gamma_v] if asymmetric else []) + [beta] + ([nu] if dist == "t" else [])
+    arch_params = np.asarray(values, dtype=float)
+    if not np.isfinite(arch_params).all():
+        raise GARCHFitError(f"Ajuste GARCH produjo parametro(s) no finito(s): {dict(zip(names, values))}")
+    fixed = am.fix(arch_params)
+    llf = float(fixed.loglikelihood)
+    llf_own = -mean_nll * n
+    if not np.isfinite(llf) or abs(llf_own - llf) > GARCH_LLF_CROSSCHECK_RTOL * max(1.0, abs(llf)):
+        raise GARCHFitError(
+            f"La log-verosimilitud propia ({llf_own:.6f}) y la de arch ({llf:.6f}) discrepan en el punto final "
+            f"(tolerancia relativa {GARCH_LLF_CROSSCHECK_RTOL}): el refinamiento no optimizo el mismo modelo que arch."
+        )
+    try:
+        with np.errstate(invalid="ignore"):
+            std_err = np.sqrt(np.diag(np.asarray(am.compute_param_cov(arch_params, robust=True), dtype=float)))
+    except Exception:
+        std_err = np.full(arch_params.size, np.nan)
+    z975 = 1.959963984540054
+    point = dict(zip(names, arch_params))
+    half = dict(zip(names, z975 * std_err))
 
     def _get(name: str, descale_power: int = 0) -> tuple[float, float, float]:
-        point = float(params[name]) / (scale ** descale_power)
-        lo = float(conf.loc[name, "lower"]) / (scale ** descale_power)
-        hi = float(conf.loc[name, "upper"]) / (scale ** descale_power)
-        return point, lo, hi
+        d = scale ** descale_power
+        return float(point[name]) / d, float(point[name] - half[name]) / d, float(point[name] + half[name]) / d
 
     omega, omega_lo, omega_hi = _get("omega", descale_power=2)
-    alpha, alpha_lo, alpha_hi = _get("alpha[1]", descale_power=0)
-    beta, beta_lo, beta_hi = _get("beta[1]", descale_power=0)
+    alpha, alpha_lo, alpha_hi = _get("alpha[1]")
+    beta, beta_lo, beta_hi = _get("beta[1]")
     gamma = gamma_lo = gamma_hi = float("nan")
     if asymmetric:
-        gamma, gamma_lo, gamma_hi = _get("gamma[1]", descale_power=0)
+        gamma, gamma_lo, gamma_hi = _get("gamma[1]")
         persistence = alpha + beta + gamma / 2.0
     else:
         persistence = alpha + beta
 
-    if not np.isfinite([omega, alpha, beta, persistence]).all():
-        raise GARCHFitError(f"Ajuste GARCH produjo parametro(s) no finito(s): omega={omega}, alpha={alpha}, beta={beta}")
-
-    standardized_resid = (r * scale) / np.asarray(res.conditional_volatility, dtype=float)
+    standardized_resid = y / np.asarray(fixed.conditional_volatility, dtype=float)
 
     return {
         "n": n, "dist": dist, "asymmetric": bool(asymmetric),
@@ -615,17 +1110,63 @@ def fit_garch11(
         "alpha": alpha, "alpha_ci_lo": alpha_lo, "alpha_ci_hi": alpha_hi,
         "beta": beta, "beta_ci_lo": beta_lo, "beta_ci_hi": beta_hi,
         "gamma": gamma, "gamma_ci_lo": gamma_lo, "gamma_ci_hi": gamma_hi,
+        "nu": float(nu) if nu is not None else float("nan"),
         "persistence": persistence,
         "stationary": is_stationary(persistence),
         "half_life": compute_half_life(persistence),
-        "convergence_flag": int(res.convergence_flag),
-        "loglikelihood": float(res.loglikelihood),
+        "at_constraint_boundary": bool(persistence >= 1.0 - STATIONARITY_EPS),
+        "converged_verified": converged_verified,
+        "kkt_max_abs_gradient": kkt_max,
+        "loglikelihood": llf,
+        "loglikelihood_arch_multistart": llf_arch_multistart,
+        "refinement_llf_gain": float(llf - llf_arch_multistart) if np.isfinite(llf_arch_multistart) else float("nan"),
         "standardized_resid": standardized_resid,
+        "convergence_flag": int(arch_best.convergence_flag) if arch_best is not None else -1,
         "eps_selected": best_eps,
-        "n_multistart_attempts_finite": len(finite_attempts),
+        "n_multistart_attempts_finite": n_finite,
         "converged_cleanly": converged_cleanly,
         "n_multistart_attempts_total": len(GARCH_OPTIMIZER_EPS_GRID),
     }
+
+
+def fit_garch11_boundary_sensitivity(
+    r: np.ndarray, block_ids: np.ndarray, gap_minutes: np.ndarray, scale: float = GARCH_SCALE_FACTOR,
+    lags: tuple[int, ...] = (1, 5, 20, 60), m_values: tuple[int, ...] = (20, 60),
+) -> dict:
+    """Sensibilidad H1 (punto 11 del docstring de modulo): reestima GARCH(1,1) gaussiano con cada tratamiento alternativo de frontera de `BOUNDARY_SENSITIVITY_MODES`.
+
+    Mismo optimizador verificado que `fit_garch11` (paso B) y misma
+    restriccion; solo cambia que hace la varianza condicional al
+    empezar cada bloque de continuidad (`garch_sigma2_path`). Devuelve
+    un `dict` plano con, por cada modo: `alpha_<modo>`, `beta_<modo>`,
+    `persistence_<modo>`, `converged_verified_<modo>`,
+    `rho1_abs_z_<modo>`, `q_abs_z_m_<modo>` (diagnostico de residuos con
+    los MISMOS bloques). Si un modo no converge de forma verificada sus
+    parametros se devuelven `NaN` -- nunca un numero no fiable.
+    """
+    r = np.asarray(r, dtype=float)
+    y = r * scale
+    x = y ** 2
+    starts = _block_starts(block_ids)
+    out: dict = {}
+    for mode in BOUNDARY_SENSITIVITY_MODES:
+        keys = [f"{k}_{mode}" for k in ("alpha", "beta", "persistence", "rho1_abs_z", "q_abs_z_m")]
+        try:
+            theta, _, kkt = _refine_garch(x, None, False, "normal", block_starts=starts, boundary=mode, gap_minutes=gap_minutes)
+        except GARCHFitError:
+            out.update({k: float("nan") for k in keys})
+            out[f"converged_verified_{mode}"] = False
+            continue
+        omega_s, alpha, _, beta, persistence, _ = _unpack_theta(theta, False, "normal")
+        verified = bool(np.isfinite(kkt).all() and float(np.max(np.abs(kkt))) < GARCH_KKT_GRADIENT_TOL)
+        out[f"converged_verified_{mode}"] = verified
+        if not verified:
+            out.update({k: float("nan") for k in keys})
+            continue
+        s2 = garch_sigma2_path(x, omega_s, alpha, beta, 0.0, None, starts, mode, gap_minutes)
+        diag = residual_diagnostics(y / np.sqrt(s2), block_ids, lags=lags, m_values=m_values)
+        out.update(dict(zip(keys, (alpha, beta, persistence, diag["rho1_abs_z"], diag["q_abs_z_m"]))))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -678,11 +1219,27 @@ def residual_diagnostics(
     `compute_acf` -- la misma disciplina de "poblacion compactada antes
     de calcular bloques" que TDA-07/09/10 ya aplican.
 
+    Auditoria correctiva (H2, defecto LATENTE -- sin efecto sobre el
+    conjunto de investigacion, donde los unicos `NaN` son el quemado
+    contiguo del inicio): al compactar, una fila descartada DENTRO de un
+    bloque dejaba "adyacentes" a sus dos vecinas, que en realidad estan
+    a 2 barras -- un par de rezago 1 fabricado. Ahora cada fila
+    descartada PARTE su bloque: nunca se forma un par a traves de una
+    fila eliminada.
+
+    Auditoria correctiva (C3): `q_abs_z_m_status` distingue
+    `ESTIMABLE` de `NOT_ESTIMABLE` (ningun bloque de continuidad es mas
+    largo que `m` barras, asi que no existe ningun par de rezago `m`).
+    En ese caso `q_abs_z_m` es `NaN` y NUNCA se sustituye por un `Q` de
+    menor alcance.
+
     Salida: `dict` con `acf_z` y `acf_z2` (`DataFrame`s de `compute_acf`),
     `portmanteau_z`/`portmanteau_z2` (`DataFrame`s de
-    `compute_portmanteau_q` + columna `lb_pvalue`), y `rho1_abs_z`
-    (rezago 1 de `ACF(|z|)`, el resumen de una sola cifra usado por
-    `decide_garch_usefulness`).
+    `compute_portmanteau_q` + columna `lb_pvalue`), `rho1_abs_z`
+    (rezago 1 de `ACF(|z|)`), `q_abs_z_m` (el resumen usado por
+    `decide_garch_usefulness`), `q_abs_z_m_status`,
+    `q_abs_z_m_n_pairs` (pares validos en el rezago `m`),
+    `max_estimable_lag` y `n_finite`.
     """
     z = np.asarray(z, dtype=float)
     block_ids = np.asarray(block_ids)
@@ -690,7 +1247,9 @@ def residual_diagnostics(
     finite = np.isfinite(z)
 
     z_compact = z[finite]
-    block_ids_compact = block_ids[finite]
+    _, block_int = np.unique(block_ids[finite], return_inverse=True)
+    removed_before = np.cumsum(~finite)[finite]
+    block_ids_compact = block_int.astype(np.int64) * (int(removed_before.max()) + 1 if removed_before.size else 1) + removed_before
 
     acf_z = compute_acf(z_compact, block_ids_compact, max_lag)
     acf_abs_z = compute_acf(np.abs(z_compact), block_ids_compact, max_lag)
@@ -707,10 +1266,25 @@ def residual_diagnostics(
     q_row = port_abs_z.loc[port_abs_z["m"] == RESIDUAL_COMPARISON_M]
     q_abs_z_m = float(q_row["Q"].iloc[0]) if not q_row.empty and bool(q_row["estimable"].iloc[0]) else float("nan")
 
+    estimable_lags = acf_abs_z.loc[acf_abs_z["estimable"].astype(bool), "lag"] if not acf_abs_z.empty else pd.Series(dtype=int)
+    max_estimable_lag = int(estimable_lags.max()) if len(estimable_lags) else 0
+    m_lag_row = acf_abs_z.loc[acf_abs_z["lag"] == RESIDUAL_COMPARISON_M] if not acf_abs_z.empty else acf_abs_z
+    q_n_pairs = int(m_lag_row["n_pairs"].iloc[0]) if not m_lag_row.empty else 0
+    if np.isfinite(q_abs_z_m):
+        q_status = "ESTIMABLE"
+    elif q_row.empty:
+        q_status = f"NOT_COMPUTED -- m={RESIDUAL_COMPARISON_M} no esta en m_values"
+    else:
+        q_status = (
+            f"NOT_ESTIMABLE -- mayor rezago con pares validos dentro de un mismo bloque de continuidad = "
+            f"{max_estimable_lag} < m = {RESIDUAL_COMPARISON_M}"
+        )
+
     return {
         "acf_z": acf_z, "acf_abs_z": acf_abs_z, "acf_z2": acf_z2,
         "portmanteau_abs_z": port_abs_z, "portmanteau_z2": port_z2,
         "rho1_abs_z": rho1_abs_z, "q_abs_z_m": q_abs_z_m,
+        "q_abs_z_m_status": q_status, "q_abs_z_m_n_pairs": q_n_pairs, "max_estimable_lag": max_estimable_lag,
         "n_finite": int(finite.sum()),
     }
 
@@ -883,16 +1457,32 @@ def _fit_garch_worker(args: tuple) -> dict:
     residuos completo -- para evitar copiar arrays grandes de vuelta al
     proceso principal (docs/project_hardware.md, seccion 7: "evita
     copiar innecesariamente arrays de millones de filas entre procesos").
+
+    Auditoria correctiva: (C2) un ajuste sin `converged_verified` se
+    devuelve `estimable=False` con `reason="NOT_CONVERGED ..."` -- sus
+    parametros NO se reportan; (C3) `q_abs_z_m_status` acompaña siempre
+    a `q_abs_z_m`; (H1) si se recibe `gap_minutes`, se añade la
+    sensibilidad de tratamiento de frontera
+    (`fit_garch11_boundary_sensitivity`).
     """
     for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
         os.environ[var] = "1"
-    group_label, r, block_ids, dist, scale, min_n, lags, m_values = args
+    group_label, r, block_ids, dist, scale, min_n, lags, m_values, gap_minutes = args
     if r.size < min_n:
         return {"group": group_label, "estimable": False, "n": int(r.size), "reason": f"n={r.size}<{min_n} (MIN_N_FOR_GARCH_FIT)"}
     try:
         fit = fit_garch11(r, dist=dist, scale=scale)
     except GARCHFitError as exc:
         return {"group": group_label, "estimable": False, "n": int(r.size), "reason": str(exc)}
+    if not fit["converged_verified"]:
+        return {
+            "group": group_label, "estimable": False, "n": int(r.size),
+            "reason": (
+                f"NOT_CONVERGED -- gradiente proyectado maximo={fit['kkt_max_abs_gradient']:.3e} >= "
+                f"{GARCH_KKT_GRADIENT_TOL} (GARCH_KKT_GRADIENT_TOL): parametros finitos pero convergencia NO verificada"
+            ),
+            "converged_verified": False, "kkt_max_abs_gradient": fit["kkt_max_abs_gradient"],
+        }
 
     diag = residual_diagnostics(fit["standardized_resid"], block_ids, lags=lags, m_values=m_values)
     out = {k: v for k, v in fit.items() if k != "standardized_resid"}
@@ -900,6 +1490,12 @@ def _fit_garch_worker(args: tuple) -> dict:
     out["estimable"] = True
     out["rho1_abs_z"] = diag["rho1_abs_z"]
     out["q_abs_z_m"] = diag["q_abs_z_m"]
+    out["q_abs_z_m_status"] = diag["q_abs_z_m_status"]
+    out["q_abs_z_m_n_pairs"] = diag["q_abs_z_m_n_pairs"]
+    out["max_estimable_lag"] = diag["max_estimable_lag"]
+    out["n_blocks"] = int(_block_starts(block_ids).size)
+    if gap_minutes is not None:
+        out.update(fit_garch11_boundary_sensitivity(r, block_ids, gap_minutes, scale=scale, lags=lags, m_values=m_values))
     return out
 
 
@@ -907,6 +1503,7 @@ def fit_garch_by_group(
     groups: dict[str, np.ndarray], block_ids_by_group: dict[str, np.ndarray], dist: str = "normal",
     scale: float = GARCH_SCALE_FACTOR, min_n: int = MIN_N_FOR_GARCH_FIT, n_workers: int | None = None,
     lags: tuple[int, ...] = (1, 5, 20, 60), m_values: tuple[int, ...] = (20, 60),
+    gap_minutes_by_group: dict[str, np.ndarray] | None = None,
 ) -> pd.DataFrame:
     """Ajusta GARCH(1,1) independientemente para cada grupo de `groups` ({label: array de retornos}), en paralelo (ProcessPoolExecutor).
 
@@ -918,10 +1515,18 @@ def fit_garch_by_group(
     optimizador, sin aleatoriedad) -- el orden de la tabla de salida SI
     esta fijado (orden de `groups`), para que dos ejecuciones produzcan
     exactamente la misma tabla.
+
+    `gap_minutes_by_group` (opcional, `{label: minutos de reloj desde la
+    fila anterior DEL MISMO grupo}`): si se pasa, cada fila de salida
+    incluye la sensibilidad H1 de tratamiento de frontera.
     """
     if n_workers is None:
         n_workers = default_n_workers(len(groups))
-    jobs = [(label, arr, block_ids_by_group[label], dist, scale, min_n, lags, m_values) for label, arr in groups.items()]
+    jobs = [
+        (label, arr, block_ids_by_group[label], dist, scale, min_n, lags, m_values,
+         None if gap_minutes_by_group is None else gap_minutes_by_group[label])
+        for label, arr in groups.items()
+    ]
     if n_workers <= 1 or len(jobs) <= 1:
         results = [_fit_garch_worker(j) for j in jobs]
     else:
@@ -990,6 +1595,13 @@ class TDA11Result:
     n_workers: int
 
     benchmark_diagnostics: dict = field(default_factory=dict)  # {"raw": {config: diag}, "clock_adjusted": {config: diag}}
+    # Auditoria correctiva H2: mismos diagnosticos sobre la poblacion
+    # COMUN (interseccion de z finitos de GARCH y los 3 benchmarks) --
+    # {"raw": {"n_common", "garch", config...}, "clock_adjusted": {...}}.
+    common_population_diagnostics: dict = field(default_factory=dict)
+    # Auditoria correctiva H1: sensibilidad de frontera del primario global.
+    garch_primary_boundary_sensitivity: dict = field(default_factory=dict)
+    block_topology: dict = field(default_factory=dict)
 
     garch_primary_global: dict = field(default_factory=dict)          # clock_adjusted, gaussian, global
     garch_primary_global_diag: dict = field(default_factory=dict)
@@ -1056,22 +1668,45 @@ def run_tda11_analysis(config: SnapshotConfig, n_workers: int | None = None, ver
     block_ids_raw = compute_block_ids_with_contract(r1m_pop["timestamp"], r1m_pop["trading_date"], r1m_pop["contract"], 60.0)
     block_ids_adj = compute_block_ids_with_contract(r_tilde_pop["timestamp"], r_tilde_pop["trading_date"], r_tilde_pop["contract"], 60.0)
 
+    # Auditoria correctiva H1: topologia de huecos MEDIDA (no supuesta).
+    gap_minutes_adj = compute_gap_minutes(r_tilde_pop["timestamp"])
+    n_blocks_adj = int(_block_starts(block_ids_adj).size)
+    block_topology = {
+        "n": int(len(r_tilde_pop)), "n_blocks": n_blocks_adj,
+        "non_contiguous_pair_fraction": float((n_blocks_adj - 1) / max(1, len(r_tilde_pop) - 1)),
+    }
+
     if n_workers is None:
         n_workers = default_n_workers(1 + len(segment_labels))
 
     # --- Etapa 2: benchmarks (3 configuraciones x 2 bloques) ----------------
     timer.stage(f"Benchmarks causales (EWMA/rodante/rango) x raw+clock_adjusted")
     benchmark_diagnostics: dict[str, dict] = {"raw": {}, "clock_adjusted": {}}
+    benchmark_z: dict[str, dict] = {"raw": {}, "clock_adjusted": {}}
     for cfg in BENCHMARK_CONFIGS:
         z_raw = compute_benchmark_z(r_raw, log_hl_raw, cfg)
+        benchmark_z["raw"][cfg] = z_raw
         benchmark_diagnostics["raw"][cfg] = residual_diagnostics(z_raw, block_ids_raw)
         z_adj = compute_benchmark_z(r_adj, log_hl_tilde, cfg)
+        benchmark_z["clock_adjusted"][cfg] = z_adj
         benchmark_diagnostics["clock_adjusted"][cfg] = residual_diagnostics(z_adj, block_ids_adj)
 
     # --- Etapa 3: GARCH global -- primario, secundario, sensibilidad t -----
     timer.stage("GARCH(1,1) global -- primario (clock_adjusted), secundario (raw), sensibilidad Student-t")
     garch_primary_global = fit_garch11(r_adj, dist="normal")
+    if not garch_primary_global["converged_verified"]:
+        # Auditoria correctiva C2: TH23/TH24 y STOP-11 descansan sobre
+        # ESTE ajuste -- parametros finitos sin convergencia verificada
+        # no se declaran validos; la etapa se detiene.
+        raise GARCHFitError(
+            f"El ajuste GARCH(1,1) PRIMARIO no supero la verificacion de convergencia (gradiente proyectado maximo="
+            f"{garch_primary_global['kkt_max_abs_gradient']:.3e} >= {GARCH_KKT_GRADIENT_TOL}). TDA-11 no declara "
+            "TH23/TH24/STOP-11 sobre un ajuste no fiable."
+        )
     garch_primary_global_diag = residual_diagnostics(garch_primary_global["standardized_resid"], block_ids_adj)
+    garch_primary_boundary_sensitivity = fit_garch11_boundary_sensitivity(
+        r_adj, block_ids_adj, gap_minutes_adj, lags=DIAGNOSTIC_LAGS, m_values=PORTMANTEAU_M,
+    )
 
     garch_secondary_raw_global = fit_garch11(r_raw, dist="normal")
     garch_secondary_raw_global_diag = residual_diagnostics(garch_secondary_raw_global["standardized_resid"], block_ids_raw)
@@ -1098,14 +1733,66 @@ def run_tda11_analysis(config: SnapshotConfig, n_workers: int | None = None, ver
         )
         for s in segment_labels
     }
-    garch_by_year = fit_garch_by_group(year_groups, year_block_ids, n_workers=n_workers)
-    garch_by_segment = fit_garch_by_group(segment_groups, segment_block_ids, n_workers=n_workers)
+    ts_adj = r_tilde_pop["timestamp"].to_numpy()
+    year_gaps = {int(y): compute_gap_minutes(ts_adj[r_tilde_pop["year_ny"].to_numpy() == y]) for y in sorted(r_tilde_pop["year_ny"].unique())}
+    segment_gaps = {s: compute_gap_minutes(ts_adj[r_tilde_pop["segment_label"].to_numpy() == s]) for s in segment_labels}
+    garch_by_year = fit_garch_by_group(year_groups, year_block_ids, n_workers=n_workers, gap_minutes_by_group=year_gaps)
+    garch_by_segment = fit_garch_by_group(segment_groups, segment_block_ids, n_workers=n_workers, gap_minutes_by_group=segment_gaps)
 
     # --- Etapa 5: utilidad informativa de GARCH + STOP-11 -------------------
     timer.stage("Utilidad informativa de GARCH frente a benchmarks (decision STOP-11)")
+    # Auditoria correctiva H2: la decision se toma sobre la poblacion
+    # COMUN -- GARCH y los 3 benchmarks restringidos a EXACTAMENTE las
+    # mismas filas, bloques y pares. Los diagnosticos "cada serie sobre
+    # su propia poblacion" se conservan y se reportan al lado.
+    common_population_diagnostics: dict[str, dict] = {}
+    for block_name, z_garch, block_ids_b in (
+        ("clock_adjusted", garch_primary_global["standardized_resid"], block_ids_adj),
+        ("raw", garch_secondary_raw_global["standardized_resid"], block_ids_raw),
+    ):
+        common = np.isfinite(z_garch)
+        for z_b in benchmark_z[block_name].values():
+            common &= np.isfinite(z_b)
+        entry = {"n_common": int(common.sum()), "garch": residual_diagnostics(np.where(common, z_garch, np.nan), block_ids_b)}
+        for cfg, z_b in benchmark_z[block_name].items():
+            entry[cfg] = residual_diagnostics(np.where(common, z_b, np.nan), block_ids_b)
+        common_population_diagnostics[block_name] = entry
+    common_adj = common_population_diagnostics["clock_adjusted"]
+
     garch_usefulness = decide_garch_usefulness(
-        garch_primary_global_diag, benchmark_diagnostics["clock_adjusted"], garch_primary_global,
+        common_adj["garch"], {cfg: common_adj[cfg] for cfg in BENCHMARK_CONFIGS}, garch_primary_global,
     )
+    garch_usefulness["population"] = "common"
+    garch_usefulness["n_common"] = common_adj["n_common"]
+    own = decide_garch_usefulness(garch_primary_global_diag, benchmark_diagnostics["clock_adjusted"], garch_primary_global)
+    garch_usefulness["garch_q_abs_z_m_own_population"] = own["garch_q_abs_z_m"]
+    garch_usefulness["best_benchmark_q_abs_z_m_own_population"] = own["best_benchmark_q_abs_z_m"]
+    garch_usefulness["relative_reduction_own_population"] = own["relative_reduction"]
+    garch_usefulness["useful_own_population"] = own["useful"]
+
+    # Sensibilidad POST-HOC de auditoria (punto 12 del docstring de
+    # modulo) -- NO interviene en `useful` ni en STOP-11: EWMA causal
+    # cuya velocidad de memoria (lambda) se iguala a la beta estimada
+    # por el GARCH primario, sobre la misma poblacion comun.
+    beta_primary = float(garch_primary_global["beta"])
+    matched_halflife = matched_q = matched_rho1 = matched_reduction = float("nan")
+    if 0.0 < beta_primary < 1.0:
+        matched_halflife = float(np.log(0.5) / np.log(beta_primary))
+        z_matched = standardize_return(r_adj, build_sigma_hat(r_adj, "ewma", matched_halflife), burn_in_length("ewma", matched_halflife))
+        common_m = np.isfinite(garch_primary_global["standardized_resid"]) & np.isfinite(z_matched)
+        for z_b in benchmark_z["clock_adjusted"].values():
+            common_m &= np.isfinite(z_b)
+        matched_diag = residual_diagnostics(np.where(common_m, z_matched, np.nan), block_ids_adj, lags=(1, 60), m_values=(RESIDUAL_COMPARISON_M,))
+        garch_diag_m = residual_diagnostics(
+            np.where(common_m, garch_primary_global["standardized_resid"], np.nan), block_ids_adj, lags=(1, 60), m_values=(RESIDUAL_COMPARISON_M,),
+        )
+        matched_q, matched_rho1 = matched_diag["q_abs_z_m"], matched_diag["rho1_abs_z"]
+        if np.isfinite(matched_q) and matched_q > 0 and np.isfinite(garch_diag_m["q_abs_z_m"]):
+            matched_reduction = float(1.0 - garch_diag_m["q_abs_z_m"] / matched_q)
+    garch_usefulness["posthoc_matched_ewma_halflife"] = matched_halflife
+    garch_usefulness["posthoc_matched_ewma_q_abs_z_m"] = matched_q
+    garch_usefulness["posthoc_matched_ewma_rho1_abs_z"] = matched_rho1
+    garch_usefulness["posthoc_relative_reduction_vs_matched_ewma"] = matched_reduction
     if garch_usefulness["useful"]:
         stop11_activated, stop11_reason = False, (
             f"GARCH(1,1) aporta informacion sobre los benchmarks simples: reduccion relativa de "
@@ -1170,6 +1857,9 @@ def run_tda11_analysis(config: SnapshotConfig, n_workers: int | None = None, ver
         entry_gate=entry_gate, stop11_activated=stop11_activated, stop11_reason=stop11_reason,
         n_raw=len(r1m_pop), n_clock_adjusted=len(r_tilde_pop), n_workers=n_workers,
         benchmark_diagnostics=benchmark_diagnostics,
+        common_population_diagnostics=common_population_diagnostics,
+        garch_primary_boundary_sensitivity=garch_primary_boundary_sensitivity,
+        block_topology=block_topology,
         garch_primary_global=garch_primary_global, garch_primary_global_diag=garch_primary_global_diag,
         garch_secondary_raw_global=garch_secondary_raw_global, garch_secondary_raw_global_diag=garch_secondary_raw_global_diag,
         garch_student_t_sensitivity=garch_student_t_sensitivity,

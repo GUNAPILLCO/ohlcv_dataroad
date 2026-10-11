@@ -240,13 +240,17 @@ def test_fit_garch11_prefers_converged_attempt_over_lower_llf_nonconverged(monke
             call_count["i"] += 1
             return fake_results[min(i, len(fake_results) - 1)]
 
-    monkeypatch.setattr(mod, "arch_model", lambda *a, **k: _FakeModel())
-    r = np.random.default_rng(0).normal(0, 1e-4, 1000)
-    fit = mod.fit_garch11(r, dist="normal")
-    assert fit["alpha"] == pytest.approx(0.08)  # el convergido con MEJOR LLF entre los convergidos
-    assert fit["beta"] == pytest.approx(0.85)
-    assert fit["convergence_flag"] == 0
-    assert fit["converged_cleanly"] is True
+    # Auditoria correctiva (C2): la seleccion entre intentos de `arch` vive
+    # ahora en `_arch_multistart` (paso A de `fit_garch11`) -- su resultado
+    # es solo el ARRANQUE del refinamiento verificado, pero la regla de
+    # preferencia entre intentos se conserva y se prueba aqui directamente.
+    best, best_eps, n_finite, converged_cleanly = mod._arch_multistart(_FakeModel())
+    assert float(best.params["alpha[1]"]) == pytest.approx(0.08)  # el convergido con MEJOR LLF entre los convergidos
+    assert float(best.params["beta[1]"]) == pytest.approx(0.85)
+    assert int(best.convergence_flag) == 0
+    assert converged_cleanly is True
+    assert n_finite == len(mod.GARCH_OPTIMIZER_EPS_GRID)
+    assert best_eps == mod.GARCH_OPTIMIZER_EPS_GRID[1]
 
 
 def test_fit_garch11_reports_multistart_diagnostics():
@@ -919,3 +923,583 @@ def test_persist_artifacts_generates_stop11_report_when_gate_closed(tmp_path):
     text = config.tda11_report_path.read_text(encoding="utf-8")
     assert "STOP-11" in text
     assert "ACTIVADO" in text
+
+
+# ---------------------------------------------------------------------------
+# L. AUDITORIA CORRECTIVA -- tests adversariales (H1, H2, C1, C2, C3)
+# ---------------------------------------------------------------------------
+# Cada test reproduce, en pequeño y de forma determinista, uno de los
+# problemas medidos sobre el conjunto de investigacion durante la
+# auditoria correctiva de TDA-11 -- ver docstring de modulo, puntos 9-13.
+
+import ohlcv_dataroad.ingest.tda11_parametric_volatility as tda11_mod  # noqa: E402
+from ohlcv_dataroad.ingest.tda11_parametric_volatility import (  # noqa: E402
+    BOUNDARY_SENSITIVITY_MODES,
+    GARCH_KKT_GRADIENT_TOL,
+    compute_gap_minutes,
+    fit_garch11_boundary_sensitivity,
+    garch_mean_neg_loglik,
+    garch_sigma2_path,
+    kkt_projected_gradient,
+)
+
+
+def _theta(omega_scaled: float, alpha: float, beta: float, gamma: float | None = None, nu: float | None = None) -> np.ndarray:
+    g = 0.0 if gamma is None else gamma
+    return np.array(
+        [np.log10(omega_scaled), alpha] + ([gamma] if gamma is not None else []) + [alpha + beta + 0.5 * g] + ([nu] if nu is not None else [])
+    )
+
+
+# --- C2: convergencia verificada, no declarada -----------------------------
+
+@pytest.mark.parametrize("dist,asymmetric", [("normal", False), ("t", False), ("normal", True)])
+def test_own_likelihood_matches_arch_at_arbitrary_parameters(dist, asymmetric):
+    """La verosimilitud usada para refinar debe ser EXACTAMENTE la de `arch` -- en puntos que NO son el optimo, para normal, Student-t y GJR."""
+    from arch import arch_model as _am
+
+    r = _simulate_garch11(8_000, 1e-8, 0.09, 0.86, seed=101)
+    y = r * GARCH_SCALE_FACTOR
+    x = y ** 2
+    am = _am(y, mean="Zero", vol="GARCH", p=1, o=1 if asymmetric else 0, q=1, dist=dist)
+    for omega, alpha, beta in [(0.2, 0.15, 0.78), (0.05, 0.04, 0.92), (0.6, 0.30, 0.50)]:
+        gamma = 0.06 if asymmetric else None
+        nu = 7.5 if dist == "t" else None
+        params = [omega, alpha] + ([gamma] if asymmetric else []) + [beta] + ([nu] if dist == "t" else [])
+        neg = (y < 0).astype(float) if asymmetric else None
+        own = -x.size * garch_mean_neg_loglik(_theta(omega, alpha, beta, gamma, nu), x, neg, asymmetric, dist)
+        assert own == pytest.approx(float(am.fix(params).loglikelihood), rel=1e-10)
+
+
+def test_garch_sigma2_path_carry_equals_arch_conditional_variance():
+    from arch import arch_model as _am
+
+    r = _simulate_garch11(5_000, 1e-8, 0.10, 0.85, seed=102)
+    y = r * GARCH_SCALE_FACTOR
+    fixed = _am(y, mean="Zero", vol="GARCH", p=1, q=1).fix([0.3, 0.12, 0.80])
+    np.testing.assert_allclose(garch_sigma2_path(y ** 2, 0.3, 0.12, 0.80), np.asarray(fixed.conditional_volatility) ** 2, rtol=1e-10)
+
+
+def test_kkt_projected_gradient_interior_and_active_bounds():
+    """Condicion de primer orden con cotas: una cota activa que "empuja hacia afuera" NO es una violacion; un gradiente hacia el interior SI."""
+    bounds = [(0.0, 1.0)]
+    f_min_above = lambda th: float((th[0] - 2.0) ** 2)   # minimo en 2 -> en el dominio, optimo en la cota superior
+    f_min_below = lambda th: float((th[0] + 1.0) ** 2)   # minimo en -1 -> optimo en la cota inferior
+    assert kkt_projected_gradient(np.array([1.0]), f_min_above, bounds)[0] == 0.0
+    assert kkt_projected_gradient(np.array([0.0]), f_min_below, bounds)[0] == 0.0
+    # mismo objetivo, punto NO optimo (interior o cota equivocada): gradiente grande
+    assert abs(kkt_projected_gradient(np.array([0.5]), f_min_above, bounds)[0]) == pytest.approx(3.0, rel=1e-4)
+    assert abs(kkt_projected_gradient(np.array([0.0]), f_min_above, bounds)[0]) == pytest.approx(4.0, rel=1e-4)
+    assert abs(kkt_projected_gradient(np.array([1.0]), f_min_below, bounds)[0]) == pytest.approx(4.0, rel=1e-4)
+
+
+def test_kkt_gradient_rejects_arch_starting_values_and_accepts_refined_optimum():
+    """Reproduce el defecto real: el punto de PARTIDA de `arch` (alpha=0.2, beta=0.78), que SLSQP llego a devolver con `convergence_flag=0`, NO supera la verificacion; el optimo si."""
+    r = _simulate_garch11(40_000, 1e-8, 0.06, 0.92, seed=103)
+    x = (r * GARCH_SCALE_FACTOR) ** 2
+    objective = lambda th: garch_mean_neg_loglik(th, x)
+    bounds = tda11_mod._theta_bounds(x, False, "normal")
+
+    start_like = _theta(float(x.mean()) * 0.02, 0.20, 0.78)
+    assert np.max(np.abs(kkt_projected_gradient(start_like, objective, bounds))) > GARCH_KKT_GRADIENT_TOL
+
+    theta, _, kkt = tda11_mod._refine_garch(x, None, False, "normal")
+    assert np.max(np.abs(kkt)) < GARCH_KKT_GRADIENT_TOL
+    assert objective(theta) < objective(start_like)
+
+
+def test_fit_garch11_does_not_trust_arch_success_flag_at_a_non_optimum(monkeypatch):
+    """ADVERSARIAL (defecto C2): si `arch` devuelve su punto de partida con `convergence_flag=0` ("exito"), `fit_garch11` NO debe publicarlo -- debe llegar al optimo real y registrar cuanto mejoro."""
+    from arch import arch_model as _am
+
+    true_alpha, true_beta = 0.06, 0.92
+    r = _simulate_garch11(40_000, 1e-8, true_alpha, true_beta, seed=104)
+    y = r * GARCH_SCALE_FACTOR
+    am = _am(y, mean="Zero", vol="GARCH", p=1, q=1)
+    stuck = am.fix([float((y ** 2).mean()) * 0.02, 0.20, 0.78])  # verosimilitud real del punto de partida
+
+    class _StuckAttempt:
+        params = pd.Series({"omega": float((y ** 2).mean()) * 0.02, "alpha[1]": 0.20, "beta[1]": 0.78})
+        loglikelihood = float(stuck.loglikelihood)
+        convergence_flag = 0  # SLSQP: "Optimization terminated successfully"
+
+    monkeypatch.setattr(tda11_mod, "_arch_multistart", lambda _am_obj: (_StuckAttempt(), None, 4, True))
+    fit = tda11_mod.fit_garch11(r)
+
+    assert fit["convergence_flag"] == 0 and fit["converged_cleanly"] is True   # lo que DIJO arch
+    assert fit["alpha"] == pytest.approx(true_alpha, abs=0.02)                 # lo que se publica
+    assert fit["beta"] == pytest.approx(true_beta, abs=0.03)
+    assert abs(fit["alpha"] - 0.20) > 0.1
+    assert fit["refinement_llf_gain"] > 100.0   # el "exito" de arch estaba lejos del maximo
+    assert fit["loglikelihood"] > fit["loglikelihood_arch_multistart"]
+    assert fit["converged_verified"] is True
+
+
+def test_fit_garch11_is_never_worse_than_arch_multistart_and_is_verified():
+    for dist, seed in [("normal", 105), ("t", 106)]:
+        fit = fit_garch11(_simulate_garch11(25_000, 1e-8, 0.08, 0.88, seed=seed), dist=dist)
+        assert fit["refinement_llf_gain"] >= -1e-6
+        assert fit["converged_verified"] is True
+        assert fit["kkt_max_abs_gradient"] < GARCH_KKT_GRADIENT_TOL
+
+
+def test_fit_garch11_student_t_recovers_degrees_of_freedom():
+    rng = np.random.default_rng(107)
+    n, omega, alpha, beta, nu = 40_000, 1e-8, 0.07, 0.90, 6.0
+    eps = rng.standard_t(nu, size=n) * np.sqrt((nu - 2.0) / nu)
+    r = np.empty(n)
+    s2 = omega / (1 - alpha - beta)
+    for t in range(n):
+        r[t] = np.sqrt(s2) * eps[t]
+        s2 = omega + alpha * r[t] ** 2 + beta * s2
+    fit = fit_garch11(r, dist="t")
+    assert fit["converged_verified"] is True
+    assert fit["nu"] == pytest.approx(nu, abs=1.0)
+    assert fit["alpha"] == pytest.approx(alpha, abs=0.02)
+    assert fit["beta"] == pytest.approx(beta, abs=0.03)
+
+
+def test_fit_garch_by_group_marks_unverified_convergence_as_not_estimable(monkeypatch):
+    """ADVERSARIAL (C2): parametros FINITOS sin convergencia verificada no se reportan -- el grupo queda `NOT_CONVERGED`, sin alpha/beta."""
+    monkeypatch.setattr(tda11_mod, "GARCH_KKT_GRADIENT_TOL", -1.0)  # ningun ajuste puede verificarse
+    groups = {"g": _simulate_garch11(22_000, 1e-8, 0.08, 0.85, seed=108)}
+    out = fit_garch_by_group(groups, {"g": np.zeros(22_000, dtype=int)}, n_workers=1)
+    row = out.iloc[0]
+    assert bool(row["estimable"]) is False
+    assert row["reason"].startswith("NOT_CONVERGED")
+    assert bool(row["converged_verified"]) is False
+    assert "alpha" not in out.columns and "persistence" not in out.columns
+
+
+def test_run_tda11_stops_when_primary_fit_convergence_is_not_verified(tmp_path, monkeypatch):
+    """ADVERSARIAL (C2): TH23/TH24/STOP-11 descansan sobre el ajuste primario -- si no se verifica, la etapa se DETIENE en vez de declarar un resultado."""
+    config = _make_config(tmp_path, research_files=["research.txt"], n_workers=1)
+    _prepare_full_fixture(config, n_days=30, bars_per_day=80, return_gen=_garch_return_gen())
+    monkeypatch.setattr(tda11_mod, "GARCH_KKT_GRADIENT_TOL", -1.0)
+    with pytest.raises(GARCHFitError, match="PRIMARIO"):
+        run_tda11_analysis(config, n_workers=1, verbose=False)
+
+
+# --- C1: persistencia en el tope de la restriccion --------------------------
+
+def test_fit_garch11_flags_persistence_at_constraint_boundary():
+    """Un nivel de volatilidad que DERIVA (ruido IID con escala creciente, sin ninguna dinamica GARCH) empuja alpha+beta al tope `<=1` de `arch`: debe quedar marcado, sin vida media y sin llamarse "estacionario" -- y demuestra que el tope NO prueba IGARCH."""
+    rng = np.random.default_rng(109)
+    n = 40_000
+    r = rng.normal(size=n) * 1e-4 * np.exp(3.0 * np.arange(n) / n)
+    fit = fit_garch11(r)
+    assert fit["converged_verified"] is True
+    assert fit["at_constraint_boundary"] is True
+    assert fit["persistence"] <= 1.0 + 1e-12   # nunca por encima del tope (antes: 1.0000035 por tolerancia de SLSQP)
+    assert fit["stationary"] is False
+    assert fit["half_life"] is None
+
+
+def test_fit_garch11_interior_solution_is_not_flagged_as_boundary():
+    fit = fit_garch11(_simulate_garch11(40_000, 1e-8, 0.10, 0.80, seed=110))
+    assert fit["at_constraint_boundary"] is False
+    assert fit["stationary"] is True
+    assert fit["half_life"] is not None
+
+
+# --- H1: continuidad temporal ----------------------------------------------
+
+def test_compute_gap_minutes():
+    ts = pd.to_datetime(["2024-01-08 09:30", "2024-01-08 09:31", "2024-01-08 09:36", "2024-01-09 09:30"])
+    np.testing.assert_allclose(compute_gap_minutes(ts), [1.0, 1.0, 5.0, 1434.0])
+
+
+def test_garch_sigma2_path_reset_forgets_previous_block():
+    rng = np.random.default_rng(111)
+    x = rng.normal(0, 1, 400) ** 2
+    starts = np.array([0, 100, 250])
+    base = garch_sigma2_path(x, 0.05, 0.1, 0.85, block_starts=starts, boundary="reset")
+    assert base[starts] == pytest.approx(np.full(3, x.mean()))
+    # perturbar SOLO el primer bloque (manteniendo la media) no puede cambiar el segundo ni el tercero
+    x2 = x.copy()
+    x2[10], x2[20] = x[20], x[10]
+    pert = garch_sigma2_path(x2, 0.05, 0.1, 0.85, block_starts=starts, boundary="reset")
+    np.testing.assert_allclose(pert[100:], base[100:], rtol=1e-12)
+    # ...mientras que al concatenar ("carry") el primer bloque SI contamina el segundo
+    x3 = x.copy()
+    x3[99] = 400.0
+    carry_a = garch_sigma2_path(x, 0.05, 0.1, 0.85, block_starts=starts, boundary="carry")
+    carry_b = garch_sigma2_path(x3, 0.05, 0.1, 0.85, block_starts=starts, boundary="carry")
+    assert carry_b[100] > carry_a[100] + 10.0
+
+
+def test_garch_sigma2_path_gap_forecast_limits():
+    rng = np.random.default_rng(112)
+    x = rng.normal(0, 1, 300) ** 2
+    starts = np.array([0, 150])
+    omega, alpha, beta = 0.05, 0.10, 0.85
+    carry = garch_sigma2_path(x, omega, alpha, beta)
+    # hueco de 1 minuto = barras contiguas -> identico a concatenar
+    np.testing.assert_allclose(garch_sigma2_path(x, omega, alpha, beta, block_starts=starts, boundary="gap_forecast", gap_minutes=np.ones(300)), carry, rtol=1e-12)
+    # hueco enorme con persistencia <1 -> la varianza vuelve a su nivel de largo plazo omega/(1-p)
+    gaps = np.ones(300)
+    gaps[150] = 1e6
+    far = garch_sigma2_path(x, omega, alpha, beta, block_starts=starts, boundary="gap_forecast", gap_minutes=gaps)
+    assert far[150] == pytest.approx(omega / (1 - alpha - beta), rel=1e-9)
+    # hueco intermedio: entre el valor arrastrado y el de largo plazo
+    gaps[150] = 5.0
+    mid = garch_sigma2_path(x, omega, alpha, beta, block_starts=starts, boundary="gap_forecast", gap_minutes=gaps)
+    lo, hi = sorted([carry[150], omega / (1 - alpha - beta)])
+    assert lo <= mid[150] <= hi
+    # persistencia = 1 (tope): limite continuo, arrastrado + (g-1)*omega
+    igarch = garch_sigma2_path(x, omega, 0.1, 0.9, block_starts=starts, boundary="gap_forecast", gap_minutes=gaps)
+    assert igarch[150] == pytest.approx(garch_sigma2_path(x, omega, 0.1, 0.9)[150] + 4.0 * omega, rel=1e-12)
+
+
+def test_garch_sigma2_path_rejects_unknown_boundary():
+    with pytest.raises(ValueError):
+        garch_sigma2_path(np.ones(10), 0.1, 0.1, 0.8, block_starts=np.array([0, 5]), boundary="otra")
+
+
+def test_concatenating_independent_blocks_is_measurably_misspecified():
+    """ADVERSARIAL (H1): si los bloques son realizaciones INDEPENDIENTES con niveles de volatilidad distintos, concatenar ("carry") ajusta peor que reiniciar -- la sensibilidad debe poder detectarlo."""
+    rng = np.random.default_rng(113)
+    omega, alpha, beta, block_len, n_blocks = 1e-8, 0.25, 0.60, 20, 1500
+    r = np.empty(block_len * n_blocks)
+    for b in range(n_blocks):
+        s2 = omega / (1 - alpha - beta)
+        for t in range(block_len):
+            i = b * block_len + t
+            r[i] = rng.normal() * np.sqrt(s2)
+            s2 = omega + alpha * r[i] ** 2 + beta * s2
+    x = (r * GARCH_SCALE_FACTOR) ** 2
+    starts = np.arange(0, r.size, block_len)
+    theta = _theta(omega * GARCH_SCALE_FACTOR ** 2, alpha, beta)
+    nll_carry = garch_mean_neg_loglik(theta, x, block_starts=starts, boundary="carry")
+    nll_reset = garch_mean_neg_loglik(theta, x, block_starts=starts, boundary="reset")
+    assert nll_reset < nll_carry
+
+
+def test_boundary_sensitivity_agrees_with_primary_when_series_is_truly_contiguous():
+    """Sin huecos reales (un unico bloque, todos los huecos = 1 minuto) los tratamientos alternativos NO deben inventar una diferencia."""
+    r = _simulate_garch11(25_000, 1e-8, 0.09, 0.86, seed=114)
+    fit = fit_garch11(r)
+    sens = fit_garch11_boundary_sensitivity(r, np.zeros(r.size, dtype=int), np.ones(r.size))
+    assert set(BOUNDARY_SENSITIVITY_MODES) == {"reset", "gap_forecast"}
+    assert sens["converged_verified_gap_forecast"] is True and sens["converged_verified_reset"] is True
+    assert sens["alpha_gap_forecast"] == pytest.approx(fit["alpha"], abs=1e-5)
+    assert sens["persistence_gap_forecast"] == pytest.approx(fit["persistence"], abs=1e-5)
+    assert sens["alpha_reset"] == pytest.approx(fit["alpha"], abs=5e-3)   # solo difiere el valor inicial de UN bloque
+
+
+def test_boundary_sensitivity_returns_nan_when_not_verified(monkeypatch):
+    monkeypatch.setattr(tda11_mod, "GARCH_KKT_GRADIENT_TOL", -1.0)
+    r = _simulate_garch11(6_000, 1e-8, 0.09, 0.86, seed=115)
+    sens = fit_garch11_boundary_sensitivity(r, np.repeat(np.arange(60), 100), np.ones(r.size))
+    for mode in BOUNDARY_SENSITIVITY_MODES:
+        assert sens[f"converged_verified_{mode}"] is False
+        assert np.isnan(sens[f"alpha_{mode}"]) and np.isnan(sens[f"persistence_{mode}"])
+
+
+def test_fit_garch_by_group_adds_boundary_sensitivity_only_when_gaps_are_given():
+    r = _simulate_garch11(22_000, 1e-8, 0.08, 0.86, seed=116)
+    blocks = np.repeat(np.arange(220), 100)
+    gaps = np.ones(r.size)
+    gaps[::100] = 900.0
+    without = fit_garch_by_group({"g": r}, {"g": blocks}, n_workers=1)
+    with_gaps = fit_garch_by_group({"g": r}, {"g": blocks}, n_workers=1, gap_minutes_by_group={"g": gaps})
+    assert "alpha_reset" not in without.columns
+    for col in ("alpha_reset", "persistence_reset", "alpha_gap_forecast", "persistence_gap_forecast", "q_abs_z_m_reset"):
+        assert col in with_gaps.columns
+    assert int(with_gaps.iloc[0]["n_blocks"]) == 220
+    assert with_gaps.iloc[0]["alpha"] == pytest.approx(without.iloc[0]["alpha"])  # el primario NO cambia
+
+
+# --- H2: misma poblacion, mismos bloques, mismos pares ----------------------
+
+def test_residual_diagnostics_never_pairs_across_a_removed_row():
+    """ADVERSARIAL (H2, defecto latente): una fila descartada DENTRO de un bloque no puede dejar "adyacentes" a sus dos vecinas."""
+    z = np.array([1.0, 2.0, 3.0, np.nan, 100.0, 101.0, 102.0])
+    diag = residual_diagnostics(z, np.zeros(7, dtype=int), lags=(1, 2), m_values=(1,))
+    acf = diag["acf_z"].set_index("lag")
+    assert int(acf.loc[1, "n_pairs"]) == 4   # (1,2),(2,3),(100,101),(101,102) -- NUNCA (3,100)
+    assert int(acf.loc[2, "n_pairs"]) == 2   # (1,3),(100,102)
+    assert diag["n_finite"] == 6
+
+
+def test_residual_diagnostics_common_mask_gives_identical_pairs_for_every_series():
+    rng = np.random.default_rng(117)
+    n = 3_000
+    blocks = np.repeat(np.arange(10), 300)
+    z_a = rng.normal(size=n)                       # sin quemado (como GARCH)
+    z_b = rng.normal(size=n)
+    z_b[:180] = np.nan                             # quemado de un EWMA
+    own_a = residual_diagnostics(z_a, blocks, lags=(1, 60), m_values=(60,))
+    own_b = residual_diagnostics(z_b, blocks, lags=(1, 60), m_values=(60,))
+    assert not own_a["acf_abs_z"]["n_pairs"].equals(own_b["acf_abs_z"]["n_pairs"])   # el problema
+    common = np.isfinite(z_a) & np.isfinite(z_b)
+    com_a = residual_diagnostics(np.where(common, z_a, np.nan), blocks, lags=(1, 60), m_values=(60,))
+    com_b = residual_diagnostics(np.where(common, z_b, np.nan), blocks, lags=(1, 60), m_values=(60,))
+    assert com_a["n_finite"] == com_b["n_finite"] == n - 180
+    assert com_a["acf_abs_z"]["n_pairs"].equals(com_b["acf_abs_z"]["n_pairs"])       # la correccion
+
+
+def test_run_tda11_usefulness_decision_uses_common_population(tmp_path):
+    config = _make_config(tmp_path, research_files=["research.txt"], n_workers=1)
+    _prepare_full_fixture(config, n_days=60, bars_per_day=150, return_gen=_garch_return_gen())
+    result = run_tda11_analysis(config, n_workers=1, verbose=False)
+
+    for block in ("clock_adjusted", "raw"):
+        common = result.common_population_diagnostics[block]
+        ref_pairs = common["garch"]["acf_abs_z"]["n_pairs"]
+        for cfg in ("ewma_60", "rolling_120", "range_ewma_60"):
+            assert common[cfg]["n_finite"] == common["garch"]["n_finite"] == common["n_common"]
+            assert common[cfg]["acf_abs_z"]["n_pairs"].equals(ref_pairs)
+    # sobre poblaciones propias las series NO eran comparables fila a fila
+    assert result.garch_primary_global_diag["n_finite"] > result.benchmark_diagnostics["clock_adjusted"]["ewma_60"]["n_finite"]
+
+    u = result.garch_usefulness
+    common_adj = result.common_population_diagnostics["clock_adjusted"]
+    assert u["population"] == "common"
+    assert u["garch_q_abs_z_m"] == common_adj["garch"]["q_abs_z_m"]
+    assert u["best_benchmark_q_abs_z_m"] == min(common_adj[c]["q_abs_z_m"] for c in ("ewma_60", "rolling_120", "range_ewma_60"))
+    assert "relative_reduction_own_population" in u
+
+
+def test_posthoc_matched_ewma_sensitivity_never_enters_the_predeclared_decision(tmp_path):
+    """La sensibilidad post-hoc informa; la decision sigue siendo SOLO la regla predeclarada (umbrales y benchmarks intactos)."""
+    assert GARCH_RESIDUAL_REDUCTION_THRESHOLD == 0.20 and GARCH_MIN_ALPHA_FOR_SEPARATION == 0.01
+    config = _make_config(tmp_path, research_files=["research.txt"], n_workers=1)
+    _prepare_full_fixture(config, n_days=60, bars_per_day=150, return_gen=_garch_return_gen())
+    u = run_tda11_analysis(config, n_workers=1, verbose=False).garch_usefulness
+    for key in ("posthoc_matched_ewma_halflife", "posthoc_matched_ewma_q_abs_z_m", "posthoc_relative_reduction_vs_matched_ewma"):
+        assert key in u
+    expected = bool(u["relative_reduction"] >= GARCH_RESIDUAL_REDUCTION_THRESHOLD and u["alpha"] >= GARCH_MIN_ALPHA_FOR_SEPARATION)
+    assert u["useful"] is expected
+    # la funcion de decision no conoce la sensibilidad post-hoc
+    garch_diag = {"q_abs_z_m": 50.0}
+    bench = {"a": {"q_abs_z_m": 100.0}}
+    assert "posthoc_relative_reduction_vs_matched_ewma" not in decide_garch_usefulness(garch_diag, bench, {"alpha": 0.05})
+
+
+# --- C3: GARCH estimable no implica Q(60) estimable -------------------------
+
+def test_residual_diagnostics_q60_not_estimable_when_no_block_is_longer_than_60():
+    rng = np.random.default_rng(118)
+    z = rng.normal(size=60 * 50)
+    diag = residual_diagnostics(z, np.repeat(np.arange(50), 60), lags=(1, 5, 20, 60), m_values=(20, 60))
+    assert np.isnan(diag["q_abs_z_m"])                      # nunca un numero inventado
+    assert diag["q_abs_z_m_status"].startswith("NOT_ESTIMABLE")
+    assert diag["max_estimable_lag"] == 59
+    assert diag["q_abs_z_m_n_pairs"] == 0
+    assert np.isfinite(diag["rho1_abs_z"])                  # los rezagos cortos SI son estimables
+    q20 = diag["portmanteau_abs_z"].set_index("m").loc[20]
+    assert bool(q20["estimable"]) and np.isfinite(q20["Q"])
+
+
+def test_residual_diagnostics_q60_estimable_with_blocks_of_61():
+    rng = np.random.default_rng(119)
+    z = rng.normal(size=61 * 50)
+    diag = residual_diagnostics(z, np.repeat(np.arange(50), 61), lags=(1, 60), m_values=(60,))
+    assert np.isfinite(diag["q_abs_z_m"])
+    assert diag["q_abs_z_m_status"] == "ESTIMABLE"
+    assert diag["q_abs_z_m_n_pairs"] == 50   # exactamente un par de rezago 60 por bloque
+    assert diag["max_estimable_lag"] == 60
+
+
+def test_fit_garch_by_group_garch_estimable_while_q60_is_not():
+    """ADVERSARIAL (C3): un segmento de 60 minutos por dia -- el modelo se ajusta, `Q(60)` no existe; ambos hechos deben quedar registrados por separado."""
+    r = _simulate_garch11(24_000, 1e-8, 0.08, 0.86, seed=120)
+    out = fit_garch_by_group({"seg_60min": r}, {"seg_60min": np.repeat(np.arange(400), 60)}, n_workers=1)
+    row = out.iloc[0]
+    assert bool(row["estimable"]) is True and bool(row["converged_verified"]) is True
+    assert np.isfinite(row["alpha"]) and np.isfinite(row["rho1_abs_z"])
+    assert np.isnan(row["q_abs_z_m"])
+    assert row["q_abs_z_m_status"].startswith("NOT_ESTIMABLE")
+    assert int(row["max_estimable_lag"]) == 59
+
+
+def test_report_table_shows_not_estimable_instead_of_blank_or_number():
+    from ohlcv_dataroad.ingest.run_tda11 import _group_display_table, _md_table
+
+    tab = pd.DataFrame([
+        {"group": "08:30-09:30", "estimable": True, "n": 84_694, "alpha": 0.098, "q_abs_z_m": np.nan, "max_estimable_lag": 59, "reason": np.nan},
+        {"group": "09:30-16:02", "estimable": True, "n": 537_786, "alpha": 0.048, "q_abs_z_m": 765.5, "max_estimable_lag": 60, "reason": np.nan},
+        {"group": "2019", "estimable": False, "n": 7_406, "alpha": np.nan, "q_abs_z_m": np.nan, "max_estimable_lag": np.nan, "reason": "n=7406<20000 (MIN_N_FOR_GARCH_FIT)"},
+    ])
+    disp = _group_display_table(tab)
+    cells = dict(zip(disp["group"], disp["Q(60)_|z|"]))
+    assert cells["08:30-09:30"].startswith("NOT_ESTIMABLE") and "59" in cells["08:30-09:30"]
+    assert cells["09:30-16:02"] == "765.5"
+    assert cells["2019"] == "—"
+    md = _md_table(disp, ["group", "estimable", "Q(60)_|z|", "reason"])
+    assert "NOT_ESTIMABLE" in md and "MIN_N_FOR_GARCH_FIT" in md
+
+
+def test_persisted_report_and_csvs_carry_the_audit_fields(tmp_path):
+    from ohlcv_dataroad.ingest.run_tda11 import persist_artifacts
+
+    config = _make_config(tmp_path, research_files=["research.txt"], n_workers=1)
+    _prepare_full_fixture(config, n_days=60, bars_per_day=150, return_gen=_garch_return_gen())
+    result = run_tda11_analysis(config, n_workers=1, verbose=False)
+    persist_artifacts(result, config, t0=0.0, run_command="test")
+
+    params = pd.read_csv(config.tda11_garch_params_csv_path)
+    for col in ("converged_verified", "kkt_max_abs_gradient", "refinement_llf_gain", "at_constraint_boundary", "loglikelihood"):
+        assert col in params.columns
+    assert params["converged_verified"].all()
+    diag = pd.read_csv(config.tda11_garch_diagnostics_csv_path)
+    assert "q_abs_z_m_status" in diag.columns and "alpha_reset" in diag.columns and "q_abs_z_m_common" in diag.columns
+    useful = pd.read_csv(config.tda11_usefulness_csv_path)
+    assert useful["population"].iloc[0] == "common"
+    text = config.tda11_report_path.read_text(encoding="utf-8")
+    for needle in ("converged_verified", "población común", "gap_forecast", "DENTRO DE MUESTRA", "NO demuestra"):
+        assert needle in text
+
+
+# ---------------------------------------------------------------------------
+# M. AUDITORIA CORRECTIVA, 2a revision -- validez del criterio KKT con
+#    restricciones activas; TH23/TH24 no sobreafirman
+# ---------------------------------------------------------------------------
+
+from ohlcv_dataroad.ingest.tda11_parametric_volatility import kkt_check_garch  # noqa: E402
+
+
+@pytest.mark.parametrize("asymmetric,dist", [(False, "normal"), (False, "t"), (True, "normal"), (True, "t")])
+def test_box_coordinates_roundtrip_and_cover_exactly_the_admissible_region(asymmetric, dist):
+    """El cambio a coordenadas de caja debe (1) ser invertible y (2) convertir CADA restriccion del modelo en la cota de una coordenada."""
+    rng = np.random.default_rng(130)
+    for _ in range(200):
+        phi = [rng.uniform(-3, 1), rng.uniform(0, 1)] + ([rng.uniform(0, 1)] if asymmetric else []) + [rng.uniform(0.05, 1)] + ([rng.uniform(2.1, 50)] if dist == "t" else [])
+        omega, alpha, gamma, beta, p, nu = tda11_mod._phi_to_params(np.array(phi), asymmetric, dist)
+        # cualquier punto de la caja es admisible para arch
+        assert alpha >= 0 and beta >= 0 and alpha + gamma >= -1e-15 and alpha + 0.5 * gamma + beta <= 1 + 1e-15
+        assert alpha + 0.5 * gamma + beta == pytest.approx(p)
+        theta = [np.log10(omega), alpha] + ([gamma] if asymmetric else []) + [p] + ([nu] if dist == "t" else [])
+        np.testing.assert_allclose(tda11_mod._theta_to_phi(np.array(theta), asymmetric, dist), phi, rtol=1e-9, atol=1e-12)
+    # las caras de la caja son exactamente las restricciones activas
+    corner = [0.0, 1.0] + ([1.0] if asymmetric else []) + [1.0] + ([8.0] if dist == "t" else [])
+    _, alpha, gamma, beta, p, _ = tda11_mod._phi_to_params(np.array(corner), asymmetric, dist)
+    assert beta == 0.0 and p == 1.0            # w=1 <=> beta=0 ; p=1 <=> alpha+gamma/2+beta=1
+    if asymmetric:
+        assert alpha + gamma == pytest.approx(0.0)   # v=1 <=> alpha+gamma=0
+
+
+def test_projected_gradient_is_exact_kkt_for_box_constraints_on_a_known_problem():
+    """Problema con solucion KKT conocida: min (a-0.3)^2 + (b-2)^2 + (c+1)^2 en [0,1]^3 -> optimo (0.3, 1, 0) con DOS cotas activas."""
+    f = lambda t: float((t[0] - 0.3) ** 2 + (t[1] - 2.0) ** 2 + (t[2] + 1.0) ** 2)
+    bounds = [(0.0, 1.0)] * 3
+    np.testing.assert_allclose(kkt_projected_gradient(np.array([0.3, 1.0, 0.0]), f, bounds), 0.0, atol=1e-6)
+    # cualquier otro vertice/punto admisible NO es KKT y debe dar gradiente no nulo
+    for pt in ([0.3, 0.0, 0.0], [0.3, 1.0, 1.0], [0.9, 1.0, 0.0], [0.3, 0.5, 0.0], [0.0, 1.0, 0.0]):
+        assert np.max(np.abs(kkt_projected_gradient(np.array(pt), f, bounds))) > 0.1
+
+
+def test_kkt_check_accepts_optimum_with_beta_constraint_active_and_rejects_other_points_on_that_face():
+    """ADVERSARIAL (restriccion ACOPLADA activa): ARCH(1) verdadero -> `beta>=0` activa en el optimo. El optimo debe verificarse; otros puntos de la MISMA cara (beta=0, alpha equivocado, omega re-optimizado) deben rechazarse aunque solo se pueda mejorar deslizandose a lo largo de la cara."""
+    from scipy.optimize import minimize_scalar
+
+    rng = np.random.default_rng(131)
+    n, omega, alpha = 30_000, 1e-8, 0.5
+    r = np.empty(n)
+    s2 = omega / (1 - alpha)
+    for t in range(n):
+        r[t] = rng.normal() * np.sqrt(s2)
+        s2 = omega + alpha * r[t] ** 2
+    x = (r * GARCH_SCALE_FACTOR) ** 2
+
+    theta, value, kkt = tda11_mod._refine_garch(x, None, False, "normal")
+    assert np.max(np.abs(kkt)) < GARCH_KKT_GRADIENT_TOL
+    _, a_hat, _, b_hat, _, _ = tda11_mod._unpack_theta(theta, False, "normal")
+    assert a_hat == pytest.approx(alpha, abs=0.03) and b_hat < 0.03
+
+    for a_bad in (0.30, 0.70):
+        log_omega = minimize_scalar(lambda lw: garch_mean_neg_loglik(np.array([lw, a_bad, a_bad]), x), bounds=(-3, 3), method="bounded").x
+        point = np.array([log_omega, a_bad, a_bad])            # beta = 0 exactamente
+        assert garch_mean_neg_loglik(point, x) > value
+        g = kkt_check_garch(point, x)
+        assert np.max(np.abs(g)) > GARCH_KKT_GRADIENT_TOL
+        # la violacion se ve en la coordenada p (moverse A LO LARGO de la cara beta=0), con el signo correcto
+        assert np.sign(g[2]) == (-1.0 if a_bad < a_hat else 1.0)
+
+
+def test_kkt_check_accepts_optimum_with_persistence_constraint_active():
+    """La restriccion activa en TODOS los ajustes reales (`alpha+beta<=1`): el optimo en el tope se verifica; un punto del mismo tope con alpha equivocado, no."""
+    rng = np.random.default_rng(109)
+    n = 40_000
+    r = rng.normal(size=n) * 1e-4 * np.exp(3.0 * np.arange(n) / n)
+    x = (r * GARCH_SCALE_FACTOR) ** 2
+    theta, _, kkt = tda11_mod._refine_garch(x, None, False, "normal")
+    assert theta[2] == pytest.approx(1.0, abs=1e-9)
+    assert np.max(np.abs(kkt)) < GARCH_KKT_GRADIENT_TOL
+    # en el optimo el multiplicador de la restriccion activa tiene el signo correcto:
+    # bajar la persistencia EMPEORA la verosimilitud
+    down = theta.copy()
+    down[2] -= 1e-4
+    assert garch_mean_neg_loglik(down, x) > garch_mean_neg_loglik(theta, x)
+    wrong = theta.copy()
+    wrong[1] = theta[1] * 4.0                                   # mismo tope p=1, alpha equivocado
+    assert np.max(np.abs(kkt_check_garch(wrong, x))) > GARCH_KKT_GRADIENT_TOL
+
+
+def test_kkt_check_gjr_optimum_is_verified_in_box_coordinates():
+    fit = fit_garch11(_simulate_garch11(20_000, 1e-8, 0.08, 0.85, seed=132), asymmetric=True)
+    assert fit["converged_verified"] is True
+    assert fit["alpha"] >= 0 and fit["alpha"] + fit["gamma"] >= -1e-12 and fit["beta"] >= 0
+
+
+def _fake_group_tab(alpha_alt: float) -> pd.DataFrame:
+    return pd.DataFrame([
+        {"group": "s1", "estimable": True, "alpha": 0.05, "alpha_ci_lo": 0.045, "alpha_ci_hi": 0.055, "persistence": 1.0,
+         "at_constraint_boundary": True, "q_abs_z_m": 10.0, "alpha_reset": alpha_alt, "alpha_gap_forecast": 0.05,
+         "persistence_reset": 1.0, "persistence_gap_forecast": 0.999},
+        {"group": "s2", "estimable": True, "alpha": 0.08, "alpha_ci_lo": 0.07, "alpha_ci_hi": 0.09, "persistence": 1.0,
+         "at_constraint_boundary": True, "q_abs_z_m": 12.0, "alpha_reset": 0.081, "alpha_gap_forecast": 0.079,
+         "persistence_reset": 1.0, "persistence_gap_forecast": 0.999},
+    ])
+
+
+def test_subperiod_facts_count_groups_whose_alternative_alpha_leaves_the_primary_ci():
+    from ohlcv_dataroad.ingest.run_tda11 import _subperiod_facts
+
+    stable = _subperiod_facts(_fake_group_tab(alpha_alt=0.051))
+    assert stable["n_alpha_outside_ci"] == 0 and stable["groups_alpha_outside_ci"] == []
+    unstable = _subperiod_facts(_fake_group_tab(alpha_alt=0.12))
+    assert unstable["n_alpha_outside_ci"] == 1 and unstable["groups_alpha_outside_ci"] == ["s1"]
+    assert unstable["alpha_boundary_ratio_max"] == pytest.approx(0.12 / 0.05)
+
+
+def test_report_th23_separates_predeclared_rule_from_posthoc_and_th24_does_not_claim_alpha_robustness(tmp_path):
+    """El informe debe (TH23) separar la regla predeclarada de la sensibilidad post-hoc y (TH24) NO presentar alpha/beta como robustos cuando la sensibilidad de frontera los mueve fuera de su IC."""
+    from ohlcv_dataroad.ingest.run_tda11 import render_report
+
+    config = _make_config(tmp_path, research_files=["research.txt"], n_workers=1)
+    _prepare_full_fixture(config, n_days=60, bars_per_day=150, return_gen=_garch_return_gen())
+    result = run_tda11_analysis(config, n_workers=1, verbose=False)
+
+    text = render_report(result, config, 1.0, "test")
+    th23 = text[text.index("## 14. TH23"):text.index("## 15. TH24")]
+    assert "(A) Regla predeclarada — DECIDE TH23 y STOP-11" in th23
+    assert "(B) Sensibilidad post-hoc — NO decide nada" in th23
+    assert "no cambia por (B)" in th23
+    stop11 = text[text.index("## 13. STOP-11"):text.index("## 14. TH23")]
+    assert "ÚNICAMENTE la regla predeclarada" in stop11 and "no interviene" in stop11
+
+    # Fuerza el caso real: la sensibilidad de frontera saca alpha del IC primario en un segmento.
+    seg = result.garch_by_segment.copy()
+    est = seg.index[seg["estimable"] == True]  # noqa: E712
+    if len(est) == 0:   # fixture pequeño: fabrica una fila estimable para ejercitar el texto
+        seg = _fake_group_tab(alpha_alt=0.12)
+    else:
+        i = est[0]
+        seg.loc[i, "alpha_reset"] = float(seg.loc[i, "alpha_ci_hi"]) * 3.0
+    result.garch_by_segment = seg
+    text = render_report(result, config, 1.0, "test")
+    th24 = text[text.index("## 15. TH24"):text.index("## 16. TH25")]
+    assert "reparto alpha/beta NO robusto" in th24
+    assert "Lo que NO se presenta como robusto" in th24
+    assert "FUERA del IC 95%" in th24
+    assert "no se interpretan como una propiedad establecida" in th24
+
+    # ...y cuando la sensibilidad NO lo contradice, el informe no inventa inestabilidad
+    result.garch_by_segment = _fake_group_tab(alpha_alt=0.051)
+    result.garch_by_year = _fake_group_tab(alpha_alt=0.051)
+    th24_ok = render_report(result, config, 1.0, "test")
+    th24_ok = th24_ok[th24_ok.index("## 15. TH24"):th24_ok.index("## 16. TH25")]
+    assert "reparto alpha/beta NO robusto" not in th24_ok
+    assert "FUERA del IC 95%" not in th24_ok
