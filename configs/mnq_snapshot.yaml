@@ -417,3 +417,27 @@ tda11:
   usefulness_csv: TDA11_utilidad_informativa.csv
   acf_comparison_png: TDA11_acf_residuos_comparacion.png
   stability_png: TDA11_persistencia_estabilidad.png
+
+# TDA-12 -- cuantiles condicionales (TH26: ¿solo escala o tambien forma?).
+# Entrada: variables + mascara de validez de TDA-04 (seccion `tda04`),
+# r_tilde y segmentacion de TDA-06 (seccion `tda06`) -- ninguna se
+# redeclara aqui. `n_boot` es el bootstrap de bloques por jornada (misma
+# convencion y mismo valor que TDA-07/08/09/10/11). Los niveles de
+# cuantil (TDA-07), el estimador primario de volatilidad y los umbrales
+# de materialidad (TDA-10), y la regla de veredicto son constantes
+# predeclaradas en `tda12_conditional_quantiles.py`, no valores de
+# configuracion.
+tda12:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  report_name: TDA12_cuantiles_condicionales.md
+  quantiles_csv: TDA12_cuantiles_condicionales.csv
+  shape_csv: TDA12_escala_vs_forma_perfiles.csv
+  asymmetry_csv: TDA12_asimetria_colas.csv
+  sensitivity_csv: TDA12_sensibilidad_estimador.csv
+  causality_csv: TDA12_verificacion_causalidad.csv
+  decile_sizes_csv: TDA12_tamano_deciles_volatilidad.csv
+  profiles_png: TDA12_perfiles_cuantiles_normalizados.png
+  half_width_png: TDA12_semiamplitud_normalizada_por_grupo.png
+  block_sensitivity_csv: TDA12_sensibilidad_longitud_bloque.csv
+  readings_csv: TDA12_lecturas_alternativas_veredicto.csv

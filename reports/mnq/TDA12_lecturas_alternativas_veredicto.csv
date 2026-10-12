@@ -1,0 +1,7 @@
+reading,status,SEGMENT,VOL_DECILE_CAUSAL,YEAR,verdict_before_robustness
+regla vigente N4: ÷std y ÷std_trimmed deben coincidir; cola >= 200,VIGENTE,NO_CONCLUYENTE,SUPERPUESTO,SUPERPUESTO,NO_CONCLUYENTE
+solo ÷std (lectura literal del roadmap de TDA-12),alternativa,NO_CONCLUYENTE,SUPERPUESTO,SUPERPUESTO,NO_CONCLUYENTE
+solo ÷std_trimmed,alternativa,SUPERPUESTO,SUPERPUESTO,SUPERPUESTO,SOLO_ESCALA
+"sin dividir por la desviacion del grupo (estadistico LITERAL de TDA-10, al que pertenecen los umbrales)",alternativa,INTERMEDIO,SUPERPUESTO,SUPERPUESTO,NO_CONCLUYENTE
+regla N4 con el criterio de participacion LITERAL de TDA-10 (tamaño de grupo >= 200),alternativa,NO_CONCLUYENTE,SUPERPUESTO,SUPERPUESTO,NO_CONCLUYENTE
+PROPUESTA: cada cola por separado (sensible a asimetria),propuesta,NO_CONCLUYENTE,SUPERPUESTO,SUPERPUESTO,NO_CONCLUYENTE

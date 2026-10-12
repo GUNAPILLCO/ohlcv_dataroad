@@ -1,0 +1,14 @@
+check,family,param,n_indices_checked,passed,all_changed_shortly_after,perturb_index,n_eligible_bars,earlier_days_unchanged,same_day_other_bars_unchanged,some_later_day_changed,truncation_identical,block
+sigma_hat_no_lookahead (TDA-10),ewma,60.0,6.0,True,True,,,,,,,
+causal_volatility_decile_no_lookahead,,,,True,,328301.0,1914350.0,True,True,True,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,854769.0,1914350.0,True,True,False,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,863748.0,1914350.0,True,True,True,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,1194078.0,1914350.0,True,True,True,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,1376913.0,1914350.0,True,True,True,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,1506540.0,1914350.0,True,True,False,True,raw
+causal_volatility_decile_no_lookahead,,,,True,,328301.0,1914350.0,True,True,True,True,clock_adjusted
+causal_volatility_decile_no_lookahead,,,,True,,854769.0,1914350.0,True,True,False,True,clock_adjusted
+causal_volatility_decile_no_lookahead,,,,True,,863748.0,1914350.0,True,True,False,True,clock_adjusted
+causal_volatility_decile_no_lookahead,,,,True,,1194078.0,1914350.0,True,True,True,True,clock_adjusted
+causal_volatility_decile_no_lookahead,,,,True,,1376913.0,1914350.0,True,True,True,True,clock_adjusted
+causal_volatility_decile_no_lookahead,,,,True,,1506540.0,1914350.0,True,True,False,True,clock_adjusted

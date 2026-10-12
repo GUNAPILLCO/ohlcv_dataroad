@@ -241,6 +241,25 @@ class SnapshotConfig:
     tda11_acf_comparison_png_name: str = ""
     tda11_stability_png_name: str = ""
 
+    # TDA-12 -- Cuantiles condicionales (TH26). Misma logica de
+    # opcionalidad que TDA-02..TDA-11. Los niveles de cuantil, el
+    # estimador de volatilidad, los umbrales de materialidad (todos
+    # heredados de TDA-07/TDA-10) y la regla de veredicto son constantes
+    # predeclaradas en ``tda12_conditional_quantiles.py`` -- solo
+    # ``n_boot`` (bootstrap de bloques por jornada) es configurable.
+    tda12_n_boot: int = 300
+    tda12_report_name: str = ""
+    tda12_quantiles_csv_name: str = ""
+    tda12_shape_csv_name: str = ""
+    tda12_asymmetry_csv_name: str = ""
+    tda12_sensitivity_csv_name: str = ""
+    tda12_causality_csv_name: str = ""
+    tda12_decile_sizes_csv_name: str = ""
+    tda12_profiles_png_name: str = ""
+    tda12_half_width_png_name: str = ""
+    tda12_block_sensitivity_csv_name: str = ""
+    tda12_readings_csv_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -701,6 +720,50 @@ class SnapshotConfig:
     def tda11_stability_png_path(self) -> Path:
         return self.reports_dir / self.tda11_stability_png_name
 
+    @property
+    def tda12_report_path(self) -> Path:
+        return self.reports_dir / self.tda12_report_name
+
+    @property
+    def tda12_quantiles_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_quantiles_csv_name
+
+    @property
+    def tda12_shape_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_shape_csv_name
+
+    @property
+    def tda12_asymmetry_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_asymmetry_csv_name
+
+    @property
+    def tda12_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_sensitivity_csv_name
+
+    @property
+    def tda12_causality_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_causality_csv_name
+
+    @property
+    def tda12_decile_sizes_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_decile_sizes_csv_name
+
+    @property
+    def tda12_profiles_png_path(self) -> Path:
+        return self.reports_dir / self.tda12_profiles_png_name
+
+    @property
+    def tda12_half_width_png_path(self) -> Path:
+        return self.reports_dir / self.tda12_half_width_png_name
+
+    @property
+    def tda12_block_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_block_sensitivity_csv_name
+
+    @property
+    def tda12_readings_csv_path(self) -> Path:
+        return self.reports_dir / self.tda12_readings_csv_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -755,6 +818,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     tda09 = raw.get("tda09", {})
     tda10 = raw.get("tda10", {})
     tda11 = raw.get("tda11", {})
+    tda12 = raw.get("tda12", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -909,4 +973,16 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda11_usefulness_csv_name=tda11.get("usefulness_csv", ""),
         tda11_acf_comparison_png_name=tda11.get("acf_comparison_png", ""),
         tda11_stability_png_name=tda11.get("stability_png", ""),
+        tda12_n_boot=int(tda12.get("n_boot", 300)),
+        tda12_report_name=tda12.get("report_name", ""),
+        tda12_quantiles_csv_name=tda12.get("quantiles_csv", ""),
+        tda12_shape_csv_name=tda12.get("shape_csv", ""),
+        tda12_asymmetry_csv_name=tda12.get("asymmetry_csv", ""),
+        tda12_sensitivity_csv_name=tda12.get("sensitivity_csv", ""),
+        tda12_causality_csv_name=tda12.get("causality_csv", ""),
+        tda12_decile_sizes_csv_name=tda12.get("decile_sizes_csv", ""),
+        tda12_profiles_png_name=tda12.get("profiles_png", ""),
+        tda12_half_width_png_name=tda12.get("half_width_png", ""),
+        tda12_block_sensitivity_csv_name=tda12.get("block_sensitivity_csv", ""),
+        tda12_readings_csv_name=tda12.get("readings_csv", ""),
     )
