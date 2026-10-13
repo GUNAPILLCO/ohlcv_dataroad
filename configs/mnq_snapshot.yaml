@@ -441,3 +441,52 @@ tda12:
   half_width_png: TDA12_semiamplitud_normalizada_por_grupo.png
   block_sensitivity_csv: TDA12_sensibilidad_longitud_bloque.csv
   readings_csv: TDA12_lecturas_alternativas_veredicto.csv
+
+# TDA-13 Parte A -- extremos: inventario, triage y agrupamiento (TH06,
+# TH27). Entrada: variables + mascara de validez de TDA-04, segmentacion
+# de TDA-06, mascara `bad_data` de TDA-00, huecos de TDA-02 y categoria
+# de barra de TDA-05 -- ninguna se redeclara aqui. `n_boot` es el
+# bootstrap de bloques por jornada (misma convencion y valor que
+# TDA-07..TDA-12). `n_null_sim` es el numero de series independientes
+# simuladas para la banda de la referencia; `n_calibration`, el numero de
+# replicas de cada control nulo de G2 (permutacion y camino aleatorio
+# simulado). Niveles de cola, definiciones de extremo, ventanas y reglas
+# de triage/veredicto son constantes predeclaradas en
+# `tda13_extremes_inventory.py`, no valores de configuracion. La Parte B
+# (EVT) NO esta implementada.
+tda13:
+  output_dir_reports: reports/mnq
+  n_boot: 300
+  n_null_sim: 200
+  # Auditoria correctiva: replicas del PROCEDIMIENTO COMPLETO por cada familia
+  # de control sin dependencia (la mitad fija la banda, la otra mitad mide
+  # las falsas detecciones), replicas por cada control de "solo
+  # volatilidad", replicas del bootstrap que re-estima umbrales y
+  # referencia, y procesos en paralelo (0 = automatico;
+  # tope de 8). El numero efectivo se reduce si la memoria libre no deja
+  # margen. El resultado no depende del numero de procesos.
+  n_calibration: 1000
+  n_volatility_control: 200
+  n_boot_full: 300
+  n_workers: 8
+  report_name: TDA13_extremos_inventario_agrupamiento.md
+  extremes_csv: TDA13_extremos.csv
+  thresholds_csv: TDA13_umbrales_por_celda.csv
+  triage_summary_csv: TDA13_triage_resumen.csv
+  clustering_csv: TDA13_agrupamiento_vs_poisson.csv
+  gap_distribution_csv: TDA13_tiempos_entre_excedencias.csv
+  run_distribution_csv: TDA13_longitud_rachas.csv
+  clustering_by_group_csv: TDA13_agrupamiento_por_anio_segmento.csv
+  hourly_csv: TDA13_distribucion_horaria.csv
+  triage_impact_csv: TDA13_efecto_triage.csv
+  calibration_csv: TDA13_calibracion_g2.csv
+  clustering_png: TDA13_agrupamiento_crudo_vs_estandarizado.png
+  gap_distribution_png: TDA13_tiempos_entre_excedencias.png
+  hourly_png: TDA13_distribucion_horaria.png
+  triage_png: TDA13_triage_categorias.png
+  reference_conservation_csv: TDA13_referencia_conservacion.csv
+  false_detection_csv: TDA13_tasas_falsa_deteccion.csv
+  full_bootstrap_csv: TDA13_bootstrap_reestimacion.csv
+  triage_sensitivity_csv: TDA13_triage_sensibilidad.csv
+  volatility_control_csv: TDA13_control_solo_volatilidad.csv
+  audit_previous_csv: TDA13_auditoria_resultados_previos.csv

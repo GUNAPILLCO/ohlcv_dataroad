@@ -1,0 +1,38 @@
+# Archivo de cierre de TDA-13 Parte A. ENTRADA DOCUMENTAL del generador del
+# informe (`run_tda13.py`): estado de la etapa e incidencias de la ejecucion
+# cuyos resultados quedan registrados en `reports/mnq/TDA13_*`.
+#
+# No contiene ni modifica ningun parametro estadistico. Se usa asi, sin
+# repetir ningun calculo (reescribe solo las secciones 17 y 20 del informe):
+#
+#   python -m ohlcv_dataroad.ingest.run_tda13 --amend-report --closure configs/tda13_cierre.yaml
+#
+# Las horas son locales (UTC-3) y tienen precision de segundos.
+#
+# `informe`: SHA-256 del informe COMPLETO antes y despues de la enmienda. La
+# orden solo acepta el informe original exacto (lo enmienda y comprueba que
+# obtiene exactamente el cerrado) o el cerrado exacto (no hace nada). Cualquier
+# otro contenido se rechaza sin escribir. Estos dos valores no forman parte del
+# texto del informe.
+informe:
+  sha256_original: "307825f19349ceb34d53f5d16a678c0a2b0384f58df38920d3b749a376873c25"
+  sha256_cerrado: "d790eac0016e698805bca2d7d526242be346631e84ebe6733905ee62c017b1cf"
+estado: "CERRADA TRAS AUDITORÍA INDEPENDIENTE"
+detalle: "cierre metodológico de la Parte A; resultados exploratorios, no confirmados en el holdout"
+auditoria: >-
+  Auditoría metodológica y numérica independiente (13 de octubre de 2026):
+  conforme en el alcance comprobado. Se verificaron las 205.400 cifras de
+  réplicas comunes entre las dos ejecuciones (idénticas), las cuatro bandas y
+  las 12 comprobaciones de G2 (recalculadas desde las réplicas), los cocientes
+  e intervalos que deciden TH27, los controles de sólo volatilidad, el triage y
+  las decisiones individuales de 300 mundos sintéticos. La auditoría no
+  reejecutó el análisis sobre los datos de MNQ ni abrió el holdout. El cierre
+  no avala predicción, agrupamiento propio de los extremos ni EVT; `STOP-13`
+  no activado; TDA-13 Parte B no autorizada.
+incidencias:
+  - tipo: "Suspensión del sistema operativo (motivo registrado: botón o tapa)"
+    inicio: "2026-10-13 00:05:34"
+    fin: "2026-10-13 09:58:55"
+    etapa_afectada: "Universo de triage: serie canonica + mascaras de TDA-00/02/03/04/05"
+    evidencia: "registro System de Windows (Kernel-Power 42 a las 00:05:34; Power-Troubleshooter 1 a las 09:58:55) y lecturas del supervisor, sin ninguna entre las 00:05:35 y las 09:58:54"
+    efecto: "ninguno: las 205.400 cifras de réplicas comunes con la ejecución anterior son idénticas, y 18 de los 21 artefactos son idénticos byte a byte"

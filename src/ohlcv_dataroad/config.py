@@ -260,6 +260,40 @@ class SnapshotConfig:
     tda12_block_sensitivity_csv_name: str = ""
     tda12_readings_csv_name: str = ""
 
+    # TDA-13 Parte A -- Extremos: inventario, triage y agrupamiento
+    # (TH06, TH27). Misma logica de opcionalidad que TDA-02..TDA-12. Los
+    # niveles de cola, las definiciones de extremo, las ventanas y las
+    # reglas de triage/veredicto son constantes predeclaradas en
+    # ``tda13_extremes_inventory.py``; aqui solo se configuran los
+    # tamaños de remuestreo.
+    tda13_n_boot: int = 300
+    tda13_n_null_sim: int = 200
+    tda13_n_calibration: int = 1000
+    tda13_n_volatility_control: int = 200
+    tda13_n_boot_full: int = 300
+    tda13_n_workers: int = 0
+    tda13_report_name: str = ""
+    tda13_extremes_csv_name: str = ""
+    tda13_thresholds_csv_name: str = ""
+    tda13_triage_summary_csv_name: str = ""
+    tda13_clustering_csv_name: str = ""
+    tda13_gap_distribution_csv_name: str = ""
+    tda13_run_distribution_csv_name: str = ""
+    tda13_clustering_by_group_csv_name: str = ""
+    tda13_hourly_csv_name: str = ""
+    tda13_triage_impact_csv_name: str = ""
+    tda13_calibration_csv_name: str = ""
+    tda13_clustering_png_name: str = ""
+    tda13_gap_distribution_png_name: str = ""
+    tda13_hourly_png_name: str = ""
+    tda13_triage_png_name: str = ""
+    tda13_reference_conservation_csv_name: str = ""
+    tda13_false_detection_csv_name: str = ""
+    tda13_full_bootstrap_csv_name: str = ""
+    tda13_triage_sensitivity_csv_name: str = ""
+    tda13_volatility_control_csv_name: str = ""
+    tda13_audit_previous_csv_name: str = ""
+
     @property
     def inventory_report_path(self) -> Path:
         return self.reports_dir / self.inventory_report_name
@@ -764,6 +798,90 @@ class SnapshotConfig:
     def tda12_readings_csv_path(self) -> Path:
         return self.reports_dir / self.tda12_readings_csv_name
 
+    @property
+    def tda13_report_path(self) -> Path:
+        return self.reports_dir / self.tda13_report_name
+
+    @property
+    def tda13_extremes_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_extremes_csv_name
+
+    @property
+    def tda13_thresholds_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_thresholds_csv_name
+
+    @property
+    def tda13_triage_summary_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_triage_summary_csv_name
+
+    @property
+    def tda13_clustering_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_clustering_csv_name
+
+    @property
+    def tda13_gap_distribution_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_gap_distribution_csv_name
+
+    @property
+    def tda13_run_distribution_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_run_distribution_csv_name
+
+    @property
+    def tda13_clustering_by_group_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_clustering_by_group_csv_name
+
+    @property
+    def tda13_hourly_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_hourly_csv_name
+
+    @property
+    def tda13_triage_impact_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_triage_impact_csv_name
+
+    @property
+    def tda13_calibration_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_calibration_csv_name
+
+    @property
+    def tda13_clustering_png_path(self) -> Path:
+        return self.reports_dir / self.tda13_clustering_png_name
+
+    @property
+    def tda13_gap_distribution_png_path(self) -> Path:
+        return self.reports_dir / self.tda13_gap_distribution_png_name
+
+    @property
+    def tda13_hourly_png_path(self) -> Path:
+        return self.reports_dir / self.tda13_hourly_png_name
+
+    @property
+    def tda13_triage_png_path(self) -> Path:
+        return self.reports_dir / self.tda13_triage_png_name
+
+    @property
+    def tda13_reference_conservation_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_reference_conservation_csv_name
+
+    @property
+    def tda13_false_detection_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_false_detection_csv_name
+
+    @property
+    def tda13_full_bootstrap_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_full_bootstrap_csv_name
+
+    @property
+    def tda13_triage_sensitivity_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_triage_sensitivity_csv_name
+
+    @property
+    def tda13_volatility_control_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_volatility_control_csv_name
+
+    @property
+    def tda13_audit_previous_csv_path(self) -> Path:
+        return self.reports_dir / self.tda13_audit_previous_csv_name
+
     def research_file_paths(self) -> list[Path]:
         """Rutas absolutas de los archivos del conjunto de investigacion."""
         return [self.raw_dir / name for name in self.research_files]
@@ -819,6 +937,7 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
     tda10 = raw.get("tda10", {})
     tda11 = raw.get("tda11", {})
     tda12 = raw.get("tda12", {})
+    tda13 = raw.get("tda13", {})
 
     return SnapshotConfig(
         repo_root=repo_root,
@@ -985,4 +1104,31 @@ def load_config(config_path: Path | str) -> SnapshotConfig:
         tda12_half_width_png_name=tda12.get("half_width_png", ""),
         tda12_block_sensitivity_csv_name=tda12.get("block_sensitivity_csv", ""),
         tda12_readings_csv_name=tda12.get("readings_csv", ""),
+        tda13_n_boot=int(tda13.get("n_boot", 300)),
+        tda13_n_null_sim=int(tda13.get("n_null_sim", 200)),
+        tda13_n_calibration=int(tda13.get("n_calibration", 1000)),
+        tda13_n_volatility_control=int(tda13.get("n_volatility_control", 200)),
+        tda13_n_boot_full=int(tda13.get("n_boot_full", 300)),
+        tda13_n_workers=int(tda13.get("n_workers", 0)),
+        tda13_report_name=tda13.get("report_name", ""),
+        tda13_extremes_csv_name=tda13.get("extremes_csv", ""),
+        tda13_thresholds_csv_name=tda13.get("thresholds_csv", ""),
+        tda13_triage_summary_csv_name=tda13.get("triage_summary_csv", ""),
+        tda13_clustering_csv_name=tda13.get("clustering_csv", ""),
+        tda13_gap_distribution_csv_name=tda13.get("gap_distribution_csv", ""),
+        tda13_run_distribution_csv_name=tda13.get("run_distribution_csv", ""),
+        tda13_clustering_by_group_csv_name=tda13.get("clustering_by_group_csv", ""),
+        tda13_hourly_csv_name=tda13.get("hourly_csv", ""),
+        tda13_triage_impact_csv_name=tda13.get("triage_impact_csv", ""),
+        tda13_calibration_csv_name=tda13.get("calibration_csv", ""),
+        tda13_clustering_png_name=tda13.get("clustering_png", ""),
+        tda13_gap_distribution_png_name=tda13.get("gap_distribution_png", ""),
+        tda13_hourly_png_name=tda13.get("hourly_png", ""),
+        tda13_triage_png_name=tda13.get("triage_png", ""),
+        tda13_reference_conservation_csv_name=tda13.get("reference_conservation_csv", ""),
+        tda13_false_detection_csv_name=tda13.get("false_detection_csv", ""),
+        tda13_full_bootstrap_csv_name=tda13.get("full_bootstrap_csv", ""),
+        tda13_triage_sensitivity_csv_name=tda13.get("triage_sensitivity_csv", ""),
+        tda13_volatility_control_csv_name=tda13.get("volatility_control_csv", ""),
+        tda13_audit_previous_csv_name=tda13.get("audit_previous_csv", ""),
     )
