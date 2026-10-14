@@ -1,0 +1,169 @@
+# TDA-14 -- Estabilidad temporal y cambio estructural (TH29, TH30, TH31).
+# Configuracion reproducible del pipeline (`python -m ohlcv_dataroad.ingest.run_tda14 {calibrar|analizar}`).
+# Las rutas de datos, la frontera del hold-out y la carpeta de informes salen de configs/mnq_snapshot.yaml.
+#
+# BLOQUEOS DE SEGURIDAD
+# - `calibrar` exige `protocolo.estado: CONGELADO` y ningun parametro `null`. Los `null` de abajo son parametros
+#   que el protocolo fija estimandolos (o decidiendolos) en una autorizacion SEPARADA; no se rellenan aqui a ojo.
+# - `analizar` sobre MNQ exige `analisis.autorizado_mnq: true`.
+# - El hold-out nunca se abre (guardias heredadas en la carga).
+
+protocolo:
+  estado: PROVISIONAL            # PROVISIONAL | CONGELADO
+  detector:                      # DetectorSpec auditado (valores del protocolo)
+    batch_sessions: 7
+    window_batches: 9            # 63 jornadas
+    step_batches: 3              # 21 jornadas
+    min_side_windows: 4
+    min_evaluable_windows: 16
+    min_session_bar_fraction: 0.90
+    min_window_complete_fraction: 0.9047619047619048   # 57/63
+    min_window_bar_fraction: 0.90
+    min_tail_support: 20
+    min_profile_bin_bars: 200
+    max_lag: 60
+    profile_bin_minutes: 30
+    min_batches_for_se: 3
+  mundo_base:                    # WorldSpec de los controles negativos (sin cambios)
+    n_sessions: null             # PENDIENTE: jornadas del panel de investigacion
+    width: 1440
+    active_minutes: 1380
+    base_sigma: null             # PENDIENTE
+    daily_phi: null              # PENDIENTE: persistencia de la volatilidad diaria (extremo alto de su IC)
+    daily_sd: null               # PENDIENTE
+    seasonal_amplitude: 0.0
+    seasonal_period: 252
+    t_df: null                   # PENDIENTE: colas
+    intra_phi: null              # PENDIENTE
+    intra_sd: null               # PENDIENTE
+    profile_amplitude: null      # PENDIENTE
+    ma_theta: 0.0
+    drift_sigma: 0.0
+    base_price: null             # PENDIENTE (discrecion por tick)
+    tick: 0.25
+    roll_every: 63
+    gap_probability: null        # PENDIENTE
+  variantes_negativas:
+    NEGATIVO_ESTACIONARIO:
+      etiqueta: NEGATIVO_ESTACIONARIO
+      parametros: {}
+    NEGATIVO_ESTACIONAL:
+      etiqueta: NEGATIVO_ESTACIONAL
+      parametros:
+        seasonal_amplitude: null # PENDIENTE: amplitud estacional anual
+  estres: {}                     # variantes de estres PREDECLARADAS (solo calibracion); ninguna por ahora
+  parcial:                       # control negativo parcial: solo un cambio de ESCALA
+    variante_base: NEGATIVO_ESTACIONARIO
+    etiqueta: PARCIAL_ESCALA
+    cambio: {familia: ESCALA, forma: SALTO, magnitud: 2.0, inicio: 0.5}
+  tipos:                         # controles con tipo (magnitud: el nivel DOBLE de la escala, x2)
+    - {tipo: SALTO, familia: ESCALA, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: TIPO_SALTO_ESCALA,
+       cambio: {familia: ESCALA, forma: SALTO, magnitud: 2.0, inicio: 0.5}}
+    - {tipo: TENDENCIA, familia: ESCALA, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: TIPO_TENDENCIA_ESCALA,
+       cambio: {familia: ESCALA, forma: TENDENCIA, magnitud: 2.0}}
+    - {tipo: EPISODIO, familia: ESCALA, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: TIPO_EPISODIO_ESCALA,
+       cambio: {familia: ESCALA, forma: EPISODIO, magnitud: 2.0, inicio: 0.35, fin: 0.65}}
+    - {tipo: BORDE, familia: ESCALA, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: TIPO_BORDE_ESCALA,
+       cambio: {familia: ESCALA, forma: SALTO, magnitud: 2.0, inicio: 0.93}}
+  potencia:                      # ESCALA: 50 % con x1,5 y 80 % con x2 (protocolo). Otras familias: magnitud en
+                                 # unidades del parametro equivalente a la materialidad -> PENDIENTE (null)
+    - {familia: ESCALA, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_ESCALA_MAT,
+       cambio: {familia: ESCALA, forma: SALTO, magnitud: 1.5, inicio: 0.5}}
+    - {familia: ESCALA, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_ESCALA_DOBLE,
+       cambio: {familia: ESCALA, forma: SALTO, magnitud: 2.0, inicio: 0.5}}
+    - {familia: NIVEL, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_NIVEL_MAT, cambio: {familia: NIVEL, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: NIVEL, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_NIVEL_DOBLE, cambio: {familia: NIVEL, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: FORMA, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_FORMA_MAT, cambio: {familia: FORMA, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: FORMA, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_FORMA_DOBLE, cambio: {familia: FORMA, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DEPENDENCIA_LINEAL, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_LINEAL_MAT, cambio: {familia: DEPENDENCIA_LINEAL, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DEPENDENCIA_LINEAL, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_LINEAL_DOBLE, cambio: {familia: DEPENDENCIA_LINEAL, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DEPENDENCIA_MAGNITUD, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_MAGNITUD_MAT, cambio: {familia: DEPENDENCIA_MAGNITUD, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DEPENDENCIA_MAGNITUD, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_MAGNITUD_DOBLE, cambio: {familia: DEPENDENCIA_MAGNITUD, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: RELOJ, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_RELOJ_MAT, cambio: {familia: RELOJ, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: RELOJ, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_RELOJ_DOBLE, cambio: {familia: RELOJ, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DISCRECION, nivel: MATERIALIDAD, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_DISCRECION_MAT, cambio: {familia: DISCRECION, forma: SALTO, magnitud: null, inicio: 0.5}}
+    - {familia: DISCRECION, nivel: DOBLE, variante_base: NEGATIVO_ESTACIONARIO, etiqueta: POT_DISCRECION_DOBLE, cambio: {familia: DISCRECION, forma: SALTO, magnitud: null, inicio: 0.5}}
+  minimos:                       # aprobados: 1000 por control negativo y parcial; 100 por tipo y nivel (provisional)
+    negativos: 1000
+    parcial: 1000
+    tipo: 100
+    potencia: 100
+
+calibracion:
+  mundos_negativos_por_variante: 1000   # mitad de calibracion (la de validacion la fija `minimos`)
+  mundos_estres_por_variante: 0
+  mundos_tipo_por_control: 100
+  n_workers: 4                          # maximo pedido; lo limita la proteccion de memoria heredada
+
+analisis:
+  autorizado_mnq: false                 # el analisis estadistico real requiere autorizacion separada
+  n_boot: 300                           # politica de bootstrap de TDA-07..TDA-13
+  semilla: 0
+  umbrales: null                        # ruta del JSON de umbrales congelados (salida de `calibrar`); null = sin calibracion
+  validacion: null                      # ruta del JSON de validacion (salida de `calibrar`)
+  tabla_validacion: null                # ruta del CSV de la tabla de validacion
+
+eventos:                                # fechas institucionales PREDECLARADAS (contraste descriptivo; sin causalidad)
+  - id: LIMITES_PRECIO_REGLA_589
+    fecha_negociacion: "2020-10-12"
+    tipo: reglas de negociacion
+    cambio: "limite nocturno de +-5 % a +-7 %; variante dinamica de +-3,5 %; reanudacion a los 10 min tras pausa regulatoria"
+    fuente: "CME Submission No. 20-392 (CFTC); SER 8658 (no leido: 403)"
+    mnq_citado: "anexos A y B"
+  - id: HORA_LIQUIDACION_DIARIA
+    fecha_negociacion: "2020-10-26"
+    tipo: liquidacion
+    cambio: "periodo de liquidacion diaria de 15:14:30-15:15:00 a 14:59:30-15:00:00 CT"
+    fuente: "CME Submission No. 20-018 (CFTC); SER 8591 (no leido: 403)"
+    mnq_citado: "anexo A"
+  - id: ELIMINACION_PAUSA_1515_1530_CT
+    fecha_negociacion: "2021-06-28"
+    tipo: horario de negociacion
+    cambio: "eliminada la pausa de Globex 15:15-15:30 CT"
+    fuente: "CME Submission No. 21-244 (CFTC); SER 8788 (no leido)"
+    mnq_citado: "anexo A"
+    ventana_reloj_ny:                   # hipotesis comprobable sobre COBERTURA de barras; no demuestra causalidad
+      inicio: "16:15"
+      fin: "16:30"
+      hipotesis: "antes de la fecha no deberia haber barras en 16:15-16:30 NY; despues si (patron 16:20-16:30 sin explicar en 2019-2021)"
+  - id: RANGOS_NO_REVISABLES
+    fecha_negociacion: "2021-11-01"
+    tipo: rangos no revisables (anulacion de operaciones erroneas)
+    cambio: "de 12 a 24 puntos de indice (48 a 96 ticks)"
+    fuente: "CME Submission No. 21-396 (CFTC); SER 8859 (no leido: 403)"
+    mnq_citado: "texto de la presentacion"
+
+stop14:
+  # Comprobaciones EXPLICITAS por familia (true / false / null = no comprobado). El protocolo no define todavia la regla
+  # operativa del analisis anual ni de la sensibilidad a rolls y huecos: hasta que se predeclare, quedan en null y
+  # STOP-14 no puede ser definitivo (queda PENDIENTE). Nunca se interpreta null como comprobacion superada.
+  confirmacion_anual: {}
+  sensibilidad_rolls_huecos: {}
+
+artefactos:
+  informe: TDA14_estabilidad_temporal.md
+  umbrales_json: TDA14_umbrales_congelados.json
+  manifiesto_json: TDA14_manifiesto_protocolo.json
+  validacion_json: TDA14_validacion_resumen.json
+  validacion_csv: TDA14_validacion_g2.csv
+  especificaciones_csv: TDA14_validacion_especificaciones.csv
+  criterios_csv: TDA14_criterios_aceptacion_g2.csv
+  calibracion_json: TDA14_calibracion_ejecucion.json
+  anual_csv: TDA14_tabla_anual.csv
+  curtosis_csv: TDA14_curtosis_evaluabilidad.csv
+  anio_segmento_csv: TDA14_tabla_anio_segmento.csv
+  ventanas_csv: TDA14_tabla_ventanas.csv
+  volumen_csv: TDA14_volumen_descriptivo.csv
+  reconciliacion_csv: TDA14_reconciliacion.csv
+  th29_csv: TDA14_th29_veredictos_familia.csv
+  th29_estadisticos_csv: TDA14_th29_veredictos_estadistico.csv
+  th31_fechas_csv: TDA14_th31_fechas_candidatas.csv
+  eventos_csv: TDA14_eventos_institucionales.csv
+  cobertura_csv: TDA14_cobertura_ventana_reloj.csv
+  th30_csv: TDA14_th30_contratos.csv
+  th30_resumen_csv: TDA14_th30_resumen.csv
+  stop14_csv: TDA14_stop14_familias.csv
+  trazabilidad_csv: TDA14_trazabilidad.csv
+  fig_ventanas: TDA14_ventanas_rodantes.png
+  fig_anual: TDA14_tabla_anual.png
+  fig_recuento: TDA14_recuento_fronteras.png
