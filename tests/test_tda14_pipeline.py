@@ -79,17 +79,32 @@ def calibration(cfg):
 # Configuracion real y bloqueos
 # ===========================================================================
 
-def test_real_config_is_provisional_with_pending_parameters_and_cannot_calibrate():
+FROZEN_MANIFEST_SHA256 = "350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522"
+
+
+def test_real_config_is_frozen_complete_and_not_authorized_for_mnq():
+    """Protocolo congelado: sin pendientes, manifiesto con la identidad aprobada, analisis MNQ no autorizado."""
+    from ohlcv_dataroad.ingest import tda14_stop14_rules as rules
     real = pl.load_tda14_config(REAL_CONFIG)
-    assert real.protocol["estado"] == pl.PROTOCOL_PROVISIONAL and real.raw["analisis"]["autorizado_mnq"] is False
-    pend = pl.pending_parameters(real)
-    assert "mundo_base.daily_phi" in pend and "NEGATIVO_ESTACIONAL" in " ".join(pend) and "POT_RELOJ_MAT.cambio.magnitud" in pend
-    with pytest.raises(pl.TDA14ConfigError, match="exige 'CONGELADO'"):
-        pl.run_calibration(real)
-    frozen = replace(real, raw={**real.raw, "protocolo": {**real.protocol, "estado": pl.PROTOCOL_FROZEN}})
-    with pytest.raises(pl.TDA14ConfigError, match="pendientes"):
-        pl.run_calibration(frozen)
+    assert real.protocol["estado"] == pl.PROTOCOL_FROZEN and real.raw["analisis"]["autorizado_mnq"] is False
+    assert pl.pending_parameters(real) == []
+    man = pl.build_manifest(real)
+    assert man.sha256() == FROZEN_MANIFEST_SHA256
+    assert all(f != t14.FAM_MAGNITUDE for f, _ in man.required_power)          # sin potencia validada: nunca ESTABLE
+    assert real.raw["stop14"]["reglas_version"] == rules.RULES_VERSION
+    pl.reject_manual_stop14_checks(real)                                     # sin comprobaciones manuales
     assert pl.detector_from_config(real) == t14.DetectorSpec()          # el detector de la configuracion es el auditado
+
+
+def test_calibration_guards_still_refuse_provisional_or_incomplete_protocols():
+    real = pl.load_tda14_config(REAL_CONFIG)
+    prov = replace(real, raw={**real.raw, "protocolo": {**real.protocol, "estado": pl.PROTOCOL_PROVISIONAL}})
+    with pytest.raises(pl.TDA14ConfigError, match="exige 'CONGELADO'"):
+        pl.run_calibration(prov)
+    incomplete = copy.deepcopy(real.raw)
+    incomplete["protocolo"]["mundo_base"]["daily_phi"] = None
+    with pytest.raises(pl.TDA14ConfigError, match="pendientes"):
+        pl.run_calibration(replace(real, raw=incomplete))
 
 
 def test_real_config_events_are_the_four_predeclared_ones():
@@ -104,7 +119,6 @@ def test_cli_refuses_analysis_without_authorization_and_reads_nothing(monkeypatc
     monkeypatch.setattr(pl, "load_tda14_inputs", lambda *_: called.append(1))
     assert run_tda14.main(["analizar", "--config-tda14", str(REAL_CONFIG)]) == 2
     assert called == []
-    assert run_tda14.main(["calibrar", "--config-tda14", str(REAL_CONFIG)]) == 2
 
 
 # ===========================================================================
@@ -336,7 +350,9 @@ def test_calibration_end_to_end_freezes_and_validates_under_one_manifest(calibra
     assert out.manifest.sha256() == man.sha256()
     assert dict(out.thresholds.calibration_info)["manifiesto_sha256"] == man.sha256() == out.validation.manifest_sha256
     assert out.validation.thresholds_sha256 == out.thresholds.sha256 and out.thresholds.type_margin is not None
-    assert out.n_worlds == {"calibracion": 200, "calibracion_tipos": 24, "validacion": 30 * 2 + 10 + 5 * 4 + 5 * 2}
+    n_neg = len(man.negative_specs)          # variantes negativas heredadas de la configuracion real (4 en el protocolo congelado)
+    assert n_neg == 4
+    assert out.n_worlds == {"calibracion": 100 * n_neg, "calibracion_tipos": 24, "validacion": 30 * n_neg + 10 + 5 * 4 + 5 * 2}
     st = out.validation.specs_table
     assert st["mundos_verificados"].sum() == out.n_worlds["validacion"]
     # Con 30 mundos por control no puede demostrarse <= 5 %: NO VALIDADO, sin forzar conclusiones.
@@ -430,20 +446,64 @@ def test_published_dates_and_events_when_validation_passes(calibration, cfg, tmp
         assert res.stop14["alcance"] == t14.STOP_PENDING and not res.stop14["definitivo"]
 
 
-def test_explicit_stop14_checks_come_from_configuration(calibration, cfg, tmp_path):
-    val = t14.ValidationResult(table=pd.DataFrame(), global_validated=True, dates_validated=True,
-                               families_validated=dict.fromkeys(t14.DETECTOR_FAMILIES, True), stop14_scope_validated=True,
-                               types_validated=True, power_ok=dict.fromkeys(t14.DETECTOR_FAMILIES, True),
-                               thresholds_sha256=calibration.thresholds.sha256, manifest_sha256=calibration.validation.manifest_sha256)
+def _passing_validation(calibration):
+    return t14.ValidationResult(table=pd.DataFrame(), global_validated=True, dates_validated=True,
+                                families_validated=dict.fromkeys(t14.DETECTOR_FAMILIES, True), stop14_scope_validated=True,
+                                types_validated=True, power_ok=dict.fromkeys(t14.DETECTOR_FAMILIES, True),
+                                thresholds_sha256=calibration.thresholds.sha256, manifest_sha256=calibration.validation.manifest_sha256)
+
+
+def test_stop14_checks_are_computed_by_rules_A_and_B(calibration, cfg, tmp_path):
+    """Las comprobaciones de STOP-14 salen de ejecutar las reglas A y B sobre este analisis (no de la configuracion)."""
+    from ohlcv_dataroad.ingest import tda14_stop14_rules as rules
     inp = synthetic_inputs(STEP_MULTI)
-    base = pl.run_analysis(inp, cfg, calibration.thresholds, val, inherited_dir=tmp_path)
-    fams = base.decisions["veredictos_familia"]
+    res = pl.run_analysis(inp, cfg, calibration.thresholds, _passing_validation(calibration), inherited_dir=tmp_path)
+    assert res.stop14_checks_status == f"EJECUTADAS ({rules.RULES_VERSION})"
+    ev_a, ev_b = res.stop14_annual_evidence, res.stop14_sensitivity_evidence
+    assert set(ev_a["familia"]) == set(t14.DETECTOR_FAMILIES) and len(ev_a) == len(t14.DETECTOR_STATISTICS)
+    assert set(ev_b["sensibilidad"]) == set(rules.SENSITIVITIES) and len(ev_b) == 3 * len(t14.DETECTOR_FAMILIES)
+    # las decisiones finales usan exactamente los resultados de las reglas (reejecucion determinista)
+    chk = rules.compute_stop14_checks(inp.panel, res.stats, res.annual, calibration.thresholds)
+    expected = {f: t14.persistence_status(res.decisions["veredictos_familia"][f], res.decisions["veredictos_familia_estricta"][f],
+                                          chk.annual[f], chk.sensitivity[f]) for f in t14.DETECTOR_FAMILIES}
+    assert res.stop14["estado_por_familia"] == expected
+    assert all(v in (True, False, None) for v in list(chk.annual.values()) + list(chk.sensitivity.values()))
+    tr = dict(zip(res.traceability["parametro"], res.traceability["valor"]))
+    assert tr["stop14_comprobaciones"].startswith("EJECUTADAS")
+
+
+def test_manual_stop14_checks_in_configuration_are_rejected(calibration, cfg, tmp_path):
+    """Ninguna comprobacion puede declararse superada sin ejecutarla: valores manuales -> error, sin analisis parcial."""
+    inp = synthetic_inputs(STEP_MULTI)
+    for key, value in (("confirmacion_anual", {"ESCALA": True}), ("sensibilidad_rolls_huecos", {"RELOJ": False})):
+        raw = copy.deepcopy(cfg.raw)
+        raw["stop14"][key] = value
+        with pytest.raises(pl.TDA14ConfigError, match="no se aceptan comprobaciones manuales"):
+            pl.run_analysis(inp, replace(cfg, raw=raw), calibration.thresholds, _passing_validation(calibration), inherited_dir=tmp_path)
     raw = copy.deepcopy(cfg.raw)
-    raw["stop14"]["confirmacion_anual"] = {f: v["veredicto"] in t14.NONSTABLE_VERDICTS for f, v in fams.items()}
-    raw["stop14"]["sensibilidad_rolls_huecos"] = dict.fromkeys(t14.DETECTOR_FAMILIES, False)
-    res = pl.run_analysis(inp, replace(cfg, raw=raw), calibration.thresholds, val, inherited_dir=tmp_path)
-    assert res.stop14["familias_pendientes"] == []
-    assert res.stop14["definitivo"] or res.stop14["alcance"] == t14.STOP_CONTRADICTORY
+    raw["stop14"]["reglas_version"] = "OTRA"
+    with pytest.raises(pl.TDA14ConfigError, match="reglas"):
+        pl.run_analysis(inp, replace(cfg, raw=raw), calibration.thresholds, _passing_validation(calibration), inherited_dir=tmp_path)
+
+
+def test_without_thresholds_stop14_checks_are_not_executed(cfg, tmp_path):
+    res = pl.run_analysis(synthetic_inputs(), cfg, inherited_dir=tmp_path)
+    assert res.stop14_checks_status == "NO_EJECUTADAS_SIN_UMBRALES" and res.stop14_annual_evidence.empty
+
+
+def test_family_without_power_controls_can_never_be_stable(calibration, cfg, tmp_path):
+    """DEPENDENCIA_MAGNITUD sin controles de potencia en el manifiesto: sigue en el detector, pero nunca ESTABLE."""
+    man = calibration.manifest
+    assert all(f != t14.FAM_MAGNITUDE for f, _ in man.required_power)
+    assert calibration.validation.power_ok[t14.FAM_MAGNITUDE] is False
+    raw = copy.deepcopy(cfg.raw)
+    assert all(p["familia"] != t14.FAM_MAGNITUDE for p in raw["protocolo"]["potencia"])
+    val = replace(_passing_validation(calibration), power_ok={**dict.fromkeys(t14.DETECTOR_FAMILIES, True), t14.FAM_MAGNITUDE: False})
+    for rep in range(3):
+        res = pl.run_analysis(synthetic_inputs(rep=rep), cfg, calibration.thresholds, val, inherited_dir=tmp_path)
+        v = res.decisions["veredictos_familia"][t14.FAM_MAGNITUDE]
+        assert v["veredicto"] != t14.V_STABLE
+        assert t14.FAM_MAGNITUDE in t14.DETECTOR_FAMILIES and "persistencia_acf_abs" in res.stats.values
 
 
 def test_clock_window_coverage_before_and_after_event(cfg):

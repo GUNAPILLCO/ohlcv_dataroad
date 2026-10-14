@@ -195,8 +195,9 @@ def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, comm
         f"- Alcance: **{stop.get('alcance')}**; definitivo: {_fmt(bool(stop.get('definitivo')))}.",
         f"- Familias persistentes confirmadas: {stop.get('familias_persistentes', [])}; pendientes de comprobaciones: {stop.get('familias_pendientes', [])}; "
         f"contradictorias: {stop.get('familias_contradictorias', [])}; cambios en el borde: {stop.get('cambios_en_borde', [])}; episodios: {stop.get('episodios', [])}.",
-        "- Las comprobaciones anual y de sensibilidad a rolls y huecos son entradas EXPLICITAS de la configuracion; un valor ausente "
-        "nunca cuenta como superado.",
+        f"- Comprobaciones anual y de sensibilidad a rolls y huecos: **{res.stop14_checks_status}**. Se CALCULAN con las reglas A y B "
+        "(`tda14_stop14_rules`); la configuracion no puede fijarlas a mano. Evidencia insuficiente o mixta = `null` = STOP-14 PENDIENTE; "
+        "nunca cuenta como superada.",
         "",
         "## 9. Controles G2",
         "",
@@ -223,8 +224,6 @@ def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, comm
         "- Las materialidades y la capacidad minima de tipos (50 %) son convenciones documentadas, no leyes estadisticas.",
         "- Con 100 replicas por tipo o nivel de potencia la incertidumbre es de unos +-8 puntos.",
         "- El error comun por lotes del detector ignora la persistencia; su escala absoluta no se interpreta (lo absorben los umbrales calibrados).",
-        "- La regla operativa del analisis anual y de la sensibilidad a rolls y huecos para STOP-14 no esta definida en el protocolo: hasta "
-        "predeclararla, STOP-14 no puede ser definitivo.",
         "- Las magnitudes de potencia fuera de la escala no estan fijadas; sin ellas esas familias no pueden declararse ESTABLE.",
         "",
     ]
@@ -304,10 +303,14 @@ def persist_analysis(res: pl.TDA14Result, cfg: pl.TDA14Config, out_dir: Path, th
               "volumen_csv": res.volume, "reconciliacion_csv": res.reconciliation, "th29_csv": res.th29, "th29_estadisticos_csv": res.statistic_verdicts,
               "th31_fechas_csv": res.dates, "eventos_csv": res.events, "cobertura_csv": res.coverage, "th30_csv": res.th30,
               "th30_resumen_csv": res.th30_summary, "stop14_csv": res.stop14_families, "trazabilidad_csv": res.traceability}
+    # Evidencia de las reglas A y B de STOP-14 (nombres por defecto si la configuracion no los declara).
+    tables["stop14_anual_csv"] = res.stop14_annual_evidence
+    tables["stop14_sensibilidad_csv"] = res.stop14_sensitivity_evidence
+    default_names = {"stop14_anual_csv": "TDA14_stop14_confirmacion_anual.csv", "stop14_sensibilidad_csv": "TDA14_stop14_sensibilidad_rolls_huecos.csv"}
     # Las tablas G2 (validacion, especificaciones, criterios) son artefactos de `calibrar`: el analisis no las reescribe.
     paths = []
     for key, df in tables.items():
-        p = out_dir / a[key]
+        p = out_dir / a.get(key, default_names.get(key, key))
         df.to_csv(p, index=False)
         paths.append(p)
     for key, fn in (("fig_ventanas", lambda p: draw_windows(res, p)), ("fig_anual", lambda p: draw_annual(res, p)),

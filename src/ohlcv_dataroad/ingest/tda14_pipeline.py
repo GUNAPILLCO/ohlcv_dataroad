@@ -34,6 +34,7 @@ import pandas as pd
 import yaml
 
 from ohlcv_dataroad.config import SnapshotConfig
+from ohlcv_dataroad.ingest import tda14_stop14_rules as stop14_rules
 from ohlcv_dataroad.ingest import tda14_temporal_stability as t14
 from ohlcv_dataroad.ingest.holdout_guard import validate_last_timestamps_before_boundary, validate_research_holdout_disjoint
 from ohlcv_dataroad.ingest.tda06_intraday_calendar_profile import COMPLETE_YEARS, attach_calendar_fields
@@ -825,12 +826,21 @@ class TDA14Result:
     status: str
     year_check: dict
     stage_seconds: dict = field(default_factory=dict)
+    stop14_annual_evidence: pd.DataFrame = field(default_factory=pd.DataFrame)
+    stop14_sensitivity_evidence: pd.DataFrame = field(default_factory=pd.DataFrame)
+    stop14_checks_status: str = "NO_EJECUTADAS_SIN_UMBRALES"
 
 
-def _explicit_checks(cfg: TDA14Config, key: str) -> dict:
-    """Comprobaciones explicitas de STOP-14 (analisis anual; sensibilidad a rolls y huecos). ``null`` = no comprobado."""
-    d = cfg.raw["stop14"].get(key) or {}
-    return {f: d.get(f) for f in t14.DETECTOR_FAMILIES}
+def reject_manual_stop14_checks(cfg: TDA14Config) -> None:
+    """Las comprobaciones de STOP-14 se CALCULAN (``tda14_stop14_rules``): una configuracion con valores manuales de
+    confirmacion anual o de sensibilidad se rechaza, para que ninguna comprobacion pueda declararse sin ejecutarla. Si la
+    configuracion declara la version de las reglas, debe ser la del codigo."""
+    st = cfg.raw["stop14"] or {}
+    manual = {k: st.get(k) for k in ("confirmacion_anual", "sensibilidad_rolls_huecos") if st.get(k)}
+    if manual:
+        raise TDA14ConfigError(f"STOP-14: no se aceptan comprobaciones manuales en la configuracion ({sorted(manual)}); se calculan con las reglas A y B")
+    if st.get("reglas_version") not in (None, stop14_rules.RULES_VERSION):
+        raise TDA14ConfigError(f"STOP-14: la configuracion declara las reglas {st.get('reglas_version')!r}; el codigo aplica {stop14_rules.RULES_VERSION!r}")
 
 
 def run_analysis(inputs: TDA14Inputs, cfg: TDA14Config, thresholds: t14.FrozenThresholds | None = None,
@@ -860,12 +870,17 @@ def run_analysis(inputs: TDA14Inputs, cfg: TDA14Config, thresholds: t14.FrozenTh
     t0 = time.perf_counter()
     rec = reconcile(inputs.panel, annual, inputs.segment_by_column, inherited_dir, inputs.year_check, inputs.year_ny_by_cell)
     timer["reconciliacion"] = time.perf_counter() - t0
-    annual_checks, sens_checks = _explicit_checks(cfg, "confirmacion_anual"), _explicit_checks(cfg, "sensibilidad_rolls_huecos")
+    reject_manual_stop14_checks(cfg)
+    checks = None
     if thresholds is None:
         dec, status = None, STATUS_NO_CALIBRATION
         stop = {"alcance": STATUS_NO_CALIBRATION, "definitivo": False}
     else:
-        dec = t14.final_decisions(ps, thresholds, validation, annual_checks, sens_checks)
+        # Reglas A y B ejecutadas sobre ESTE analisis (mismos umbrales congelados): unica fuente de las comprobaciones.
+        t0 = time.perf_counter()
+        checks = stop14_rules.compute_stop14_checks(inputs.panel, ps, annual, thresholds)
+        timer["stop14_reglas_A_B"] = time.perf_counter() - t0
+        dec = t14.final_decisions(ps, thresholds, validation, checks.annual, checks.sensitivity)
         status, stop = dec["estado"], dec["stop14"]
     dates = dates_table(dec, inputs.panel)
     published = bool(dec and dec["fechas"])
@@ -880,10 +895,13 @@ def run_analysis(inputs: TDA14Inputs, cfg: TDA14Config, thresholds: t14.FrozenTh
         crit = acceptance_criteria_table(build_manifest(cfg))
     except TDA14ConfigError as exc:
         crit = pd.DataFrame([{"control": "-", "estado": f"MANIFIESTO_NO_CONSTRUIBLE: {exc}"}])
-    trace = traceability_table(cfg, spec, thresholds, validation, inputs, extra_trace)
+    checks_status = f"EJECUTADAS ({stop14_rules.RULES_VERSION})" if checks is not None else "NO_EJECUTADAS_SIN_UMBRALES"
+    trace = traceability_table(cfg, spec, thresholds, validation, inputs, {**(extra_trace or {}), "stop14_comprobaciones": checks_status,
+                                                                          "stop14_jornadas_excluidas_sensibilidad": checks.excluded if checks else {}})
     return TDA14Result(ps, annual, kurtosis_evaluability_by_block(annual), ys, win, t14.volume_descriptive(ps), rec, dec, th29_table(dec),
                        statistic_verdicts_table(dec), dates, events, clock_window_coverage(inputs.panel, cfg.raw["eventos"]), th30, th30s,
-                       stop, stop14_table(dec), g2, g2s, crit, trace, status, inputs.year_check, timer)
+                       stop, stop14_table(dec), g2, g2s, crit, trace, status, inputs.year_check, timer,
+                       checks.annual_evidence if checks else pd.DataFrame(), checks.sensitivity_evidence if checks else pd.DataFrame(), checks_status)
 
 
 def file_sha256(path: Path | str) -> str:
