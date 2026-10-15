@@ -561,3 +561,84 @@ def test_analysis_rejects_thresholds_from_another_detector(calibration, cfg, tmp
     raw["protocolo"]["detector"]["max_lag"] = 12
     with pytest.raises(pl.TDA14ConfigError, match="detector distinto"):
         pl.run_analysis(synthetic_inputs(), replace(cfg, raw=raw), calibration.thresholds, calibration.validation, inherited_dir=tmp_path)
+
+
+# ===========================================================================
+# Cierre: lineas del generador dependientes de la calibracion y enmienda del informe sin recalcular
+# ===========================================================================
+
+def _closure(tmp_path: Path, original: str = "0" * 64, closed: str = "1" * 64) -> dict:
+    p = tmp_path / "cierre.yaml"
+    p.write_text(yaml.safe_dump({"informe": {"sha256_original": original, "sha256_cerrado": closed}, "estado": "CERRADA",
+                                 "detalle": "prueba", "auditoria": "auditoria sintetica", "conclusiones_validas": ["conclusion A"],
+                                 "restricciones_heredadas": ["restriccion B"]}, allow_unicode=True), encoding="utf-8")
+    return run_tda14.load_closure(p)
+
+
+def test_report_lines_follow_calibration_and_protocol(calibration, cfg, tmp_path):
+    no_thr = run_tda14.render_report(pl.run_analysis(synthetic_inputs(), cfg, inherited_dir=tmp_path), cfg, 1.0, "test")
+    assert run_tda14.LEGACY_SCOPE_LINE in no_thr and run_tda14.LEGACY_POWER_LINE not in no_thr
+    res = pl.run_analysis(synthetic_inputs(), cfg, calibration.thresholds, calibration.validation, inherited_dir=tmp_path)
+    text = run_tda14.render_report(res, cfg, 1.0, "test")
+    assert run_tda14.LEGACY_SCOPE_LINE not in text and run_tda14.thresholds_scope_line(True) in text
+    without = [f for f in t14.DETECTOR_FAMILIES if f != t14.FAM_SCALE]       # la configuracion sintetica solo tiene potencia de ESCALA
+    assert f"Familias sin controles de potencia en el protocolo: {', '.join(without)}." in text
+    real = pl.load_tda14_config(REAL_CONFIG)
+    assert "Familias sin controles de potencia en el protocolo: DEPENDENCIA_MAGNITUD." in run_tda14.power_limitation_line(real)
+    assert run_tda14.CLOSURE_HEADING not in text                             # sin archivo de cierre, nada de cierre
+
+
+def test_amend_report_changes_only_the_two_lines_and_adds_closure(calibration, cfg, tmp_path):
+    res = pl.run_analysis(synthetic_inputs(), cfg, calibration.thresholds, calibration.validation, inherited_dir=tmp_path)
+    current = run_tda14.render_report(res, cfg, 1.0, "test")
+    legacy = current.replace(run_tda14.thresholds_scope_line(True), run_tda14.LEGACY_SCOPE_LINE).replace(
+        run_tda14.power_limitation_line(cfg), run_tda14.LEGACY_POWER_LINE)              # lo que escribia el generador anterior
+    probe = _closure(tmp_path)
+    expected = current + run_tda14.closure_section(probe)
+    assert run_tda14.amended_report_text(legacy, cfg, probe) == expected
+    assert run_tda14.render_report(res, cfg, 1.0, "test", probe).endswith(run_tda14.closure_section(probe))
+    report = tmp_path / "informe.md"
+    report.write_text(legacy, encoding="utf-8")                              # CRLF en Windows: el formato se conserva
+    raw = report.read_bytes()
+    nl = "\r\n" if b"\r\n" in raw else "\n"
+    closed = expected.replace("\n", nl).encode("utf-8")
+    sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+    with pytest.raises(RuntimeError, match="no coincide"):                   # cerrado mal declarado: no escribe
+        run_tda14.amend_report(report, cfg, {**probe, "informe": {"sha256_original": sha(raw), "sha256_cerrado": "f" * 64}})
+    assert report.read_bytes() == raw
+    closure = {**probe, "informe": {"sha256_original": sha(raw), "sha256_cerrado": sha(closed)}}
+    assert run_tda14.amend_report(report, cfg, closure) is True and report.read_bytes() == closed
+    assert run_tda14.amend_report(report, cfg, closure) is False and report.read_bytes() == closed   # idempotente
+    report.write_bytes(raw + b" ")
+    with pytest.raises(RuntimeError, match="ni el original ni el cerrado"):
+        run_tda14.amend_report(report, cfg, closure)
+    assert report.read_bytes() == raw + b" "
+    with pytest.raises(ValueError, match="exactamente una vez"):
+        run_tda14.amended_report_text(current, cfg, probe)                  # sin lineas antiguas: no hay nada que enmendar
+
+
+def test_amend_cli_reads_no_data_and_requires_closure(calibration, cfg, tmp_path, monkeypatch):
+    monkeypatch.setattr(pl, "load_tda14_inputs", lambda *_: (_ for _ in ()).throw(AssertionError("no debe leer datos")))
+    monkeypatch.setattr(pl, "run_analysis", lambda *_, **__: (_ for _ in ()).throw(AssertionError("no debe analizar")))
+    with pytest.raises(SystemExit):
+        run_tda14.main(["enmendar-informe", "--salida", str(tmp_path)])
+    p = tmp_path / "cierre.yaml"
+    p.write_text(yaml.safe_dump({"estado": "CERRADA", "informe": {"sha256_original": "0" * 64, "sha256_cerrado": "1" * 64}}), encoding="utf-8")
+    (tmp_path / cfg.artifacts["informe"]).write_text("otro informe", encoding="utf-8")
+    assert run_tda14.main(["enmendar-informe", "--closure", str(p), "--salida", str(tmp_path)]) == 2
+    assert (tmp_path / cfg.artifacts["informe"]).read_text(encoding="utf-8") == "otro informe"
+
+
+def test_real_closure_file_is_documental_and_complete():
+    closure = run_tda14.load_closure(REAL_CONFIG.parent / "tda14_cierre.yaml")
+    assert closure["estado"] == "CERRADA TRAS AUDITORÍA"
+    h = closure["informe"]
+    assert all(len(h[k]) == 64 and h[k] != "PENDIENTE" for k in ("sha256_original", "sha256_cerrado")) and h["sha256_original"] != h["sha256_cerrado"]
+    for key, _ in run_tda14.CLOSURE_SECTIONS:
+        assert closure.get(key), key
+    text = " ".join(str(x) for k, _ in run_tda14.CLOSURE_SECTIONS for x in closure[k])
+    for needle in ("PARCIAL", "RELOJ", "S1", "ruptura estructural", "tipos", "DEPENDENCIA_MAGNITUD", "holdout",
+                   "350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522", "9e7a891127fecb6e166f32b2169fd8b4075f1e87b93b2634300510b906a8fa5e"):
+        assert needle in text, needle
+    assert not ({"protocolo", "analisis", "calibracion", "umbrales"} & set(closure))          # no lleva parametros estadisticos
+    assert pl.load_tda14_config(REAL_CONFIG).raw["analisis"]["autorizado_mnq"] is False

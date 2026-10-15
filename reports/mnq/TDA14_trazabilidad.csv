@@ -1,0 +1,73 @@
+parametro,valor,origen
+configuracion_tda14,C:\Users\heguu\Desktop\ohlcv_dataroad_TDAs\TDA14_analisis_MNQ\config\tda14_analisis_MNQ.yaml,archivo
+configuracion_tda14_sha256,a6e92b7749ea518b1341d8e8bae3c05b35646ae3b1da76da260ca0ee12d30a09,archivo
+protocolo_estado,CONGELADO,configuracion
+modulo_tda14_sha256,41330b4fdacd384dac0cc7b1e20f17c55b03862fc295f2a40fededfcf15bfd56,codigo
+modulo_pipeline_sha256,9a580735a3ae463791edcacd1aa047777a70d980d23e585c5dbabcd6d613f630,codigo
+detector_sha256,c074ddb428bf7b0e6ee21e1857faf903810bf261a47e228646229f3a509b70d6,configuracion
+fuente_datos,TDA-04,carga
+jornadas_panel,1414,carga
+anio_jornada_coincide_con_anio_ny,True,carga
+objetivo_calibracion_g2,0.025,codigo
+tasa_a_demostrar_g2,0.05,codigo
+confianza_g2,0.95,codigo
+capacidad_minima_tipo_provisional,0.5,codigo
+bloques_bootstrap,"[1, 5, 20]",codigo
+n_boot,300,configuracion
+semilla,0,configuracion
+detector.batch_sessions,7,configuracion
+detector.window_batches,9,configuracion
+detector.step_batches,3,configuracion
+detector.min_side_windows,4,configuracion
+detector.min_evaluable_windows,16,configuracion
+detector.min_session_bar_fraction,0.9,configuracion
+detector.min_window_complete_fraction,0.9047619047619048,configuracion
+detector.min_window_bar_fraction,0.9,configuracion
+detector.min_tail_support,20,configuracion
+detector.min_profile_bin_bars,200,configuracion
+detector.max_lag,60,configuracion
+detector.profile_bin_minutes,30,configuracion
+detector.min_batches_for_se,3,configuracion
+materialidad.media_en_sigma,0.01,codigo (convencion documentada)
+materialidad.log_sigma,0.22314355131420976,codigo (convencion documentada)
+materialidad.log_q01_en_sigma,0.09531017980432493,codigo (convencion documentada)
+materialidad.log_q99_en_sigma,0.09531017980432493,codigo (convencion documentada)
+materialidad.rho1,0.03,codigo (convencion documentada)
+materialidad.persistencia_acf_abs,0.05,codigo (convencion documentada)
+materialidad.log_amplitud_perfil,0.22314355131420976,codigo (convencion documentada)
+materialidad.correlacion_perfil,0.1,codigo (convencion documentada)
+materialidad.log_fraccion_cero,0.22314355131420976,codigo (convencion documentada)
+umbrales_sha256,9e7a891127fecb6e166f32b2169fd8b4075f1e87b93b2634300510b906a8fa5e,calibracion
+alpha,0.005,calibracion
+k_star,2,calibracion
+margen_tipo,0.0,calibracion
+c_fecha.media_en_sigma,4.128806980908034,calibracion
+c_fecha.log_sigma,14.930220554713653,calibracion
+c_fecha.log_q01_en_sigma,7.523221888778739,calibracion
+c_fecha.log_q99_en_sigma,7.497884576359599,calibracion
+c_fecha.rho1,4.761838771461279,calibracion
+c_fecha.persistencia_acf_abs,11.99725116257439,calibracion
+c_fecha.log_amplitud_perfil,4.484574743879058,calibracion
+c_fecha.correlacion_perfil,1.933219099275048,calibracion
+c_fecha.log_fraccion_cero,15.560370602872133,calibracion
+c_veredicto.media_en_sigma,2.23924637475558,calibracion
+c_veredicto.log_sigma,226.81570295420266,calibracion
+c_veredicto.log_q01_en_sigma,5.264768044412232,calibracion
+c_veredicto.log_q99_en_sigma,5.378395683053153,calibracion
+c_veredicto.rho1,2.8010160682662284,calibracion
+c_veredicto.persistencia_acf_abs,15.847335619312584,calibracion
+c_veredicto.log_amplitud_perfil,2.618202599599781,calibracion
+c_veredicto.correlacion_perfil,0.364762080043567,calibracion
+c_veredicto.log_fraccion_cero,221.2729001389975,calibracion
+calibracion.abstencion_tipo_calibracion,,calibracion
+calibracion.capacidad_tipo_calibracion,,calibracion
+calibracion.confusion_tipo_calibracion,,calibracion
+calibracion.especificaciones_calibracion,"028c16f9df7bf03e8da4e3c684a51a53af983ab041ff2b9c4f12868a3516b0f3,0fd41255ae8c35bb18100c1301d8247256814fe5b534e02e91a7683697a97c00,384944fc798772b55ca7886c1859767916bb8f2342a0fccfb33fcce7522ad1cb,e1ceaf4dd90654b09057f18e3c01416aba6c9dc1761e6c49ad1ae39e87c59f32",calibracion
+calibracion.manifiesto_sha256,350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522,calibracion
+calibracion.n_mundos_calibracion,4000,calibracion
+calibracion.n_mundos_tipo,400,calibracion
+calibracion.objetivo_calibracion,0.025,calibracion
+calibracion.tasa_global_calibracion,0.017,calibracion
+manifiesto_validacion_sha256,350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522,validacion
+stop14_comprobaciones,EJECUTADAS (STOP14_REGLAS_A_B_v1),ejecucion
+stop14_jornadas_excluidas_sensibilidad,"{""S1_rolls"": 84, ""S2_huecos"": 10, ""S3_rejilla_alineada"": 57}",ejecucion

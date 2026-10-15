@@ -1,0 +1,729 @@
+{
+ "huellas_especificaciones": {
+  "DETECTOR": "c074ddb428bf7b0e6ee21e1857faf903810bf261a47e228646229f3a509b70d6",
+  "NEGATIVO:NEGATIVO_ESTACIONAL": "0fd41255ae8c35bb18100c1301d8247256814fe5b534e02e91a7683697a97c00",
+  "NEGATIVO:NEGATIVO_ESTACIONARIO": "028c16f9df7bf03e8da4e3c684a51a53af983ab041ff2b9c4f12868a3516b0f3",
+  "NEGATIVO:NEGATIVO_PERSISTENCIA_ALTA": "e1ceaf4dd90654b09057f18e3c01416aba6c9dc1761e6c49ad1ae39e87c59f32",
+  "NEGATIVO:NEGATIVO_PERSISTENCIA_BAJA": "384944fc798772b55ca7886c1859767916bb8f2342a0fccfb33fcce7522ad1cb",
+  "PARCIAL": "ee89ecf27db398cd983f61013438f508a41e7bf72c53d266ce211afebdd180c5",
+  "POTENCIA:DEPENDENCIA_LINEAL:DOBLE": "909d9defdffeaba4997216bce87b981044355ccf32c69e53d874bf8dcd1f3707",
+  "POTENCIA:DEPENDENCIA_LINEAL:MATERIALIDAD": "5acde85961cbce5a7740e2b34cff588e76619d352f633537c1e0cd1eeadd95c3",
+  "POTENCIA:DISCRECION:DOBLE": "8acec82edc9b2377d7905100dcd931508d209d7a78f30446eecb70aa81d6ccdb",
+  "POTENCIA:DISCRECION:MATERIALIDAD": "519fff50d6377167b1755673ca38e46119e0791c53e500493a5dc41701fbba6c",
+  "POTENCIA:ESCALA:DOBLE": "34768d3aeffc882953510b1cddb6ed96de897d9f24ae3c9c3f918856ea0c9893",
+  "POTENCIA:ESCALA:MATERIALIDAD": "a7f29fb51c983aaf0341325be6b219b6c3e5062725b8db5bde35d9496fbc2061",
+  "POTENCIA:FORMA:DOBLE": "4e0a1385efacb52d7e23bb3804b9830095c657173154d15225ca0739c27217f9",
+  "POTENCIA:FORMA:MATERIALIDAD": "70b9f0095e6051fbf76d3e0d38426c59425b31a7369c608503a56d3a8dd5693e",
+  "POTENCIA:NIVEL:DOBLE": "9e7cf410fb8803d2355f75b02acb018c55fffc6e71a7379429044d4d46bfe8ea",
+  "POTENCIA:NIVEL:MATERIALIDAD": "cdc97f6aa201a2d93f46ad49b39c7931a2900107cf444c63ea76d55cd89f0780",
+  "POTENCIA:RELOJ:DOBLE": "7d7b3676f3034ba270d549eeed36486dac87490895fbf0c4bd5ce991f94f1923",
+  "POTENCIA:RELOJ:MATERIALIDAD": "90bd9e13852aac706d609148fc541051396fa71533fb445631698b25ae2372b2",
+  "TIPO:BORDE:ESCALA:TIPO_BORDE_ESCALA": "8d25a4df3af1a735b81ae43bd7185525c9c7d1090d85f143f0aea3f1ba025397",
+  "TIPO:EPISODIO:ESCALA:TIPO_EPISODIO_ESCALA": "827223908d781a3b73172eb063c2952b50af7ca3f13f8a85916aeac6e31bd029",
+  "TIPO:SALTO:ESCALA:TIPO_SALTO_ESCALA": "05d841930deb491e19137549b0004e51eedacbf3bf1f53f7cdeec8311d5f2d5b",
+  "TIPO:TENDENCIA:ESCALA:TIPO_TENDENCIA_ESCALA": "399b8d4b74c9ea214e994da2dfb69b8c8c923aa7f8c047457d4752595ea8bb2b"
+ },
+ "manifiesto": {
+  "detector_spec": {
+   "batch_sessions": 7,
+   "max_lag": 60,
+   "min_batches_for_se": 3,
+   "min_evaluable_windows": 16,
+   "min_profile_bin_bars": 200,
+   "min_session_bar_fraction": 0.9,
+   "min_side_windows": 4,
+   "min_tail_support": 20,
+   "min_window_bar_fraction": 0.9,
+   "min_window_complete_fraction": 0.9047619047619048,
+   "profile_bin_minutes": 30,
+   "step_batches": 3,
+   "window_batches": 9
+  },
+  "min_negative_replicates": 1000,
+  "min_partial_replicates": 1000,
+  "min_power_replicates": 100,
+  "min_type_replicates": 100,
+  "negative_specs": [
+   [
+    "NEGATIVO_ESTACIONARIO",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "NEGATIVO_ESTACIONARIO",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "NEGATIVO_ESTACIONAL",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "NEGATIVO_ESTACIONAL",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.08696965218138204,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "NEGATIVO_PERSISTENCIA_BAJA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.00025267668168573213,
+     "changes": [],
+     "daily_phi": 0.97,
+     "daily_sd": 0.10066178859803404,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.041085511796106644,
+     "label": "NEGATIVO_PERSISTENCIA_BAJA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "NEGATIVO_PERSISTENCIA_ALTA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002499080826941017,
+     "changes": [],
+     "daily_phi": 0.999,
+     "daily_sd": 0.01824233481887124,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04488237572595356,
+     "label": "NEGATIVO_PERSISTENCIA_ALTA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ]
+  ],
+  "partial_spec": {
+   "active_minutes": 1380,
+   "base_price": 14338.98958683328,
+   "base_sigma": 0.0002506694642181186,
+   "changes": [
+    {
+     "end": 1.0,
+     "family": "ESCALA",
+     "magnitude": 2.0,
+     "shape": "SALTO",
+     "start": 0.5
+    }
+   ],
+   "daily_phi": 0.9908210479904934,
+   "daily_sd": 0.05538240601092918,
+   "drift_sigma": 0.0,
+   "gap_probability": 0.3104667609618105,
+   "intra_phi": 0.99,
+   "intra_sd": 0.04383403802127328,
+   "label": "PARCIAL_ESCALA",
+   "ma_theta": 0.0,
+   "n_sessions": 1414,
+   "profile_amplitude": 2.030168245214581,
+   "roll_every": 63,
+   "seasonal_amplitude": 0.0,
+   "seasonal_period": 252,
+   "t_df": 4.793948942601486,
+   "tick": 0.25,
+   "width": 1440
+  },
+  "power_specs": [
+   [
+    "ESCALA",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "ESCALA",
+       "magnitude": 1.5,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_ESCALA_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "ESCALA",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "ESCALA",
+       "magnitude": 2.0,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_ESCALA_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "NIVEL",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "NIVEL",
+       "magnitude": 0.013446392980406915,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_NIVEL_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "NIVEL",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "NIVEL",
+       "magnitude": 0.02689454648351572,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_NIVEL_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "FORMA",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "FORMA",
+       "magnitude": 2.821374640992958,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_FORMA_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "FORMA",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "FORMA",
+       "magnitude": 2.482874529773093,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_FORMA_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "DEPENDENCIA_LINEAL",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "DEPENDENCIA_LINEAL",
+       "magnitude": 0.030203905915446975,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_LINEAL_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "DEPENDENCIA_LINEAL",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "DEPENDENCIA_LINEAL",
+       "magnitude": 0.06050153849054227,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_LINEAL_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "RELOJ",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "RELOJ",
+       "magnitude": 1.5112414716154892,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_RELOJ_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "RELOJ",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "RELOJ",
+       "magnitude": 2.4009348794300465,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_RELOJ_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "DISCRECION",
+    "MATERIALIDAD",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "DISCRECION",
+       "magnitude": 1.2514706509291806,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_DISCRECION_MAT",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "DISCRECION",
+    "DOBLE",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "DISCRECION",
+       "magnitude": 1.5653151719203315,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "POT_DISCRECION_DOBLE",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ]
+  ],
+  "stress_specs": [],
+  "type_specs": [
+   [
+    "SALTO",
+    "ESCALA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "ESCALA",
+       "magnitude": 2.0,
+       "shape": "SALTO",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "TIPO_SALTO_ESCALA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "TENDENCIA",
+    "ESCALA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "ESCALA",
+       "magnitude": 2.0,
+       "shape": "TENDENCIA",
+       "start": 0.5
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "TIPO_TENDENCIA_ESCALA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "EPISODIO",
+    "ESCALA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 0.65,
+       "family": "ESCALA",
+       "magnitude": 2.0,
+       "shape": "EPISODIO",
+       "start": 0.35
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "TIPO_EPISODIO_ESCALA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ],
+   [
+    "BORDE",
+    "ESCALA",
+    {
+     "active_minutes": 1380,
+     "base_price": 14338.98958683328,
+     "base_sigma": 0.0002506694642181186,
+     "changes": [
+      {
+       "end": 1.0,
+       "family": "ESCALA",
+       "magnitude": 2.0,
+       "shape": "SALTO",
+       "start": 0.93
+      }
+     ],
+     "daily_phi": 0.9908210479904934,
+     "daily_sd": 0.05538240601092918,
+     "drift_sigma": 0.0,
+     "gap_probability": 0.3104667609618105,
+     "intra_phi": 0.99,
+     "intra_sd": 0.04383403802127328,
+     "label": "TIPO_BORDE_ESCALA",
+     "ma_theta": 0.0,
+     "n_sessions": 1414,
+     "profile_amplitude": 2.030168245214581,
+     "roll_every": 63,
+     "seasonal_amplitude": 0.0,
+     "seasonal_period": 252,
+     "t_df": 4.793948942601486,
+     "tick": 0.25,
+     "width": 1440
+    }
+   ]
+  ]
+ },
+ "sha256": "350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522"
+}

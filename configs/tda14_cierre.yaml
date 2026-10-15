@@ -1,0 +1,69 @@
+# Archivo de cierre de TDA-14. ENTRADA DOCUMENTAL del generador del informe
+# (`run_tda14.py`): estado de la etapa, alcance de la validacion G2,
+# conclusiones, restricciones heredadas e incidencias de la ejecucion cuyos
+# resultados quedan registrados en `reports/mnq/TDA14_*`.
+#
+# No contiene ni modifica ningun parametro estadistico, umbral ni veredicto.
+# Se usa asi, sin repetir ningun calculo (corrige las dos lineas desactualizadas
+# del generador y anade la seccion 13 del informe):
+#
+#   python -m ohlcv_dataroad.ingest.run_tda14 enmendar-informe --closure configs/tda14_cierre.yaml
+#
+# `informe`: SHA-256 del informe COMPLETO antes y despues de la enmienda. La
+# orden solo acepta el informe original exacto (lo enmienda y comprueba que
+# obtiene exactamente el cerrado) o el cerrado exacto (no hace nada). Cualquier
+# otro contenido se rechaza sin escribir. Estos dos valores no forman parte del
+# texto del informe.
+informe:
+  sha256_original: "83093b6f7591b16e4058cfabb4c85419ed97472a03c86f5aacb56a8349f19431"
+  sha256_cerrado: "d2a21857bace527ed20d92eaced6078803accc6debc6a64b9e12a339fc3b0a1d"
+estado: "CERRADA TRAS AUDITORÍA"
+detalle: "auditoría de resultados favorable; resultados exploratorios y retrospectivos, no confirmados en el holdout"
+auditoria: >-
+  Auditoría de los resultados de TDA-14 (15 de octubre de 2026): FAVORABLE.
+  Se aprueban G2 reproducible con validación parcial; NIVEL, FORMA y
+  DEPENDENCIA_LINEAL estables bajo los criterios validados; RELOJ inestable
+  sin tipo identificado; ESCALA, DISCRECION y DEPENDENCIA_MAGNITUD no
+  evaluables por falta de potencia validada; ninguna fecha de cambio conjunto
+  (TH31); retornos relativamente más estables que precios sin demostrar
+  estacionariedad (TH30); `STOP-14` no activado según el protocolo congelado;
+  reconciliación con TDA-05 a TDA-13 sin discrepancias inexplicadas; holdout
+  cerrado. El cierre no modifica metodología, parámetros, umbrales ni
+  veredictos, y no autoriza TDA-15.
+validacion_g2:
+  - "Validación PARCIAL y reproducible: dos calibraciones independientes de 11.000 mundos sintéticos (4.000 + 400 de calibración, 6.600 de validación) idénticas byte a byte. Umbrales `9e7a891127fecb6e166f32b2169fd8b4075f1e87b93b2634300510b906a8fa5e`; manifiesto `350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522`."
+  - "Superados: error global de falsas alarmas (peor control: 28 de 1.000, máximo aceptable 34), fechas, alcance de STOP-14, falsas alarmas de las 7 familias y control parcial; potencia de NIVEL, FORMA, DEPENDENCIA_LINEAL y RELOJ."
+  - "No superados: potencia de ESCALA (0/100 a la materialidad, 1/100 al doble) y de DISCRECION (0/100 y 0/100); DEPENDENCIA_MAGNITUD sin controles de potencia por diseño del protocolo; identificación de tipos (1 detección entre 400 controles, todos de escala)."
+conclusiones_validas:
+  - "NIVEL, FORMA y DEPENDENCIA_LINEAL: ESTABLES bajo los criterios validados (FORMA y DEPENDENCIA_LINEAL con variación estadística por debajo de la materialidad)."
+  - "RELOJ: INESTABLE, sin tipo identificado: cambio material de la amplitud del perfil intradía, sin patrón y no robusto al doble de materialidad."
+  - "TH31: ninguna fecha de cambio conjunto publicada; ninguna frontera fue marcada por k* = 2 familias (procedimiento de fechas validado)."
+  - "TH30: dentro de cada contrato, los momentos de los retornos son relativamente más estables que los del log-precio; no se demuestra estacionariedad."
+  - "STOP-14: NO_ACTIVADO, decisión definitiva según el protocolo congelado y las reglas A y B ejecutadas automáticamente (`STOP14_REGLAS_A_B_v1`)."
+  - "Reconciliación con TDA-05 a TDA-13: 0 discrepancias no explicadas (101 reproducibles, 25 diferencias explicadas y verificadas, 33 explicadas, 6 no comparables)."
+inconclusos:
+  - "ESCALA, DISCRECION y DEPENDENCIA_MAGNITUD: NO_EVALUABLE por falta de potencia validada; no puede afirmarse ni su estabilidad ni un cambio estructural."
+  - "Tipo del cambio de RELOJ (salto, tendencia, episodio o borde): la identificación de tipos no está validada."
+  - "Curtosis anual: no evaluable (semiamplitud relativa > 25 % en todos los años)."
+  - "Relación con los eventos institucionales: sin fechas publicadas no hay comparación; no se atribuye causalidad."
+observaciones:
+  - "Inestabilidad de RELOJ: `log_amplitud_perfil` recorre 0,32 (materialidad 0,22); la amplitud del perfil intradía crece de 2020 a 2023 y baja algo en 2024-2025; `correlacion_perfil` sin cambio material. S2 y S3 mantienen la inestabilidad. No es candidata a STOP-14 porque no supera el doble de la materialidad."
+  - "Variación anual de la volatilidad: la sigma por minuto de 2020 y 2022 es casi el doble que la de 2021, 2023 y 2024, con intervalos anuales disjuntos; la regla A registra cambio anual en ESCALA y DISCRECION. NO se afirma una ruptura estructural: sin potencia validada, TDA-14 no distingue un cambio estructural de la deriva natural de una volatilidad muy persistente."
+  - "Tipos de cambio: no identificables. La columna `modelo` de `TDA14_th29_veredictos_estadistico.csv` describe el mejor ajuste y no es un tipo validado; los veredictos por estadístico de las familias sin potencia (`ESTABLE`) no son conclusiones: manda el veredicto de la familia (`NO_EVALUABLE`)."
+  - "Sensibilidad S1 (sin rolls): no evaluable para ninguna familia (falta de ventanas evaluables). Sin efecto en este resultado, porque no hubo familias candidatas; si las hubiera, la regla B dependería solo de S2 y S3."
+restricciones_heredadas:
+  - "STOP-14 no activado: TDA-14 no obliga a ejecutar TDA-15 o TDA-16 por subperíodos. TDA-15 no está autorizada por este cierre."
+  - "No suponer una volatilidad constante en 2020-2025: la variación anual de la sigma es evidente aunque no sea evaluable como ruptura."
+  - "No suponer un perfil intradía de amplitud constante en toda la muestra."
+  - "Las propiedades normalizadas por sigma (media, forma de las colas, autocorrelación de primer orden) son estables: respaldan trabajar con retornos estandarizados por una volatilidad variable."
+  - "Ninguna etapa posterior puede citar TDA-14 como prueba de estabilidad de ESCALA, DISCRECION o DEPENDENCIA_MAGNITUD, de una ruptura estructural de la volatilidad ni de un tipo de cambio concreto."
+  - "Si una etapa reutiliza la regla B de STOP-14, debe tener en cuenta que S1 no es evaluable sobre el MNQ."
+  - "Resultados exploratorios y retrospectivos sobre el conjunto de investigación (hasta el 20-06-2025); no confirmados en el holdout, que permanece cerrado."
+ejecucion:
+  - "Protocolo congelado en el commit `cf4b6ccebb77f0d8903a4ed24efbe0e4f9464081`; `configs/tda14.yaml` sin cambios (SHA-256 `32dfee31eeff14706794b615778200129736e23dae22883c8108a2e1c5c31398`, `autorizado_mnq: false`)."
+  - "El análisis usó una copia temporal de la configuración fuera del repositorio (SHA-256 `a6e92b7749ea518b1341d8e8bae3c05b35646ae3b1da76da260ca0ee12d30a09`) que cambia solo `analisis.autorizado_mnq` (true) y las rutas de los artefactos G2; mismo manifiesto."
+  - "Dos ejecuciones del análisis idénticas byte a byte en todas las tablas, gráficos y evidencias de STOP-14 (el informe generado solo difería en la fecha, la orden y los tiempos). Los artefactos de `reports/mnq/TDA14_*` son los de la primera; los siete artefactos G2 son copias idénticas de la primera calibración."
+  - "Guardias del holdout superadas antes y después de leer; última ventana analizada: 11-06-2025."
+incidencias:
+  - "Calibración G2, primer intento con 4 procesos (14-10-2026): detenido a los 90 s sin escribir artefactos, porque la memoria virtual libre bajó a 1,9 GB; se relanzó con 2 procesos (el resultado no depende del número de procesos)."
+  - "Calibración G2, ejecución 1: el sistema estuvo suspendido de 17:06 a 20:12 (14-10-2026, hora local); la duración registrada (21.681 s) incluye esa pausa. Sin efecto: resultados idénticos byte a byte a los de la ejecución 2 (10.865 s)."

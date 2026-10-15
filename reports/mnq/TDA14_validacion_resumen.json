@@ -1,0 +1,35 @@
+{
+ "dates_validated": true,
+ "families_validated": {
+  "DEPENDENCIA_LINEAL": true,
+  "DEPENDENCIA_MAGNITUD": true,
+  "DISCRECION": true,
+  "ESCALA": true,
+  "FORMA": true,
+  "NIVEL": true,
+  "RELOJ": true
+ },
+ "global_validated": true,
+ "manifest_sha256": "350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522",
+ "missing_controls": [],
+ "power_ok": {
+  "DEPENDENCIA_LINEAL": true,
+  "DEPENDENCIA_MAGNITUD": false,
+  "DISCRECION": false,
+  "ESCALA": false,
+  "FORMA": true,
+  "NIVEL": true,
+  "RELOJ": true
+ },
+ "stop14_scope_validated": true,
+ "tabla_archivo": "TDA14_validacion_g2.csv",
+ "tabla_sha256": "410e8f7faf5ba8ea3cdcdb71d59241a447f21e212b8a15bbb6f95d024e6dbe69",
+ "thresholds_sha256": "9e7a891127fecb6e166f32b2169fd8b4075f1e87b93b2634300510b906a8fa5e",
+ "types_validated": false,
+ "types_validated_by_type": {
+  "BORDE": false,
+  "EPISODIO": false,
+  "SALTO": false,
+  "TENDENCIA": false
+ }
+}

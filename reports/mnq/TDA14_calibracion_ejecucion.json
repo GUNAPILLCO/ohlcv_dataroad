@@ -1,0 +1,13 @@
+{
+ "configuracion_tda14_sha256": "32dfee31eeff14706794b615778200129736e23dae22883c8108a2e1c5c31398",
+ "estado_global": true,
+ "manifiesto_sha256": "350b4eac372c3532df81305e110cd245f43c99b7b5d9d11e6b48f51808ca9522",
+ "mundos": {
+  "calibracion": 4000,
+  "calibracion_tipos": 400,
+  "validacion": 6600
+ },
+ "procesos_efectivos": 2,
+ "segundos": 21681.115572299997,
+ "umbrales_sha256": "9e7a891127fecb6e166f32b2169fd8b4075f1e87b93b2634300510b906a8fa5e"
+}

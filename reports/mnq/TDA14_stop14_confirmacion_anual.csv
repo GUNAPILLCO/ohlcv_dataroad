@@ -1,0 +1,10 @@
+familia,estadistico,candidata_en_ventanas,evaluable,cambio_anual,direccion_anual,anios_evaluables,direccion_ventanas,clasificacion_estadistico,motivo_familia,resultado_familia
+NIVEL,media_en_sigma,False,True,False,-1.0,5,-1.0,SIN_CAMBIO,SIN_CAMBIO_ANUAL,False
+ESCALA,log_sigma,False,True,True,-1.0,5,-1.0,CONFIRMA,CONFIRMADA,True
+FORMA,log_q01_en_sigma,False,True,False,-1.0,5,-1.0,SIN_CAMBIO,SIN_CAMBIO_ANUAL,False
+FORMA,log_q99_en_sigma,False,True,False,-1.0,5,-1.0,SIN_CAMBIO,SIN_CAMBIO_ANUAL,False
+DEPENDENCIA_LINEAL,rho1,False,True,False,-1.0,5,-1.0,SIN_CAMBIO,SIN_CAMBIO_ANUAL,False
+DEPENDENCIA_MAGNITUD,persistencia_acf_abs,False,True,False,-1.0,5,1.0,SIN_CAMBIO,SIN_CAMBIO_ANUAL,False
+RELOJ,log_amplitud_perfil,True,True,True,1.0,5,1.0,CONFIRMA,CONFIRMADA,True
+RELOJ,correlacion_perfil,True,True,False,1.0,5,1.0,SIN_CAMBIO,CONFIRMADA,True
+DISCRECION,log_fraccion_cero,False,True,True,-1.0,5,-1.0,CONFIRMA,CONFIRMADA,True

@@ -4,6 +4,7 @@ Uso
 ---
     python -m ohlcv_dataroad.ingest.run_tda14 calibrar [--config-tda14 configs/tda14.yaml] [--workers N]
     python -m ohlcv_dataroad.ingest.run_tda14 analizar [--config configs/mnq_snapshot.yaml] [--config-tda14 configs/tda14.yaml]
+    python -m ohlcv_dataroad.ingest.run_tda14 enmendar-informe --closure configs/tda14_cierre.yaml [--salida reports/mnq]
 
 Como en TDA-00..13, este script no contiene logica estadistica propia: llama a ``tda14_pipeline`` (que compone el
 modulo auditado ``tda14_temporal_stability``) y persiste toda la evidencia, incluido el informe generado
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import sys
 import time
 from pathlib import Path
@@ -24,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
 
 from ohlcv_dataroad.config import SnapshotConfig, load_config
 from ohlcv_dataroad.ingest import tda14_pipeline as pl
@@ -109,7 +112,107 @@ def _md_table(df: pd.DataFrame, columns: list[str] | None = None, nd: int = 4, m
     return "\n".join(lines)
 
 
-def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, command: str) -> str:
+# ---------------------------------------------------------------------------
+# Lineas que dependen del estado de la calibracion y del protocolo, y seccion de cierre
+# ---------------------------------------------------------------------------
+# Texto que producian las versiones anteriores del generador (fijo, sin depender de los umbrales ni del protocolo). Se conserva
+# solo para que `enmendar-informe` pueda localizarlo en un informe ya generado y sustituirlo por el texto actual.
+LEGACY_SCOPE_LINE = "- Sin umbrales calibrados y validados no hay veredictos oficiales ni fechas: las tablas son descriptivas (`NO VALIDADO`)."
+LEGACY_POWER_LINE = "- Las magnitudes de potencia fuera de la escala no estan fijadas; sin ellas esas familias no pueden declararse ESTABLE."
+AMEND_COMMAND = "python -m ohlcv_dataroad.ingest.run_tda14 enmendar-informe --closure"
+CLOSURE_HEADING = "## 13. Estado de la etapa"
+CLOSURE_SECTIONS = (("validacion_g2", "Validacion G2"), ("conclusiones_validas", "Conclusiones con respaldo estadistico"),
+                    ("inconclusos", "Resultados inconclusos"), ("observaciones", "Observaciones que deben conservarse"),
+                    ("restricciones_heredadas", "Implicaciones y restricciones para las etapas siguientes"),
+                    ("ejecucion", "Ejecucion registrada"), ("incidencias", "Incidencias"))
+
+
+def thresholds_scope_line(has_thresholds: bool) -> str:
+    if not has_thresholds:
+        return LEGACY_SCOPE_LINE
+    return ("- Umbrales calibrados y validados en G2 (secciones 9 y 10): los veredictos y las fechas se publican solo en lo que esa "
+            "validacion permite; una familia sin potencia validada queda `NO_EVALUABLE` y un tipo no validado se informa como no identificado.")
+
+
+def power_limitation_line(cfg: pl.TDA14Config) -> str:
+    try:
+        with_controls = {f for f, _ in pl.build_manifest(cfg).required_power}
+    except pl.TDA14ConfigError:
+        return "- Controles de potencia: no determinables (protocolo con parametros pendientes); sin potencia validada ninguna familia puede declararse ESTABLE."
+    without = [f for f in t14.DETECTOR_FAMILIES if f not in with_controls]
+    return (f"- Familias sin controles de potencia en el protocolo: {', '.join(without) if without else 'ninguna'}. Una familia sin potencia "
+            "validada en G2 (sin controles, o con controles no superados) nunca se declara ESTABLE: queda `NO_EVALUABLE` (`POTENCIA_INSUFICIENTE`).")
+
+
+def load_closure(path: Path | str | None) -> dict | None:
+    """Archivo de cierre (YAML, opcional): `estado` obligatorio; `detalle`, `auditoria` y las listas de ``CLOSURE_SECTIONS``."""
+    if path is None:
+        return None
+    closure = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(closure, dict) or not str(closure.get("estado", "")).strip():
+        raise ValueError(f"archivo de cierre invalido (falta `estado`): {path}")
+    for key, _ in CLOSURE_SECTIONS:
+        if not isinstance(closure.get(key) or [], list):
+            raise ValueError(f"archivo de cierre invalido: `{key}` debe ser una lista")
+    closure["_source"] = Path(path).as_posix()
+    return closure
+
+
+def closure_section(closure: dict | None) -> str:
+    """Seccion final de estado. Sin archivo de cierre no se escribe nada (el informe queda como lo produce el analisis)."""
+    if closure is None:
+        return ""
+    out = ["", CLOSURE_HEADING, "", f"**TDA-14 = `{closure['estado']}`**" + (f" ({closure['detalle']})." if str(closure.get("detalle", "")).strip() else "."), ""]
+    if str(closure.get("auditoria", "")).strip():
+        out += [str(closure["auditoria"]).strip(), ""]
+    for key, title in CLOSURE_SECTIONS:
+        items = closure.get(key) or []
+        if items:
+            out += [f"**{title}.**", ""] + [f"- {str(x).strip()}" for x in items] + [""]
+    out += [f"Estado declarado en `{closure['_source']}`. Esta seccion y las dos lineas corregidas del generador (seccion 1 y seccion 12) "
+            f"se escribieron con `{AMEND_COMMAND} {closure['_source']}`, sin repetir ningun calculo: el resto del informe y los demas "
+            "artefactos son, sin cambios, los de la ejecucion original.", ""]
+    return "\n".join(out)
+
+
+def amended_report_text(text: str, cfg: pl.TDA14Config, closure: dict) -> str:
+    """Informe ya generado -> informe con las dos lineas del generador actual y la seccion de cierre (funcion pura). Exige que el
+    texto contenga exactamente una vez cada linea antigua y que no tenga ya una seccion de cierre."""
+    if CLOSURE_HEADING in text:
+        raise ValueError("el informe ya contiene una seccion de cierre")
+    for old in (LEGACY_SCOPE_LINE, LEGACY_POWER_LINE):
+        if text.count(old) != 1:
+            raise ValueError(f"el informe no contiene exactamente una vez la linea a corregir: {old[:60]}...")
+    has_thresholds = f"Estado de las decisiones: **{pl.STATUS_NO_CALIBRATION}**" not in text   # mismo criterio que `dec is not None`
+    new = text.replace(LEGACY_SCOPE_LINE, thresholds_scope_line(has_thresholds)).replace(LEGACY_POWER_LINE, power_limitation_line(cfg))
+    return new + closure_section(closure)
+
+
+def amend_report(report_path: Path, cfg: pl.TDA14Config, closure: dict) -> bool:
+    """Corrige las dos lineas y anade la seccion de cierre a un informe YA generado, sin recalcular nada ni tocar otro artefacto.
+    Integridad del informe completo por SHA-256 (`informe.sha256_original` y `informe.sha256_cerrado` del archivo de cierre): solo
+    acepta el original exacto (lo enmienda y comprueba que obtiene exactamente el cerrado) o el cerrado exacto (no hace nada)."""
+    declared = closure.get("informe") or {}
+    original, closed = declared.get("sha256_original"), declared.get("sha256_cerrado")
+    if not original or not closed or original == closed:
+        raise ValueError("el archivo de cierre debe declarar `informe.sha256_original` e `informe.sha256_cerrado` (distintos)")
+    raw = report_path.read_bytes()
+    found = hashlib.sha256(raw).hexdigest()
+    if found == closed:
+        return False
+    if found != original:
+        raise RuntimeError(f"el informe no es ni el original ni el cerrado registrados en el archivo de cierre (SHA-256 {found}): no se modifica")
+    text = raw.decode("utf-8")
+    crlf = "\r\n" in text                    # `write_text` en Windows escribe CRLF: se enmienda en LF y se conserva el formato del archivo
+    new_text = amended_report_text(text.replace("\r\n", "\n") if crlf else text, cfg, closure)
+    new_raw = (new_text.replace("\n", "\r\n") if crlf else new_text).encode("utf-8")
+    if hashlib.sha256(new_raw).hexdigest() != closed:
+        raise RuntimeError("el informe enmendado no coincide con el cerrado registrado en el archivo de cierre: no se modifica")
+    report_path.write_bytes(new_raw)
+    return True
+
+
+def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, command: str, closure: dict | None = None) -> str:
     a = cfg.artifacts
     dec = res.decisions
     rec_sum = pl.reconciliation_summary(res.reconciliation) if len(res.reconciliation) else pd.DataFrame()
@@ -127,7 +230,7 @@ def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, comm
         f"- Estado de las decisiones: **{res.status}**.",
         f"- Protocolo: **{cfg.protocol.get('estado')}**. Configuracion `{cfg.path}` (SHA-256 `{cfg.sha256[:16]}…`).",
         "- Analisis exploratorio y retrospectivo. Un cambio estadistico no identifica un regimen economico ni una causa.",
-        "- Sin umbrales calibrados y validados no hay veredictos oficiales ni fechas: las tablas son descriptivas (`NO VALIDADO`).",
+        thresholds_scope_line(dec is not None),
         "- El volumen (familia ACTIVIDAD) es descriptivo, no calibrado y sin veredicto oficial.",
         "- Hold-out: no abierto (guardias de TDA-04 antes y despues de leer).",
         "",
@@ -224,10 +327,10 @@ def render_report(res: pl.TDA14Result, cfg: pl.TDA14Config, elapsed: float, comm
         "- Las materialidades y la capacidad minima de tipos (50 %) son convenciones documentadas, no leyes estadisticas.",
         "- Con 100 replicas por tipo o nivel de potencia la incertidumbre es de unos +-8 puntos.",
         "- El error comun por lotes del detector ignora la persistencia; su escala absoluta no se interpreta (lo absorben los umbrales calibrados).",
-        "- Las magnitudes de potencia fuera de la escala no estan fijadas; sin ellas esas familias no pueden declararse ESTABLE.",
+        power_limitation_line(cfg),
         "",
     ]
-    return "\n".join(out)
+    return "\n".join(out) + closure_section(closure)
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +399,8 @@ def draw_counts(res: pl.TDA14Result, thr: t14.FrozenThresholds | None, path: Pat
     plt.close(fig)
 
 
-def persist_analysis(res: pl.TDA14Result, cfg: pl.TDA14Config, out_dir: Path, thr: t14.FrozenThresholds | None, elapsed: float, command: str) -> list[Path]:
+def persist_analysis(res: pl.TDA14Result, cfg: pl.TDA14Config, out_dir: Path, thr: t14.FrozenThresholds | None, elapsed: float, command: str,
+                     closure: dict | None = None) -> list[Path]:
     a = cfg.artifacts
     out_dir.mkdir(parents=True, exist_ok=True)
     tables = {"anual_csv": res.annual, "curtosis_csv": res.kurtosis, "anio_segmento_csv": res.year_segment, "ventanas_csv": res.windows,
@@ -319,7 +423,7 @@ def persist_analysis(res: pl.TDA14Result, cfg: pl.TDA14Config, out_dir: Path, th
         fn(p)
         paths.append(p)
     p = out_dir / a["informe"]
-    p.write_text(render_report(res, cfg, elapsed, command), encoding="utf-8")
+    p.write_text(render_report(res, cfg, elapsed, command, closure), encoding="utf-8")
     paths.append(p)
     return paths
 
@@ -330,7 +434,9 @@ def persist_analysis(res: pl.TDA14Result, cfg: pl.TDA14Config, out_dir: Path, th
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="TDA-14: estabilidad temporal (TH29, TH30, TH31; STOP-14).")
-    parser.add_argument("accion", choices=("calibrar", "analizar"))
+    parser.add_argument("accion", choices=("calibrar", "analizar", "enmendar-informe"),
+                        help="enmendar-informe NO ejecuta nada: corrige las lineas del generador y anade la seccion de cierre al informe existente")
+    parser.add_argument("--closure", default=None, help="archivo de cierre (YAML); obligatorio para enmendar-informe")
     parser.add_argument("--config", default="configs/mnq_snapshot.yaml")
     parser.add_argument("--config-tda14", default="configs/tda14.yaml")
     parser.add_argument("--workers", type=int, default=None, help="procesos pedidos (los limita la proteccion de memoria)")
@@ -339,6 +445,18 @@ def main(argv: list[str] | None = None) -> int:
     command = "python -m ohlcv_dataroad.ingest.run_tda14 " + " ".join(argv if argv is not None else sys.argv[1:])
     cfg = pl.load_tda14_config(args.config_tda14)
     t0 = time.perf_counter()
+    closure = load_closure(args.closure)
+    if args.accion == "enmendar-informe":
+        if closure is None:
+            parser.error("enmendar-informe requiere --closure")
+        report = (Path(args.salida) if args.salida else load_config(args.config).reports_dir) / cfg.artifacts["informe"]
+        try:
+            changed = amend_report(report, cfg, closure)
+        except (ValueError, RuntimeError) as exc:
+            print(f"TDA-14 enmendar-informe: FALLO\nMotivo: {exc}", file=sys.stderr)
+            return 2
+        print(f"TDA-14 enmendar-informe: {'informe enmendado' if changed else 'sin cambios (ya estaba cerrado)'} en {report}")
+        return 0
     try:
         if args.accion == "calibrar":
             out_dir = Path(args.salida) if args.salida else load_config(args.config).reports_dir
