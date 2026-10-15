@@ -1,0 +1,237 @@
+# Archivo de cierre de TDA-15 (No linealidad residual; TH32, TH33). REGISTRO DOCUMENTAL.
+#
+# TDA-15 se cierra mediante `STOP-15a` SIN EJECUTAR ningun analisis: no se leyeron datos
+# del MNQ, no se construyo ningun residuo, no se ejecuto BDS ni el F-test de Tsay y no se
+# genero ningun estadistico, tabla, grafico, simulacion ni metrica G2. Este archivo no
+# contiene ni modifica ningun parametro estadistico.
+#
+# Trazabilidad: cada evidencia declara el archivo de origen (`fuente`) y una cita LITERAL
+# (`cita`) que debe aparecer en el; `tests/test_tda15_cierre.py` lo comprueba, junto con la
+# concordancia entre este archivo y `reports/mnq/TDA15_no_linealidad_residual.md`.
+etapa: "TDA-15"
+titulo: "No linealidad residual"
+hipotesis: ["TH32", "TH33"]
+estado: "CERRADA METODOLÓGICAMENTE — STOP-15a ACTIVADO — ANÁLISIS NO EJECUTADO"
+decision: "STOP-15a: NO EJECUTAR"
+fecha_cierre: "2026-10-15"
+base_commit: "c4efa271c785ef4c10d1884cfecd5937125c6e1d"
+naturaleza: >-
+  Decisión metodológica de no ejecutar pruebas cuyas condiciones de entrada no se cumplen.
+  NO es un resultado empírico negativo sobre la existencia de no linealidad: no aporta
+  evidencia nueva ni a favor ni en contra.
+decisiones_diseno_iris: "NINGUNA"
+
+condiciones_entrada:
+  A_residuo_limpio:
+    estado: "NO CUMPLIDA"
+    resumen: >-
+      No existe un residuo estandarizado limpio, causal y auditado de media, volatilidad y
+      estacionalidad. Es la justificación de STOP-15a.
+    evidencias: [E01, E02, E03, E04, E05, E06, E07, E08, E09, E10, E11, E12, E13]
+  B_estabilidad_temporal:
+    estado: "CUMPLIDA FORMALMENTE, CON LIMITACIONES"
+    resumen: >-
+      STOP-14 = NO_ACTIVADO satisface formalmente el criterio 2 del roadmap. No demuestra
+      estabilidad general: RELOJ INESTABLE; ESCALA, DEPENDENCIA_MAGNITUD y DISCRECION
+      NO_EVALUABLE; variación anual importante de la volatilidad sin ruptura estructural
+      demostrada.
+    evidencias: [E14, E15, E16, E17, E18, E19, E20]
+  C_pregunta_cientifica:
+    estado: "PENDIENTE — NO DESARROLLADA"
+    resumen: >-
+      No se aprobó ninguna hipótesis específica sobre la forma de la dependencia residual.
+      No se desarrolla porque la condición A bloquea la ejecución. No es una prueba fallida.
+  D_multiplicidad_y_calibracion:
+    estado: "PENDIENTE — NO DESARROLLADA"
+    resumen: >-
+      No se congelaron variantes, parámetros (k, delta, rezagos), corrección por
+      multiplicidad ni controles G2 específicos de TDA-15. No se desarrolla porque la
+      condición A bloquea la ejecución. No es una prueba fallida.
+
+evidencias:
+  - id: E01
+    condicion: A
+    fuente: "docs/methodology/Tsay_OHLCV_analysis_roadmap.md"
+    cita: '1. existe un residuo estandarizado limpio de media (TDA-08), volatilidad (TDA-09/TDA-10) y estacionalidad (TDA-06);'
+    lectura: "Criterio de entrada 1 de TDA-15."
+  - id: E02
+    condicion: A
+    fuente: "docs/methodology/Tsay_empirical_hypotheses_backlog.md"
+    cita: '| **Variable requerida** | Residuo estandarizado $\hat\epsilon_t=(r_t-\hat\mu)/(\hat\sigma_{t-1}\cdot s(m_t))$, todo causal |'
+    lectura: "TH32 exige que todos los componentes del residuo sean causales."
+  - id: E03
+    condicion: A
+    fuente: "docs/tsay/Tsay_Cap4_analisis_futuros_ML.md"
+    cita: 'conviene remover cualquier dependencia lineal antes de aplicar el BDS'
+    lectura: "Tsay (Cap. 4) pide eliminar la dependencia lineal antes de aplicar BDS."
+  - id: E04
+    condicion: A
+    fuente: "reports/mnq/TDA08_dependencia_lineal_media.md"
+    cita: '`rho_1`/`beta_1` NO son distinguibles de cero bajo el bootstrap que respeta la dependencia intradía; rezagos 2 y 5 sí, por un margen pequeño.'
+    lectura: "La dependencia lineal en media es pequeña, pero no completamente nula."
+  - id: E05
+    condicion: A
+    fuente: "reports/mnq/TDA08_dependencia_lineal_media.md"
+    cita: '**ACTIVADO** (cifra global: 0,1425 ticks, muy por debajo de 1 tick).'
+    lectura: "STOP-8a activado: la media no se modeló."
+  - id: E06
+    condicion: A
+    fuente: "reports/mnq/TDA08_dependencia_lineal_media.md"
+    cita: '- **TH18 — RESUELTA (resultado negativo de estabilidad).**'
+    lectura: "La dependencia lineal no es estable entre años: no existe un filtro de media auditado y estable."
+  - id: E07
+    condicion: A
+    fuente: "reports/mnq/TDA10_escala_vs_forma.md"
+    cita: 'Las 6 configuraciones **pasaron** la prueba'
+    lectura: "Los estimadores de volatilidad de TDA-10 (rodante y EWMA) son causales verificados."
+  - id: E08
+    condicion: A
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: '| raw | ewma_60 | 1,914,350 | 0.1625 |'
+    lectura: >-
+      Con entrada causal (r_1m), los benchmarks causales dejan rho_1(|z|) entre 0,1625 y
+      0,1726 (ewma_60, rolling_120, range_ewma_60); ver también E09.
+  - id: E09
+    condicion: A
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: '| raw | range_ewma_60 | 1,914,350 | 0.1726 |'
+    lectura: "Extremo superior del rango de dependencia residual de los benchmarks totalmente causales."
+  - id: E10
+    condicion: A
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: '`rho_1(|z|)` = 0.0471; `Q(60)` de `|z|` = 5,892.73.'
+    lectura: "El GARCH(1,1) primario mejora la depuración, pero sigue dejando dependencia residual de magnitud."
+  - id: E11
+    condicion: A
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: 'el MODELO EN SÍ ES RETROSPECTIVO'
+    lectura: >-
+      El GARCH se estima con toda la muestra (y su configuración primaria usa r_tilde, también
+      retrospectivo): no es un componente causal.
+  - id: E12
+    condicion: A
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: '`alpha+beta = 1.0000` — **en el tope de la restricción `alpha+beta ≤ 1` que impone `arch`**'
+    lectura: "Persistencia en el tope de la restricción; vida media no definida."
+  - id: E13
+    condicion: A
+    fuente: "reports/mnq/TDA06_perfil_intradia_calendario.md"
+    cita: 'Ambos artefactos (`tda06_s_m.parquet`, `tda06_r_tilde.parquet`) llevan la columna `label="RETROSPECTIVO"`'
+    lectura: "El factor estacional s(m) es retrospectivo; no existe una versión causal."
+  - id: E14
+    condicion: B
+    fuente: "reports/mnq/TDA14_estabilidad_temporal.md"
+    cita: '- Alcance: **NO_ACTIVADO**; definitivo: si.'
+    lectura: "STOP-14 no activado (decisión definitiva)."
+  - id: E15
+    condicion: B
+    fuente: "reports/mnq/TDA14_estabilidad_temporal.md"
+    cita: '| RELOJ | INESTABLE | TIPO_NO_IDENTIFICABLE | SIN_PATRON_EN_LA_MUESTRA |'
+    lectura: "RELOJ inestable: un s(m) fijo de toda la muestra no representa todos los años (también afecta a la condición A)."
+  - id: E16
+    condicion: B
+    fuente: "configs/tda14_cierre.yaml"
+    cita: '`log_amplitud_perfil` recorre 0,32 (materialidad 0,22)'
+    lectura: "Magnitud del cambio de amplitud del perfil intradía registrado en el cierre de TDA-14."
+  - id: E17
+    condicion: B
+    fuente: "reports/mnq/TDA14_estabilidad_temporal.md"
+    cita: '| ESCALA | NO_EVALUABLE | POTENCIA_INSUFICIENTE |'
+    lectura: "ESCALA no evaluable por falta de potencia validada."
+  - id: E18
+    condicion: B
+    fuente: "reports/mnq/TDA14_estabilidad_temporal.md"
+    cita: '| DEPENDENCIA_MAGNITUD | NO_EVALUABLE | POTENCIA_INSUFICIENTE |'
+    lectura: "DEPENDENCIA_MAGNITUD no evaluable (sin controles de potencia)."
+  - id: E19
+    condicion: B
+    fuente: "reports/mnq/TDA14_estabilidad_temporal.md"
+    cita: '| DISCRECION | NO_EVALUABLE | POTENCIA_INSUFICIENTE |'
+    lectura: "DISCRECION no evaluable por falta de potencia validada."
+  - id: E20
+    condicion: B
+    fuente: "configs/tda14_cierre.yaml"
+    cita: 'la sigma por minuto de 2020 y 2022 es casi el doble que la de 2021, 2023 y 2024'
+    lectura: "Variación anual importante de la volatilidad, sin ruptura estructural demostrada."
+
+contexto_no_normativo:
+  - id: X01
+    fuente: "reports/mnq/TDA09_volatility_clustering.md"
+    cita: 'umbral de materialidad: 0.0200'
+    lectura: >-
+      Umbral de materialidad de rho_1(|r|) usado por TDA-09 para su propio veredicto (TH19).
+      Se cita solo como referencia descriptiva para situar la dependencia residual (E08-E10).
+      NO fue predeclarado como criterio de aceptación de TDA-15 y NO se adopta como regla:
+      la decisión de STOP-15a no depende de ningún umbral numérico nuevo.
+  - id: X02
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: 'Casi toda la ventaja de GARCH sobre los benchmarks predeclarados se explica por la VELOCIDAD de memoria que estima'
+    lectura: "La ventaja del GARCH se debe sobre todo a su velocidad de memoria, no a una estructura más rica."
+  - id: X03
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: 'pequeño en el ajuste global y por año, material para el reparto `alpha`/`beta` por segmento'
+    lectura: "El GARCH es sensible al tratamiento de los huecos, los cambios de sesión y los rolls."
+  - id: X04
+    fuente: "reports/mnq/TDA11_modelo_parametrico_volatilidad.md"
+    cita: '| clock_adjusted | ewma_60 | 1,914,350 | 0.1061 |'
+    lectura: >-
+      Los benchmarks del bloque ajustado por reloj dejan rho_1(|z|) entre 0,1061 y 0,1177, pero
+      dependen de s(m), que es retrospectivo: no son totalmente causales.
+
+hipotesis_estado:
+  TH32:
+    estado: "NO EVALUADA POR STOP-15a"
+    detalle: >-
+      No se ejecutaron BDS ni F-test de Tsay. No existe evidencia nueva para afirmar o negar
+      la presencia de no linealidad residual.
+  TH33:
+    estado: "NO EVALUADA POR DEPENDENCIA DE TH32"
+    detalle: >-
+      No se realizaron pruebas de no linealidad a 1, 5 y 10 minutos. No se puede concluir nada
+      nuevo sobre su comportamiento al cambiar la frecuencia.
+
+no_realizado:
+  - "Construcción del residuo estandarizado de TDA-15 (ni causal ni retrospectivo)."
+  - "Test BDS (con ningún valor de k ni de delta)."
+  - "F-test de Tsay, RESET y cualquier otro test de no linealidad."
+  - "Calibración por permutación o por simulación, y cualquier métrica G2 específica de TDA-15."
+  - "Corrección por pruebas múltiples."
+  - "Análisis a 1, 5 y 10 minutos."
+  - "Análisis por subperíodo."
+  - "Benchmarks de tiempo o de memoria."
+  - "Lectura de datos del MNQ y del holdout."
+  - "Ajuste de TAR, STAR, Markov switching o redes neuronales."
+  - "Nuevos modelos de volatilidad o de estacionalidad."
+
+limitaciones:
+  - >-
+    El roadmap no define numéricamente qué es un residuo «limpio». La decisión se apoya en
+    hechos cualitativos verificables: componentes retrospectivos (s(m), GARCH), dependencia
+    residual de magnitud documentada, media no filtrada e inestabilidad de RELOJ. No se usa
+    ningún umbral nuevo.
+  - >-
+    Que hoy no exista un residuo limpio no demuestra que no pueda construirse. Construirlo
+    exigiría un trabajo metodológico nuevo, fuera del alcance del roadmap actual.
+  - >-
+    No se afirma qué resultado habrían dado BDS o el F-test. Lo único que se afirma es que un
+    rechazo no podría atribuirse a no linealidad mientras la dependencia de magnitud conocida
+    siga sin eliminarse.
+  - >-
+    Las dificultades de implementación (por ejemplo, la memoria de una implementación directa
+    de BDS sobre series muy largas) no forman parte de la justificación y no son una
+    imposibilidad matemática.
+  - "Ningún resultado de TDA-15 puede citarse como propiedad del MNQ."
+
+restricciones_heredadas:
+  - "TDA-15 no aporta ninguna afirmación sobre la presencia o ausencia de no linealidad residual en el MNQ."
+  - "Ninguna etapa posterior puede citar TDA-15 como evidencia de linealidad, de no linealidad ni de su dependencia con la frecuencia."
+  - "No se justifica modelar TAR, STAR, Markov switching ni redes a partir de TDA-15."
+  - "Se mantienen todas las restricciones del cierre de TDA-14 (`configs/tda14_cierre.yaml`)."
+  - "Una investigación futura de no linealidad requiere un protocolo nuevo y autorización explícita; no implica reabrir automáticamente TDA-15."
+  - "Holdout cerrado; G0–G6 vigentes."
+
+veredicto:
+  - "TDA-15: CERRADA METODOLÓGICAMENTE — STOP-15a ACTIVADO — ANÁLISIS NO EJECUTADO."
+  - "TH32: NO EVALUADA."
+  - "TH33: NO EVALUADA."
+  - "DECISIONES DE DISEÑO IRIS: NINGUNA."
