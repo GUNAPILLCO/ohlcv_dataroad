@@ -1,0 +1,653 @@
+# TDA-17 -- Redundancia informacional entre transformaciones (TH35, TH37).
+#
+# Protocolo consolidado a partir del diseño auditado v1, v2, v3, v4, v4a y v4b
+# (documento legible: reports/mnq/TDA17_protocolo_congelamiento.md). Si alguna
+# version anterior del diseño contradice este archivo, prevalece este archivo.
+#
+# ESTADO: el de protocolo.estado. Mientras sea PENDIENTE_AUDITORIA_FINAL, este
+# archivo NO autoriza la ejecucion de TDA-17. El paso a CONGELADO solo se hace
+# con el procedimiento de la seccion `integridad`. Ningun indicador se ha
+# calculado y ningun analisis sobre MNQ se ha ejecutado. El holdout no se usa
+# en TDA-17.
+#
+# La integridad se verifica con reports/mnq/TDA17_manifiesto_protocolo.json
+# (SHA-256 del protocolo, de las entradas y de los artefactos previos), con la
+# verificacion estricta oficial (seccion `integridad`) y con los tests
+# tests/test_tda17_*.py.
+#
+# DECISION IRIS: NINGUNA.
+
+protocolo:
+  id: TDA17_PROTOCOLO_v1
+  estado: CONGELADO
+  etapa: TDA-17
+  hipotesis: [TH35, TH37]
+  roadmap: docs/methodology/Tsay_OHLCV_analysis_roadmap.md
+  estatus_g2: EXPLORATORIO_PREDECLARADO
+  decision_iris: NINGUNA
+  base_git: 6245b5498e9380110df2cd6c51217d54d4f2cdd0
+  holdout:
+    usar_en_tda17: false
+    confirmacion_futura_programada: false
+    boundary_utc: "2025-06-23 00:00:00"
+    fuente_boundary: configs/mnq_snapshot.yaml
+  dependencias_estado:
+    TDA-15: CERRADA_STOP_15A        # medidas no lineales NO habilitadas
+    TDA-16: NO_EJECUTADA            # ningun estado de Kalman en el catalogo
+
+entradas:
+  variables: data/interim/mnq/tda04_variables_1m.parquet
+  validez: data/interim/mnq/tda04_return_validity_mask.parquet
+  segmentacion: reports/mnq/TDA06_segmentacion_propuesta.csv
+  abrir_data_raw: false
+  esperado:                          # [MEDIDO] TDA-03/TDA-04; se verifica al ejecutar, antes de calcular
+    filas: 1918050
+    retornos_validos: 1914530
+    jornadas: 1420
+    contratos: 22
+    rolls: 21
+  tick_size: 0.25
+  zona_horaria_minuto_del_dia: America/New_York
+  convencion_timestamp: CIERRE_DE_BARRA   # TDA-01
+
+# ---------------------------------------------------------------------------
+# Reglas de frontera: politica P1 (D1, D20)
+# ---------------------------------------------------------------------------
+reglas_frontera:
+  politica: P1_INCREMENTOS_SOLO_CONSECUTIVOS
+  umbral_hueco_largo_min: 90
+  tipos_par:
+    CONS: "r_1m_valid = True (mismo contrato, misma trading_date, delta = 60 s)"
+    HI: "mismo contrato y trading_date, delta > 60 s (NON_CONSECUTIVE_MINUTE); largo si delta > 90 min"
+    FJ: "trading_date distinta, mismo contrato, delta <= 90 min"
+    FJL: "trading_date distinta, mismo contrato, delta > 90 min"
+    ROLL: "is_roll_boundary = True"
+  primera_barra_tras_reinicio: NO_CONS     # sin barra previa: incrementos ausentes, TR y BP locales
+  clases_entrada:
+    incremento: "dC, |dC|, sign(dC), signo de dTP, +DM, -DM, r_1m y terminos con C(t-1) de TR y BP: solo en pares CONS; ausentes en otro caso (nunca cero ni relleno)"
+    local: "H-L, C-L, CLV, CLV*V, V, TP, variables de vela, terminos de Parkinson/GK/RS: siempre definidas"
+    nivel: "C, H, L, TP como niveles en ventanas o suavizados: encadenados dentro del contrato a traves de HI, FJ y FJL; ventana en barras observadas; marcada"
+  por_tipo:
+    TR_en_ATR_NATR_Keltner_Supertrend_UO_CHOP: {CONS: convencional, HI: local_H_menos_L, FJ: local_H_menos_L, FJL: local_H_menos_L, ROLL: reinicio}
+    BP_en_UO: {CONS: "C - min(L, C_prev)", HI: "C - L", FJ: "C - L", FJL: "C - L", ROLL: reinicio}
+    terna_ADX: {CONS: actualiza, HI: estado_retenido, FJ: estado_retenido, FJL: estado_retenido, ROLL: reinicio}
+    suavizados_de_incrementos: {CONS: actualizan, HI: estado_retenido_sin_decaimiento, FJ: estado_retenido_sin_decaimiento, FJL: estado_retenido_sin_decaimiento, ROLL: reinicio}
+    ventanas_finitas_de_incrementos: {CONS: cuentan, HI: no_cuenta, FJ: no_cuenta, FJL: no_cuenta, ROLL: reinicio}
+    acumulados_aux: {CONS: suman, HI: "OBV retiene; ADL suma CLV*V", FJ: "OBV retiene; ADL suma CLV*V", FJL: "OBV retiene; ADL suma CLV*V", ROLL: reinicio_a_cero}
+    niveles: {CONS: normal, HI: encadenado_marcado, FJ: encadenado_marcado, FJL: encadenado_marcado, ROLL: reinicio}
+    VWAP: {CONS: acumula, HI: acumula, FJ: reinicia, FJL: reinicia, ROLL: reinicia}
+  ventana_incrementos:
+    definicion: "n pares que terminan en las barras t-n+1..t del mismo contrato (usa n+1 barras observadas)"
+    validez_minima_fraccion: 0.8          # m_t >= ceil(0.8 n), si no NaN
+  marcas_por_fila: [n_disc_HI, n_disc_FJ, n_disc_FJL, cruza_hueco_largo, rvol_cruza_roll, chop_n_disc, chop_fuera_rango]
+  sin_relleno: true
+  divisiones: "denominador 0 o no finito -> NaN contado; sigma < 1e-8 -> NaN; CLV := 0 cuando H = L solo dentro de A/D, CMF y Chaikin"
+  prohibido: [rolling_center_true, shift_negativo, ewm_adjust_true, columnas_adj_ratio, columnas_adj_diff, s_m_retrospectivo, r_tilde, parametros_de_muestra_completa]
+
+calentamiento:
+  criterio_recursivo: "peso residual de la inicializacion < 0.01: k = ceil(ln 0.01 / ln(1 - alpha)), contado en ACTUALIZACIONES del suavizado (no en barras)"
+  convencion_K: "K = K TEORICO MINIMO: indice (base 1) de la primera barra ESTRUCTURALMENTE ELEGIBLE tras el reinicio cuando todas las barras 2..K tienen par CONS. EMA/Wilder con primera entrada en la barra b: K = b + n - 1 + k. Etapas encadenadas: la etapa 2 empieza a consumir en la K de la etapa 1. En la clase EXACTA, K es siempre la primera barra elegible; en las demas clases es una cota inferior y la primera barra elegible sigue la regla de su clase"
+  elegibilidad: "barra ESTRUCTURALMENTE ELEGIBLE = barra en la que el calentamiento esta completo (ventana llena o requisito de actualizaciones cumplido); solo depende del esqueleto (reinicios y pares CONS), nunca de los valores. Ser elegible NO garantiza una salida finita: en una barra elegible el valor es NaN si lo exigen las reglas de reglas_frontera.divisiones (denominador 0 o no finito, sigma < 1e-8, H = L) o la regla de validez de su clase. La primera salida finita es >= la primera barra elegible y se registra aparte"
+  tres_niveles: "(1) ELEGIBILIDAD ESTRUCTURAL: depende EXCLUSIVAMENTE del esqueleto temporal (reinicios, barras observadas y pares CONS), nunca de los valores; (2) ACTIVACION ALGORITMICA: solo en DEPENDIENTE_DE_DATOS (KAMA), condicion adicional que depende de los VALORES y que se evalua solo en barras estructuralmente elegibles; en las demas clases la activacion coincide con la elegibilidad; (3) PRIMERA SALIDA FINITA: primera barra activada cuyo valor no es NaN por las reglas de division. Orden: elegibilidad <= activacion <= primera salida finita"
+  inicializacion: "EMA y Wilder: media simple de las n primeras ENTRADAS recibidas (en CONTADOR_CONS, los n primeros incrementos CONS, aunque abarquen mas de n barras); despues, recursion estandar en cada actualizacion. Acumulados: 0. KAMA: C en su barra de activacion. Supertrend: estado interno desde el primer ATR (barra n), publicacion desde K (ver catalogo A11.convencion)"
+  elegibilidad_por_configuracion: "todas las salidas de una configuracion son elegibles a la vez, cuando se cumple el requisito de la salida mas exigente (K y U declarados son los de esa salida)"
+  K_maximo: 1343                       # teorico minimo
+  clases:
+    EXACTA:
+      elementos: [A1, A2, A3, A4, A6, A7, A9, A10, A11, A12, B4, B5, B6, B10, C1, C2, C3, C4, C5, C7, C8, C9, C10, D3, D4, D5, D6, D8, E1, E2, E3, E4, E5]
+      regla: "las entradas (niveles encadenados, V, ADL, variables locales, TR y BP segun P1) existen en todas las barras observadas: las actualizaciones nunca se detienen y la primera barra elegible es K en todo contrato. La primera salida FINITA puede ser posterior (p. ej. ventana plana con HH = LL o sigma = 0, suma de volumen 0, V = 0 en un logaritmo). A11 Supertrend: su estado interno empieza antes de K (primer ATR, barra n) y K es solo la frontera de publicacion"
+    CONTADOR_CONS:
+      elementos: [A8, B3, B8, B9]
+      contador: "u_t = numero de barras tau <= t del contrato, posteriores al ultimo reinicio, cuyo par (tau-1, tau) es CONS; causal (solo barras <= t); u = 0 en la primera barra tras el reinicio; vuelve a 0 en cada roll; HI, FJ y FJL no lo reinician"
+      actualizacion: "el estado (RSI: W(dC+) y W(dC-); TSI: las cuatro EMA; ADX: terna W(TR), W(+DM), W(-DM) y W(DX)) solo cambia en barras con par CONS; en HI, FJ y FJL se retiene sin decaimiento y la barra no cuenta"
+      etapa_simple: "elegible en t si u_t >= U, con U = n + k(alpha)"
+      etapas_encadenadas: "la etapa 2 recibe como primera entrada el primer valor emitido por la etapa 1 y despues una entrada por cada actualizacion CONS: elegible en t si u_t >= U1 + U2 - 1, con Ui = ni + k(alpha_i)"
+      etapas_de_ventana_en_barras: "B9: tras la primera barra elegible del RSI (E_RSI), la ventana min/max de 14 y las dos SMA de 3 cuentan barras observadas desde E_RSI, incluidos los valores retenidos: primera barra elegible = E_RSI + 13 + 2 + 2"
+      relacion_K: "sin discontinuidades tras el reinicio, u_t = t - 1 y la primera barra elegible es K = U + 1. Con discontinuidades, primera barra elegible E = min{t : u_t >= U} >= K; el retraso E - K es el numero de barras no CONS en 2..E"
+      despues_de_ser_elegible: "en HI, FJ y FJL se emite el valor retenido (politica P1, estado_retenido_sin_decaimiento); la elegibilidad solo se pierde en un roll (el valor puede seguir siendo NaN por las reglas de division, p. ej. RSI con W(dC+) + W(dC-) = 0)"
+    VENTANA_VALIDEZ:
+      elementos: [B1, B2, B7, C6, D1, D2]
+      regla: "ventanas finitas de incrementos: K = minimo de barras observadas tras el reinicio para que la ventana quepa (n + 1 para n pares; n para C6). En t >= K la barra es elegible solo si la ventana tiene >= ceil(0.8 n) pares CONS (C6: retornos validos); la primera barra elegible puede ser posterior a K y la elegibilidad puede perderse"
+    DEPENDIENTE_DE_DATOS:
+      elementos: [A5]
+      regla: "K_min declarado = primera barra que puede ser estructuralmente elegible; la activacion depende ademas de los valores"
+      KAMA:
+        elegibilidad_estructural: "t >= n + 1 y la ventana de n pares tiene >= ceil(0.8 n) pares CONS (solo esqueleto); K_min = n + 1"
+        activacion: "primera barra estructuralmente elegible con ER finito, es decir, con suma de |dC| > 0 sobre los pares CONS de la ventana (con precios constantes ER = 0/0 = NaN y KAMA no se activa); en ella KAMA := C"
+        despues_de_activar: "se actualiza solo en barras con ER finito; en barras con ER NaN (no elegibles o con suma de |dC| = 0) el estado se retiene y la salida es NaN (sin relleno)"
+        primera_salida_finita: "la barra de activacion (ln(C / KAMA) = 0 en ella)"
+    JORNADAS:
+      elementos: [D7]
+      regla: "requiere ceil(0.8 k) observaciones en J(t); K_jornadas es el minimo en jornadas"
+  registro: "TDA17_perdidas_calentamiento.csv: por serie y contrato: clase, K_teorico, U (si aplica), primera_barra_elegible, retraso = primera_barra_elegible - K_teorico, numero de barras no CONS durante el calentamiento, primera_activacion (DEPENDIENTE_DE_DATOS; igual a la elegible en las demas clases), primera_salida_finita y numero de barras elegibles con NaN por regla de division"
+  pruebas: tests/test_tda17_calentamiento_huecos.py
+
+# ---------------------------------------------------------------------------
+# Catalogo: 45 elementos, 102 configuraciones. Paneles: P (analisis oficial),
+# L (diagnostico auxiliar del efecto nivel), Aux (solo tests de identidades).
+# Serie = "<elemento>_<config>__<salida>".
+# ---------------------------------------------------------------------------
+catalogo:
+  - {id: A1, nombre: SMA, familia: tendencia, clase: nivel, ohlcv: [C], formula: "ln(C / SMA_n(C))",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+  - {id: A2, nombre: EMA, familia: tendencia, clase: nivel, ohlcv: [C], formula: "ln(C / EMA_n(C)), alpha = 2/(n+1)",
+     configuraciones: [{id: n20, params: {n: 20}, K: 67}, {id: n60, params: {n: 60}, K: 199}, {id: n240, params: {n: 240}, K: 793}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+  - {id: A3, nombre: WMA, familia: tendencia, clase: nivel, ohlcv: [C], formula: "ln(C / WMA_n(C))",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+  - {id: A4, nombre: HMA, familia: tendencia, clase: nivel, ohlcv: [C], formula: "ln(C / WMA_floor(sqrt n)(2 WMA_floor(n/2)(C) - WMA_n(C)))",
+     configuraciones: [{id: n20, params: {n: 20, n_mitad: 10, n_raiz: 4}, K: 23}, {id: n60, params: {n: 60, n_mitad: 30, n_raiz: 7}, K: 66},
+                       {id: n240, params: {n: 240, n_mitad: 120, n_raiz: 15}, K: 254}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+  - {id: A5, nombre: KAMA, familia: tendencia, clase: incremento_y_nivel, ohlcv: [C],
+     formula: "ER = |sum dC| / sum |dC| sobre pares CONS de la ventana; SC = (ER (2/3 - 2/31) + 2/31)^2; K_t = K_t-1 + SC (C - K_t-1); salida ln(C / KAMA)",
+     configuraciones: [{id: er10, params: {er: 10, rapida: 2, lenta: 30}, K_min: 11, K_data_dependiente: true},
+                       {id: er60, params: {er: 60, rapida: 2, lenta: 30}, K_min: 61, K_data_dependiente: true}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+  - {id: A6, nombre: MACD, familia: tendencia, clase: nivel, ohlcv: [C],
+     formula: "convencional: linea = EMA_f(C) - EMA_s(C) (puntos), senal = EMA_g(linea), hist = linea - senal; normalizada: x_N = x_conv / C_t para x en {linea, senal, hist}",
+     configuraciones: [{id: f12_s26_g9, params: {f: 12, s: 26, g: 9}, K: 115}, {id: f28_s60_g21, params: {f: 28, s: 60, g: 21}, K: 268},
+                       {id: f111_s240_g83, params: {f: 111, s: 240, g: 83}, K: 1067}],
+     salidas: [{id: conv_linea, panel: L, transformacion: ninguna, unidad: puntos}, {id: conv_senal, panel: L, transformacion: ninguna, unidad: puntos},
+               {id: conv_hist, panel: L, transformacion: ninguna, unidad: puntos},
+               {id: n_linea, panel: P, transformacion: ninguna}, {id: n_senal, panel: P, transformacion: ninguna}, {id: n_hist, panel: P, transformacion: ninguna}]}
+  - {id: A7, nombre: PPO, familia: tendencia, clase: nivel, ohlcv: [C],
+     formula: "PPO = 100 (EMA_f - EMA_s) / EMA_s; senal = EMA_g(PPO); hist = PPO - senal (convencional)",
+     configuraciones: [{id: f12_s26_g9, params: {f: 12, s: 26, g: 9}, K: 115}, {id: f28_s60_g21, params: {f: 28, s: 60, g: 21}, K: 268},
+                       {id: f111_s240_g83, params: {f: 111, s: 240, g: 83}, K: 1067}],
+     salidas: [{id: linea, panel: P, transformacion: ninguna}, {id: senal, panel: P, transformacion: ninguna}, {id: hist, panel: P, transformacion: ninguna}]}
+  - {id: A8, nombre: ADX_DMI, familia: tendencia, clase: incremento_terna, ohlcv: [H, L, C],
+     formula: "+DI = 100 W_n(+DM)/W_n(TR); -DI analogo; DX = 100 |+DI - -DI|/(+DI + -DI); ADX = W_n(DX); terna retenida fuera de CONS",
+     configuraciones: [{id: n14, params: {n: 14}, K: 154, U: 153}, {id: n60, params: {n: 60}, K: 670, U: 669}],
+     salidas: [{id: di_pos, panel: P, transformacion: ninguna}, {id: di_neg, panel: P, transformacion: ninguna}, {id: adx, panel: P, transformacion: ninguna}]}
+  - {id: A9, nombre: Aroon, familia: tendencia, clase: nivel, ohlcv: [H, L],
+     formula: "Up = 100 (n - barras desde HH en n+1 barras)/n; Down analogo con LL; Osc = Up - Down",
+     configuraciones: [{id: n25, params: {n: 25}, K: 26}, {id: n60, params: {n: 60}, K: 61}],
+     salidas: [{id: up, panel: P, transformacion: ninguna}, {id: down, panel: P, transformacion: ninguna}, {id: osc, panel: P, transformacion: ninguna}]}
+  - {id: A10, nombre: TRIX, familia: tendencia, clase: nivel, ohlcv: [C], formula: "E3 = EMA_n(EMA_n(EMA_n(C))); TRIX = 100 (E3_t / E3_t-1 - 1)",
+     configuraciones: [{id: n15, params: {n: 15}, K: 149}, {id: n60, params: {n: 60}, K: 596}],
+     salidas: [{id: trix, panel: P, transformacion: ninguna}]}
+  - {id: A11, nombre: Supertrend, familia: tendencia, clase: nivel_y_TR, ohlcv: [H, L, C],
+     formula: "ATR Wilder n (TR segun P1); bandas (H+L)/2 +- m ATR con regla recursiva de bandas finales; salidas ln(C/ST) y direccion (convencion clasica de TradingView, ver convencion)",
+     convencion: {
+       referencia: "formulacion documentada de TradingView ta.supertrend (ta.rma, nz(banda[1]), rama segun ST[1] == banda_sup[1])",
+       estado_interno: "desde el primer ATR disponible, barra n del contrato (semilla = media simple de los n primeros TR, luego Wilder); bandas, ST y direccion se calculan y evolucionan en cada barra a partir de ahi, tambien durante el calentamiento adicional",
+       inicializacion: "en la barra n: bandas finales = basicas ((H+L)/2 +- m ATR) y direccion BAJISTA (ST = banda final superior)",
+       bandas_finales: "sup_t = basica_sup_t si basica_sup_t < sup_(t-1) o C_(t-1) > sup_(t-1), si no sup_(t-1); inf_t = basica_inf_t si basica_inf_t > inf_(t-1) o C_(t-1) < inf_(t-1), si no inf_(t-1); independientes de la direccion",
+       direccion: "si ST_(t-1) == sup_(t-1) (comparacion por VALOR, como TradingView, incluido el empate sup = inf): alcista si C_t > sup_t, si no bajista; en otro caso: bajista si C_t < inf_t, si no alcista. ST_t = inf_t si alcista, sup_t si bajista. Comparacion con las bandas de t",
+       publicacion: "dist = ln(C/ST) y dir solo desde K = n + k(1/n) (54 y 335); antes, NaN aunque el estado interno exista; NO se reinicializa en K",
+       signo: "IRIS: dir = +1 alcista, -1 bajista (TradingView usa el signo opuesto: 1 bajista, -1 alcista)",
+       reinicio: "en cada roll: ATR, bandas, ST y direccion desde cero; nada se arrastra del contrato anterior",
+       discontinuidades: "P1: TR local (H - L) en la primera barra, HI, FJ y FJL; las bandas usan C_(t-1) de la barra observada anterior del mismo contrato (nivel encadenado)",
+       relacion_N10: "N10 (dir = sign(ln C/ST)) NO es una identidad: al girar, ST pasa a la banda final nueva, que puede quedar del lado contrario de C (contraejemplo en tests/test_tda17_supertrend.py: dir = +1 con ln(C/ST) < 0 en n10 y n60). Solo diagnostico descriptivo; nunca se exige. Si ST <= 0 o ln no es finito, dist = NaN; antes de K ambas salidas son NaN",
+       pruebas: tests/test_tda17_supertrend.py},
+     configuraciones: [{id: n10_m3, params: {n: 10, m: 3}, K: 54},
+                       {id: n60_m3, params: {n: 60, m: 3}, K: 335}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}, {id: dir, panel: P, transformacion: ninguna, tipo: binaria}]}
+  - {id: A12, nombre: Pendiente_regresion, familia: tendencia, clase: nivel, ohlcv: [C], formula: "beta_n = pendiente MCO de C sobre 1..n; salida beta_n / C_t",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: pend_rel, panel: P, transformacion: ninguna}]}
+
+  - {id: B1, nombre: ROC, familia: momentum, clase: incremento, ohlcv: [C],
+     formula: "suma de r_1m sobre los pares CONS de la ventana de n pares (= ln(C_t / C_t-n) si la ventana no tiene discontinuidades)",
+     configuraciones: [{id: n10, params: {n: 10}, K: 11}, {id: n60, params: {n: 60}, K: 61}, {id: n240, params: {n: 240}, K: 241}],
+     salidas: [{id: roc, panel: P, transformacion: ninguna}]}
+  - {id: B2, nombre: Momentum, familia: momentum, clase: incremento, ohlcv: [C],
+     formula: "suma de dC / 0.25 sobre los pares CONS (= (C_t - C_t-n)/0.25 si la ventana no tiene discontinuidades)",
+     configuraciones: [{id: n10, params: {n: 10}, K: 11}, {id: n60, params: {n: 60}, K: 61}, {id: n240, params: {n: 240}, K: 241}],
+     salidas: [{id: mom_ticks, panel: L, transformacion: ninguna, unidad: ticks}]}
+  - {id: B3, nombre: RSI_Wilder, familia: momentum, clase: incremento, ohlcv: [C], formula: "100 W_n(dC+) / (W_n(dC+) + W_n(dC-))",
+     configuraciones: [{id: n14, params: {n: 14}, K: 78, U: 77}, {id: n60, params: {n: 60}, K: 336, U: 335}],
+     salidas: [{id: rsi, panel: P, transformacion: ninguna}]}
+  - {id: B4, nombre: Estocastico, familia: momentum, clase: nivel, ohlcv: [H, L, C],
+     formula: "%K_rapido = 100 (C - LL_n)/(HH_n - LL_n); %K = SMA_3(%K_rapido); %D = SMA_3(%K)",
+     configuraciones: [{id: n14_k3_d3, params: {n: 14, k: 3, d: 3}, K: 18}, {id: n60_k3_d3, params: {n: 60, k: 3, d: 3}, K: 64}],
+     salidas: [{id: k, panel: P, transformacion: ninguna}, {id: d, panel: P, transformacion: ninguna}]}
+  - {id: B5, nombre: Williams_R, familia: momentum, clase: nivel, ohlcv: [H, L, C], formula: "-100 (HH_n - C)/(HH_n - LL_n)",
+     configuraciones: [{id: n14, params: {n: 14}, K: 14}, {id: n60, params: {n: 60}, K: 60}],
+     salidas: [{id: wr, panel: P, transformacion: ninguna}]}
+  - {id: B6, nombre: CCI, familia: momentum, clase: nivel, ohlcv: [H, L, C], formula: "(TP - SMA_n(TP)) / (0.015 DM_n), DM = desviacion media absoluta",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}],
+     salidas: [{id: cci, panel: P, transformacion: ninguna}]}
+  - {id: B7, nombre: CMO, familia: momentum, clase: incremento, ohlcv: [C], formula: "100 (sum dC+ - sum dC-)/(sum dC+ + sum dC-) sobre pares CONS",
+     configuraciones: [{id: n14, params: {n: 14}, K: 15}, {id: n60, params: {n: 60}, K: 61}],
+     salidas: [{id: cmo, panel: P, transformacion: ninguna}]}
+  - {id: B8, nombre: TSI, familia: momentum, clase: incremento, ohlcv: [C], formula: "100 EMA_s(EMA_r(dC)) / EMA_s(EMA_r(|dC|)); estados retenidos fuera de CONS",
+     configuraciones: [{id: r25_s13, params: {r: 25, s: 13}, K: 126, U: 125}, {id: r100_s52, params: {r: 100, s: 52}, K: 503, U: 502}],
+     salidas: [{id: tsi, panel: P, transformacion: ninguna}]}
+  - {id: B9, nombre: Stochastic_RSI, familia: momentum, clase: incremento, ohlcv: [C],
+     formula: "(RSI14 - min_14 RSI)/(max_14 RSI - min_14 RSI); %K = 100 SMA_3; %D = SMA_3(%K)",
+     configuraciones: [{id: rsi14_n14_k3_d3, params: {rsi: 14, n: 14, k: 3, d: 3}, K: 95, U: 77, barras_tras_E_RSI: 17}],
+     salidas: [{id: k, panel: P, transformacion: ninguna}, {id: d, panel: P, transformacion: ninguna}]}
+  - {id: B10, nombre: Ultimate_Oscillator, familia: momentum, clase: mixta, ohlcv: [H, L, C],
+     formula: "BP y TR segun P1; A_x = sum BP / sum TR (x barras); UO = 100 (4 A_a + 2 A_b + A_c)/7",
+     configuraciones: [{id: a7_b14_c28, params: {a: 7, b: 14, c: 28}, K: 28}, {id: a30_b60_c120, params: {a: 30, b: 60, c: 120}, K: 120}],
+     salidas: [{id: uo, panel: P, transformacion: ninguna}]}
+
+  - {id: C1, nombre: ATR, familia: volatilidad, clase: TR, ohlcv: [H, L, C], formula: "W_n(TR) / 0.25",
+     configuraciones: [{id: n14, params: {n: 14}, K: 77}, {id: n60, params: {n: 60}, K: 335}, {id: n240, params: {n: 240}, K: 1343}],
+     salidas: [{id: atr_ticks, panel: L, transformacion: ninguna, unidad: ticks}]}
+  - {id: C2, nombre: NATR, familia: volatilidad, clase: TR, ohlcv: [H, L, C], formula: "100 W_n(TR) / C",
+     configuraciones: [{id: n14, params: {n: 14}, K: 77}, {id: n60, params: {n: 60}, K: 335}, {id: n240, params: {n: 240}, K: 1343}],
+     salidas: [{id: ln_natr, panel: P, transformacion: log}]}
+  - {id: C3, nombre: Bollinger, familia: volatilidad, clase: nivel, ohlcv: [C],
+     formula: "sigma poblacional de C (n); %B = (C - SMA + 2 sigma)/(4 sigma); BW = 4 sigma / SMA",
+     configuraciones: [{id: n20_k2, params: {n: 20, k: 2}, K: 20}, {id: n60_k2, params: {n: 60, k: 2}, K: 60}, {id: n240_k2, params: {n: 240, k: 2}, K: 240}],
+     salidas: [{id: pct_b, panel: P, transformacion: ninguna}, {id: ln_bw, panel: P, transformacion: log}]}
+  - {id: C4, nombre: Keltner, familia: volatilidad, clase: nivel_y_TR, ohlcv: [H, L, C],
+     formula: "EMA_n(C) +- m W_atr(TR); posicion = (C - inferior)/(superior - inferior); ancho = (superior - inferior)/EMA_n",
+     configuraciones: [{id: n20_atr10_m2, params: {n: 20, atr: 10, m: 2}, K: 67}, {id: n60_atr30_m2, params: {n: 60, atr: 30, m: 2}, K: 199},
+                       {id: n240_atr120_m2, params: {n: 240, atr: 120, m: 2}, K: 793}],
+     salidas: [{id: pos, panel: P, transformacion: ninguna}, {id: ln_ancho, panel: P, transformacion: log}]}
+  - {id: C5, nombre: Donchian, familia: volatilidad, clase: nivel, ohlcv: [H, L, C],
+     formula: "HH_n, LL_n (incluye la barra t); pos = (C - LL)/(HH - LL); ancho = (HH - LL)/C",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: pos, panel: P, transformacion: ninguna}, {id: ln_ancho, panel: P, transformacion: log}]}
+  - {id: C6, nombre: Desviacion_movil_retornos, familia: volatilidad, clase: incremento, ohlcv: [C],
+     formula: "ventana = n barras observadas del contrato que terminan en t; validos = r_1m_valid; m >= ceil(0.8 n); sigma = sqrt(sum (r - media)^2 / (m - 1)); salida ln sigma",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: ln_sigma, panel: P, transformacion: log}]}
+  - {id: C7, nombre: Parkinson, familia: volatilidad, clase: local, ohlcv: [H, L], formula: "sigma^2 = mean_n[(ln H/L)^2] / (4 ln 2)",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: ln_sigma, panel: P, transformacion: log}]}
+  - {id: C8, nombre: Garman_Klass, familia: volatilidad, clase: local, ohlcv: [O, H, L, C], formula: "sigma^2 = mean_n[0.5 (ln H/L)^2 - (2 ln 2 - 1)(ln C/O)^2]",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: ln_sigma, panel: P, transformacion: log}]}
+  - {id: C9, nombre: Rogers_Satchell, familia: volatilidad, clase: local, ohlcv: [O, H, L, C], formula: "sigma^2 = mean_n[ln(H/C) ln(H/O) + ln(L/C) ln(L/O)]",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: ln_sigma, panel: P, transformacion: log}]}
+  - {id: C10, nombre: Choppiness_C2, familia: volatilidad, clase: TR_y_nivel, ohlcv: [H, L, C],
+     formula: "100 log10(sum_n TR / (HH_n - LL_n)) / log10(n), TR segun P1 (convencional en CONS, local en discontinuidades); valores fuera de [0,100] conservados y marcados; sin variantes",
+     configuraciones: [{id: n14, params: {n: 14}, K: 14}, {id: n60, params: {n: 60}, K: 60}],
+     salidas: [{id: chop, panel: P, transformacion: ninguna}]}
+
+  - {id: D1, nombre: OBV, familia: volumen, clase: incremento, ohlcv: [C, V], proxy_ohlcv: true,
+     formula: "OBV_t = OBV_t-1 + sign(dC) V solo en CONS (Aux); flujo_n = sum_CONS sign(dC) V / sum_CONS V",
+     configuraciones: [{id: n20, params: {n: 20}, K: 21}, {id: n60, params: {n: 60}, K: 61}, {id: n240, params: {n: 240}, K: 241}],
+     salidas: [{id: flujo, panel: P, transformacion: ninguna}],
+     salidas_auxiliares_elemento: [{id: obv_acumulado, panel: Aux}]}
+  - {id: D2, nombre: MFI, familia: volumen, clase: incremento, ohlcv: [H, L, C, V], proxy_ohlcv: true,
+     formula: "100 sum RMF+ / (sum RMF+ + sum RMF-); RMF = TP V; signo de dTP solo en CONS",
+     configuraciones: [{id: n14, params: {n: 14}, K: 15}, {id: n60, params: {n: 60}, K: 61}],
+     salidas: [{id: mfi, panel: P, transformacion: ninguna}]}
+  - {id: D3, nombre: CMF, familia: volumen, clase: local, ohlcv: [H, L, C, V], proxy_ohlcv: true, formula: "sum_n CLV V / sum_n V (CLV := 0 si H = L)",
+     configuraciones: [{id: n20, params: {n: 20}, K: 20}, {id: n60, params: {n: 60}, K: 60}, {id: n240, params: {n: 240}, K: 240}],
+     salidas: [{id: cmf, panel: P, transformacion: ninguna}]}
+  - {id: D4, nombre: AD_Line, familia: volumen, clase: local, ohlcv: [H, L, C, V], proxy_ohlcv: true,
+     formula: "ADL_t = ADL_t-1 + CLV V (acumulado por contrato); su forma estacionaria Delta ADL_n / sum_n V es identica a CMF_n",
+     configuraciones: [{id: acumulado, params: {}, K: 1}],
+     salidas: [{id: adl_acumulado, panel: Aux, transformacion: ninguna}]}
+  - {id: D5, nombre: Chaikin_Oscillator, familia: volumen, clase: local, ohlcv: [H, L, C, V], proxy_ohlcv: true,
+     formula: "(EMA_f(ADL) - EMA_s(ADL)) / EMA_s(V) (normalizado)",
+     configuraciones: [{id: f3_s10, params: {f: 3, s: 10}, K: 33}, {id: f18_s60, params: {f: 18, s: 60}, K: 199}],
+     salidas: [{id: chaikin_norm, panel: P, transformacion: ninguna}]}
+  - {id: D6, nombre: Volume_ROC, familia: volumen, clase: nivel_volumen, ohlcv: [V], formula: "ln(V_t / V_t-n)",
+     configuraciones: [{id: n14, params: {n: 14}, K: 15}, {id: n60, params: {n: 60}, K: 61}],
+     salidas: [{id: vroc_log, panel: P, transformacion: ninguna}]}
+  - {id: D7, nombre: Relative_Volume, familia: volumen, clase: volumen_hora_del_dia, ohlcv: [V],
+     formula: "ln(V_t / media{V(d, m(t)) : d en J(t), barra observada}); J(t) = las k jornadas de negociacion inmediatamente anteriores, fijas; sin sustitucion por jornadas mas antiguas; validez >= ceil(0.8 k) observaciones",
+     configuraciones: [{id: k5, params: {k_jornadas: 5}, K_jornadas: 5}, {id: k20, params: {k_jornadas: 20}, K_jornadas: 20}],
+     salidas: [{id: rvol_log, panel: P, transformacion: ninguna}]}
+  - {id: D8, nombre: VWAP_sesion_aproximado, familia: volumen, clase: nivel, ohlcv: [H, L, C, V], proxy_ohlcv: true,
+     formula: "VWAP = sum TP V / sum V desde el inicio de la trading_date (18:00 NY); salida ln(C / VWAP)",
+     configuraciones: [{id: sesion, params: {ancla: inicio_trading_date}, K: 1}],
+     salidas: [{id: dist, panel: P, transformacion: ninguna}]}
+
+  - {id: E1, nombre: Cuerpo_relativo, familia: velas, clase: local, ohlcv: [O, H, L, C], formula: "|C - O| / (H - L); NaN si H = L",
+     configuraciones: [{id: barra, params: {}, K: 1}], salidas: [{id: valor, panel: P, transformacion: ninguna}]}
+  - {id: E2, nombre: Mecha_superior_relativa, familia: velas, clase: local, ohlcv: [O, H, L, C], formula: "(H - max(O, C)) / (H - L); NaN si H = L",
+     configuraciones: [{id: barra, params: {}, K: 1}], salidas: [{id: valor, panel: P, transformacion: ninguna}]}
+  - {id: E3, nombre: Mecha_inferior_relativa, familia: velas, clase: local, ohlcv: [O, H, L, C], formula: "(min(O, C) - L) / (H - L); NaN si H = L",
+     configuraciones: [{id: barra, params: {}, K: 1}], salidas: [{id: valor, panel: P, transformacion: ninguna}]}
+  - {id: E4, nombre: Close_Location_Value, familia: velas, clase: local, ohlcv: [H, L, C], formula: "((C - L) - (H - C)) / (H - L); NaN si H = L",
+     configuraciones: [{id: barra, params: {}, K: 1}], salidas: [{id: valor, panel: P, transformacion: ninguna}]}
+  - {id: E5, nombre: Rango_ticks, familia: velas, clase: local, ohlcv: [H, L], formula: "(H - L) / 0.25",
+     configuraciones: [{id: barra, params: {}, K: 1}], salidas: [{id: valor, panel: L, transformacion: ninguna, unidad: ticks}]}
+
+referencias_tda04:
+  en_panel_P:
+    - {id: r_1m, transformacion: ninguna}
+    - {id: abs_r_1m, transformacion: ninguna}
+    - {id: log_hl, transformacion: ninguna}
+    - {id: log_co, transformacion: ninguna}
+    - {id: log_oc_prev, transformacion: ninguna}
+    - {id: ln_volume, origen: volume, transformacion: log}
+  solo_tabla_identidades: [R_1m, r2_1m, zero_1m]
+
+# ---------------------------------------------------------------------------
+# Identidades y rango (v3 §3, v4 §1, v4a §3)
+# ---------------------------------------------------------------------------
+identidades:
+  lineales:     # suma(coef * serie) = constante. homogenea si constante = 0
+    - {id: L1, panel: P, terminos: [[1, A6_f12_s26_g9__n_hist], [-1, A6_f12_s26_g9__n_linea], [1, A6_f12_s26_g9__n_senal]], constante: 0, fuera_de_B: A6_f12_s26_g9__n_hist}
+    - {id: L2, panel: P, terminos: [[1, A6_f28_s60_g21__n_hist], [-1, A6_f28_s60_g21__n_linea], [1, A6_f28_s60_g21__n_senal]], constante: 0, fuera_de_B: A6_f28_s60_g21__n_hist}
+    - {id: L3, panel: P, terminos: [[1, A6_f111_s240_g83__n_hist], [-1, A6_f111_s240_g83__n_linea], [1, A6_f111_s240_g83__n_senal]], constante: 0, fuera_de_B: A6_f111_s240_g83__n_hist}
+    - {id: L4, panel: P, terminos: [[1, A7_f12_s26_g9__hist], [-1, A7_f12_s26_g9__linea], [1, A7_f12_s26_g9__senal]], constante: 0, fuera_de_B: A7_f12_s26_g9__hist}
+    - {id: L5, panel: P, terminos: [[1, A7_f28_s60_g21__hist], [-1, A7_f28_s60_g21__linea], [1, A7_f28_s60_g21__senal]], constante: 0, fuera_de_B: A7_f28_s60_g21__hist}
+    - {id: L6, panel: P, terminos: [[1, A7_f111_s240_g83__hist], [-1, A7_f111_s240_g83__linea], [1, A7_f111_s240_g83__senal]], constante: 0, fuera_de_B: A7_f111_s240_g83__hist}
+    - {id: L7, panel: P, terminos: [[1, A9_n25__osc], [-1, A9_n25__up], [1, A9_n25__down]], constante: 0, fuera_de_B: A9_n25__osc}
+    - {id: L8, panel: P, terminos: [[1, A9_n60__osc], [-1, A9_n60__up], [1, A9_n60__down]], constante: 0, fuera_de_B: A9_n60__osc}
+    - {id: L9, panel: P, terminos: [[1, E1_barra__valor], [1, E2_barra__valor], [1, E3_barra__valor]], constante: 1, condicion: "H > L", fuera_de_B: E1_barra__valor}
+    - {id: L10, panel: P, terminos: [[1, B5_n60__wr], [-100, C5_n60__pos]], constante: -100, fuera_de_B: C5_n60__pos}
+    - {id: L11, panel: P, terminos: [[1, r_1m], [-1, log_co], [-1, log_oc_prev]], constante: 0, condicion: "r_1m_valid", fuera_de_B: log_oc_prev}
+    - {id: L12, panel: L, terminos: [[1, A6_f12_s26_g9__conv_hist], [-1, A6_f12_s26_g9__conv_linea], [1, A6_f12_s26_g9__conv_senal]], constante: 0}
+    - {id: L13, panel: L, terminos: [[1, A6_f28_s60_g21__conv_hist], [-1, A6_f28_s60_g21__conv_linea], [1, A6_f28_s60_g21__conv_senal]], constante: 0}
+    - {id: L14, panel: L, terminos: [[1, A6_f111_s240_g83__conv_hist], [-1, A6_f111_s240_g83__conv_linea], [1, A6_f111_s240_g83__conv_senal]], constante: 0}
+  no_lineales_o_fuera_de_P:
+    - {id: N1, relacion: "R_1m = exp(r_1m) - 1"}
+    - {id: N2, relacion: "abs_r_1m = |r_1m|; r2_1m = r_1m^2; zero_1m = 1{r_1m = 0}"}
+    - {id: N3, relacion: "%K_rapido(n) = %R(n) + 100"}
+    - {id: N4, relacion: "pos_Donchian(n) = (%R(n) + 100)/100"}
+    - {id: N5, relacion: "CMO_n = 2 RSI_Cutler_n - 100 con los mismos pares CONS"}
+    - {id: N6, relacion: "ER_n = |CMO_n|/100 con los mismos pares CONS"}
+    - {id: N7, relacion: "beta_n = 6 (WMA_n - SMA_n)/(n - 1)"}
+    - {id: N8, relacion: "%B - 1/2 = (C/SMA - 1)/BW"}
+    - {id: N9, relacion: "pos_Keltner - 1/2 = (C/EMA - 1)/ancho"}
+    - {id: N10, tipo: DIAGNOSTICO_NO_UNIVERSAL, relacion: "dir_ST frente a sign(ln C/ST): concordancia habitual, NO identidad; contraejemplo sintetico con dir = +1 y ln(C/ST) < 0 (Supertrend n10 y n60). Se conserva el identificador solo por trazabilidad; nunca se exige ni se valida como exacta"}
+    - {id: N11, relacion: "CLV = sign(C - O) cuerpo + mecha_inf - mecha_sup (H > L)"}
+    - {id: N12, relacion: "CMF_n = Delta ADL_n / sum_n V"}
+    - {id: N13, relacion: "flujo_OBV_n = Delta OBV_n / sum_CONS V"}
+    - {id: N14, relacion: "NATR = 25 ATR_ticks / C"}
+    - {id: N15, relacion: "Momentum_n = C_t (1 - exp(-ROC_n))/0.25 solo en ventanas sin discontinuidad"}
+    - {id: N16, relacion: "rango_ticks = L (exp(log_hl) - 1)/0.25"}
+    - {id: N17, relacion: "Parkinson_n^2 = mean_n(log_hl^2)/(4 ln 2); GK por barra = f(log_hl, log_co)"}
+    - {id: N18, relacion: "MACD_N_x = MACD_conv_x / C_t"}
+    - {id: N19, relacion: "PPO = 100 MACD_N_linea C_t / EMA_s (exacta con columnas de P para s = 60 y 240)"}
+    - {id: N20, relacion: "ROC P1 = ln(C_t/C_t-n) en ventanas sin discontinuidad"}
+    - {id: N21, relacion: "desigualdad |log_co| <= log_hl"}
+  rango:
+    P_columnas: 134
+    P_dependencias_homogeneas: 9
+    P_dependencias_afines: 2
+    P_sin_centrar_max: 124
+    P_con_intercepto_max: 124
+    P_centrada_max: 123
+    B_columnas: 123
+    L_columnas: 16
+    L_centrada_max: 13
+    columnas_implicadas_P: 32
+  verificacion_numerica:
+    tau_relativa: 1.0e-10
+    nulos_esperados: {P_sin_centrar: 10, P_centrada: 11, B_centrada: 0, L: 3}
+    accion_si_difiere: BLOQUEAR_HASTA_EXPLICAR
+
+# ---------------------------------------------------------------------------
+# Analisis estadistico (D8-D13, D19, D21, D23)
+# ---------------------------------------------------------------------------
+analisis:
+  poblacion: CASOS_COMPLETOS_DE_P
+  etiquetas: {series: CAUSAL_AT_BAR_CLOSE, analisis: RETROSPECTIVO, resultados: EXPLORATORIO_PREDECLARADO}
+  celdas:
+    global: true
+    anios: {evaluables: [2020, 2021, 2022, 2023, 2024, 2025], no_evaluables: [2019], parciales: [2025], criterio: year_ny_del_timestamp}
+    segmentos:
+      fuente: "cortes estables de reports/mnq/TDA06_segmentacion_propuesta.csv, intervalos [inicio, fin) del minuto del dia NY (TDA-07)"
+      cortes_min: [120, 180, 510, 570, 962, 1200]
+      etiquetas: ["00:00-02:00", "02:00-03:00", "03:00-08:30", "08:30-09:30", "09:30-16:02", "16:02-20:00", "20:00-24:00"]
+    anio_x_segmento: SOLO_DESCRIPTIVO
+    panel_L: POR_CONTRATO_DIAGNOSTICO_AUXILIAR
+  pearson: {sobre: series_transformadas}
+  spearman:
+    definicion: "Pearson entre rangos convencionales con rango medio en empates, calculados dentro de cada celda"
+    ic_bootstrap: RANGOS_DE_LA_CELDA_FIJOS
+    validacion: {celdas: [global, un_anio], replicas_exactas: 30, tolerancia_mediana_dif_ic: 0.01, alternativa_si_falla: {replicas_exactas: 100}}
+  r2:
+    oficial: CADA_COLUMNA_DE_P_FRENTE_A_LAS_OTRAS_133
+    metodo: BASE_ESPECIFICA_POR_OBJETIVO_CHOLESKY_PIVOTEO
+    verificaciones_cruzadas: [PSEUDOINVERSA_ESPECTRAL, MCO_MINIMA_NORMA_ESTADISTICOS_SUFICIENTES]
+    tau_relativa: 1.0e-10
+    tolerancia_cruzada: 1.0e-8
+    hueco_espectral_minimo: 1.0e4
+    variantes: [R2_TODAS, R2_OTROS_INDICADORES, R2_TDA04]
+    secundaria_rangos: true
+    transferencia: {esquemas: [DEJAR_UN_ANIO_FUERA, DEJAR_UN_SEGMENTO_FUERA], solucion: MINIMA_NORMA_SIN_REGULARIZACION_AJUSTADA,
+                    transferible_si: {r2_transf_min: 0.90, delta_max: 0.05}}
+  exactitud:
+    EXACTA_ALGEBRAICA: "identidad registrada y residuo directo <= 1e-9 (relativo)"
+    ERROR_IDENTIDAD_REGISTRADA: "identidad registrada y residuo > 1e-9: bloquea la etapa"
+    ALERTA_DEPENDENCIA_NO_REGISTRADA: "sin registro y 1 - R2 <= 1e-9, o numero de autovalores nulos distinto del registrado"
+    CASI_EXACTA_COLINEAL: "sin registro y 1e-9 < 1 - R2 <= 1e-4"
+    R2_NO_PUBLICABLE_POR_COLINEALIDAD: "verificacion cruzada difiere > 1e-8"
+    SEPARACION_NUMERICA_INSUFICIENTE: "hueco espectral < 1e4: EXACTA no se publica en la celda"
+    residuo_max: 1.0e-9
+    casi_exacta_max: 1.0e-4
+    enmiendas_posteriores: "identidad nueva solo como enmienda posterior al congelamiento, documentada y etiquetada"
+  pca:
+    oficial: P_COMPLETO
+    complementario: B
+    metricas: [k80, k90, k95, ratio_participacion, rango_efectivo_entropia, M_eff_Li_Ji]
+    analisis_paralelo: {matriz: B, nulo: G2_3b}
+  agrupamiento: {matriz: P, metodo: jerarquico_enlace_medio, distancia: "1 - |rho_spearman|", cortes_abs_rho: [0.90, 0.70], sin_representantes: true}
+  bootstrap: {tipo: bloques_moviles_circulares_de_jornadas, longitud_bloque_jornadas: 5, replicas: 300, semilla: 1717, sensibilidad_bloques: [1, 10]}
+  clasificacion:
+    RECONSTRUIBLE: "R2_TODAS >= 0.90 con IC inferior >= 0.90 en >= 5/6 anios y >= 6/7 segmentos"
+    NUEVA_REPRESENTACION: "R2_TODAS < 0.90 con IC superior < 0.90 en >= 5/6 anios y >= 6/7 segmentos"
+    INESTABLE: resto
+    subniveles: {EXACTA: identidad_registrada, PARCIAL: [0.50, 0.90], LINEALMENTE_DISTINTA: "< 0.50"}
+    umbral_r2: 0.90
+    umbral_parcial: 0.50
+    anios_min: 5
+    segmentos_min: 6
+    nunca: NUEVA_INFORMACION
+  umbrales:
+    redundancia_par_abs_rho: 0.90
+    asociacion_par_abs_rho: 0.70
+    materialidad_T3_delta_rho: 0.10
+    sensibilidad_materialidad: [0.05, 0.20]
+    falsas_T3_max: 0.05
+  prohibido: [seleccion_de_features, representantes_por_grupo, objetivos_futuros, medidas_no_lineales_generales, ampliar_catalogo]
+
+# ---------------------------------------------------------------------------
+# Controles G2 (D11, D24)
+# ---------------------------------------------------------------------------
+g2:
+  generativos:
+    G2_1a: {construccion: "permutacion intra-contrato de vectores en ticks (O - C_prev, H - O, L - O, C - O, V) de barras CONS; fronteras en su sitio", semillas: [101, 102]}
+    G2_1b: {construccion: "como G2_1a pero solo entre barras del mismo minuto del dia y contrato", semillas: [201, 202]}
+    G2_2:
+      construccion: "retornos 1 min i.i.d. t de Student; H/L por puente browniano de 30 subpasos entre O y C; redondeo a tick; volumen i.i.d. remuestreado de la marginal"
+      sigma_r_1m: 4.191587723174421e-04
+      curtosis_exceso_recortada_objetivo: 11.491079308573783
+      recorte_por_cola: 0.0005
+      fuente: "reports/mnq/TDA07_momentos_cuantiles_drift_colas.csv (r_1m, GLOBAL); artefacto historico congelado en el manifiesto"
+      semillas: [301, 302]
+      t_student:
+        df: 2.55422176662895            # FIJO; calibrado sobre la t teorica, sin datos ni resultados de TDA-17
+        calibracion:
+          objetivo: "curtosis en exceso recortada TEORICA de la t(df) = curtosis_exceso_recortada_objetivo"
+          definicion: "la de TDA-07 (compute_moments_quantiles): recorte simetrico en los cuantiles 0.0005 y 0.9995 y m4/m2^2 - 3 con momentos centrales poblacionales del tramo central; por simetria, la media del tramo es 0"
+          integracion: "m_j = 2 * integral_0^c x^j f_t(x; df) dx / (1 - 2 * 0.0005), c = t_{0.9995}(df); scipy.integrate.quad con epsabs 0, epsrel 1e-13, limit 500"
+          raiz: "scipy.optimize.brentq en [1.0, 1000.0], xtol 1e-12, rtol 1e-14, maxiter 200"
+          tolerancia_recalculo: 1.0e-8   # |df recalculado - df declarado|
+          independencia: "solo usa el objetivo publicado en TDA-07; ninguna salida de TDA-17 interviene; la calibracion es invariante a la escala"
+        escala: "r = sigma_r_1m * sqrt((df - 2) / df) * T, T ~ t(df) estandar; df > 2 garantiza varianza teorica sigma_r_1m^2"
+      generador:
+        bitgen: PCG64
+        flujos: "SeedSequence(semilla).spawn(3): flujo 0 innovaciones t, flujo 1 puente, flujo 2 volumen; Generator(PCG64(flujo_i))"
+        orden_filas: "ordenacion estable por (contract, timestamp), contract comparado como cadena; fila g = 0..n_filas-1 en ese orden; n_filas = entradas.esperado.filas"
+        innovaciones: "Generator(flujo 0).standard_t(df, size=n_filas) en UNA sola llamada, escaladas segun t_student.escala; la innovacion r_g pertenece a la fila g"
+        contabilidad: "biyeccion fila g <-> innovacion r_g <-> bloque de 30 normales Z_g <-> indice de volumen I_g: ninguna se descarta, ninguna se reutiliza, ninguna fila queda sin la suya; la primera barra de cada contrato USA su innovacion"
+        tick_redondeo: "q(p) = 0.25 * numpy.round(p / 0.25) (mitad al par); se aplica solo a precios de salida, nunca al camino latente"
+        ancla: "A_c = open de la primera fila del contrato c en la entrada (ya en la rejilla de tick); x_prev = ln(A_c) para la primera fila"
+        camino: "por contrato, en sus filas en orden: x_g = x_prev + r_g, con x_prev = ln(A_c) en la primera fila y x_prev = x_(g-1) (latente, sin redondear) en las siguientes. El camino ignora los huecos; el esqueleto (timestamps, contratos, trading_date, CONS) se conserva para los indicadores. Cambio de contrato: reinicio en el ancla del nuevo contrato"
+        precios: "C_g = q(exp(x_g)); O_g = A_c en la primera fila del contrato y O_g = C_(g-1) en las siguientes"
+        puente: "flujo 1: Generator.standard_normal(size=(n_filas, 30)) en una sola llamada; fila g: S_0 = 0, S_k = Z_g1 + ... + Z_gk; b_k = x_prev + (k/30) r_g + sigma_r_1m (S_k - (k/30) S_30) / sqrt(30), k = 0..30; b_0 = x_prev y b_30 = x_g exactamente (tambien en la primera fila, con x_prev = ln(A_c))"
+        maximo_minimo: "H_g = max(O_g, C_g, q(exp(max_k b_k))); L_g = min(O_g, C_g, q(exp(min_k b_k))); garantiza L <= min(O, C) <= max(O, C) <= H y precios en la rejilla"
+        volumen: "flujo 2: I = Generator.integers(0, n_filas, size=n_filas) en una sola llamada; V_g = volume[I_g] de la entrada en el mismo orden canonico (remuestreo con reemplazo, independiente del precio)"
+        pruebas: tests/test_tda17_g2_2_generador.py
+      verificacion:
+        sobre: "vector completo de innovaciones escaladas r (n_filas, antes del redondeo a tick)"
+        curtosis_recortada: {objetivo: 11.491079308573783, tolerancia_abs: 0.85}
+        ric_relativo: {objetivo: 1.0, tolerancia_abs: 0.006, definicion: "RIC muestral de r / RIC teorico sigma_r_1m sqrt((df-2)/df) (t_0.75 - t_0.25)"}
+        derivacion_tolerancias: "100 muestras sinteticas de 1.914.530 extracciones t(df), semillas 90000..90099: DE de la curtosis recortada 0.1618 y del RIC relativo 0.00102; tolerancias >= 5 DE"
+        valores_esperados_semillas:     # numpy 2.5.2, n_filas = 1918050; se comprueban en tests/test_tda17_protocol.py
+          "301": {curtosis_recortada: 11.644186136628536, ric_relativo: 0.9999101052774293}
+          "302": {curtosis_recortada: 11.295860567295993, ric_relativo: 0.9995402974963838}
+        tras_redondeo: "momentos de r_1m tras el redondeo a tick y de las barras generadas: solo descriptivos en TDA17_calibracion_g2.csv, sin consecuencias"
+      fallos:
+        calibracion: "si brentq no converge o df <= 2: G2_2 NO_EVALUABLE (comprobado en el protocolo: converge, df = 2.5542)"
+        verificacion: "si una semilla no cumple las tolerancias: error de implementacion; G2_2 queda bloqueado hasta corregirlo, sin cambiar df, semillas ni tolerancias y sin recalibrar con datos o resultados de TDA-17"
+        version_numpy: "si cambia la secuencia de standard_t, los valores esperados se recalculan con el mismo procedimiento y semillas; las tolerancias no cambian"
+    criterio: V1
+  desplazamientos:
+    G2_3a:
+      rejilla: "jornadas de la celda x minuto del dia NY; mascara comun = poblacion de casos completos; sin imputacion"
+      tipo: DESFASE_RELATIVO_ENTRE_PARES
+      k_min: 20
+      k_max: "floor(|D| / 2)"
+      omega_min_fraccion: 0.5
+      desfases_max: 100
+      desfases_min: 40
+      muestreo: SIN_REEMPLAZO
+      semilla: 401
+      uso: LINEA_BASE_RELOJ_POR_PARES
+    G2_3b:
+      matriz: B
+      p: 123
+      replicas: 200
+      semilla: 501
+      L_min: "floor(N_celda / (2 p))"
+      a_max: 0.05
+      alineacion: "a(delta) exacta por FFT de indicadores de minuto del dia (solo timestamps)"
+      garantia: POR_PARES
+      intentos_max_por_columna: 10000
+      fraccion_max_replicas_no_generadas: 0.10
+      separacion_min_jornadas: 1.0
+      viabilidad_previa:
+        metodo: "certificado de imposibilidad: alpha * omega <= N en Cay(Z_N, Bad); omega acotado por el bloque {0..L_min-1} y por progresiones {0, s, ..., (K-1)s} con todas las diferencias en Bad (50 pasos candidatos de mayor alineacion)"
+        imposible_si: "floor(N / omega_lb) < p"
+        accion: "k_PA = NO_EVALUABLE sin intentos de generacion"
+      uso: [NULO_AZAR_Y_PERSISTENCIA, ESPECTROS, ANALISIS_PARALELO]
+  criterios:
+    V1: {aplica_a: [G2_1a, G2_1b, G2_2], exige: "identidades registradas con residuo <= 1e-9; invariantes OHLC y grilla de tick", no_exige: "relaciones de tipo DIAGNOSTICO_NO_UNIVERSAL (N10)"}
+    V1_prima: {aplica_a: [G2_3a, G2_3b], exige: "G2_3a: biyeccion exacta en la rejilla, 100% coincidencia de minuto, sin claves duplicadas, |Omega_k| informado; G2_3b: permutacion ciclica exacta y garantia por pares"}
+    V2: {fraccion_max_falsas_T3: 0.05, contingencia: "bloques de 10 jornadas; si persiste, T3 no se publica"}
+    V3: {procedimiento: "banda global max-T sobre 123 componentes y secuencia fija, dejando una replica fuera", nominal: 0.05, replicas: 200, tolerancia: 0.081}
+  descomposicion: {mecanica: "rho(G2_1a)", reloj: "rho(G2_1b) - rho(G2_1a)", especifica: "rho(MNQ) - rho(G2_1b)"}
+
+sensibilidades:
+  S1: "excluir filas con cruza_hueco_largo"
+  S2: "excluir filas cuya ventana contiene cualquier discontinuidad (escalas S y M)"
+  S3: "Pearson winsorizado 0.1 / 99.9 % por celda"
+  S4: "bloques de 1 y 10 jornadas"
+  S5: "series sin la media por minuto del dia x anio (RETROSPECTIVO)"
+  S6:
+    descripcion: "excluir todas las filas cuya trading_date esta en la lista cerrada"
+    fechas: ["2020-03-09", "2020-03-16", "2020-03-17", "2020-03-18", "2020-10-19", "2020-10-20", "2020-10-21", "2020-10-22"]
+    regla: "exactamente las trading_date nombradas en reports/mnq/TDA02_cobertura.md §4.1: (b) crisis de marzo de 2020, 'concentrados en 2020-03-09, 16, 17 y 18'; (a) semana anomala del 18 al 22 de octubre de 2020, cuyas cuatro trading_date con el patron repetido de dos huecos son 2020-10-19..22 (1.292 de 1.365 barras, 73 ausentes cada una en reports/mnq/TDA02_dias_incompletos.csv)"
+    fuentes: [reports/mnq/TDA02_cobertura.md, reports/mnq/TDA02_dias_incompletos.csv]   # hashes en el manifiesto
+    lista_cerrada: true                # no se anade ni retira ninguna fecha despues de ver resultados de TDA-17
+    no_incluidas: {"2020-10-23": "cobertura 50,92 % (TDA-02 §6), fuera del patron de §4.1(a)"}
+  S7: "excluir filas con rvol_cruza_roll"
+  S8: "filas cuya ventana de CHOP no tiene discontinuidades (CHOP C2 = convencional)"
+
+reglas_no_evaluable:
+  - {ambito: celda_anio_2019, regla: "siempre NO_EVALUABLE"}
+  - {ambito: G2_3a, regla: "desfases elegibles < 40 -> NO_EVALUABLE; se mantiene G2_1b"}
+  - {ambito: k_PA, regla: "|D| / (2 p) < 1 jornada -> NO_EVALUABLE"}
+  - {ambito: k_PA, regla: "certificado de imposibilidad de G2_3b -> NO_EVALUABLE sin intentos"}
+  - {ambito: k_PA, regla: "mas del 10% de replicas G2_3b no generadas -> NO_EVALUABLE"}
+  - {ambito: k_PA, regla: "V3 > 0.081 en la celda -> no se publica"}
+  - {ambito: R2, regla: "verificacion cruzada > 1e-8 -> R2_NO_PUBLICABLE_POR_COLINEALIDAD"}
+  - {ambito: EXACTA, regla: "hueco espectral < 1e4 -> SEPARACION_NUMERICA_INSUFICIENTE"}
+  - {ambito: T3, regla: "V2 falla tras la contingencia -> T3 no se publica"}
+  - {ambito: transferencia, regla: "R2_in < 0.90 -> NO_APLICA"}
+  - {ambito: RVOL, regla: "observaciones < ceil(0.8 k) en J(t) -> NaN"}
+  - {ambito: ventanas_incrementos, regla: "pares CONS < ceil(0.8 n) -> NaN"}
+  - {ambito: G2_2, regla: "calibracion de df sin convergencia o df <= 2 -> G2_2 NO_EVALUABLE; fallo de verificacion de una semilla -> bloqueo por error de implementacion, sin recalibrar"}
+  - {ambito: general, regla: "ninguna regla NO_EVALUABLE cambia umbrales, nulos ni parametros tras ver resultados"}
+
+relative_volume_politica:
+  principal: J_FIJO_CRUZA_ROLLS_CON_MARCA
+  sensibilidad: S7
+  chequeo_comparabilidad: {descripcion: "por roll, cociente de la mediana de volumen por minuto del dia en las 5 jornadas posteriores frente a las 5 anteriores", consecuencia_metodologica: NINGUNA}
+
+panel_L:
+  alcance: DIAGNOSTICO_AUXILIAR
+  en_salidas_obligatorias: false
+  analisis: "por contrato: Pearson y Spearman con su contraparte adimensional (MACD_N, NATR, ROC, log_hl) y con C_t"
+  elementos_solo_L: {B2: "relacion aproximada con B1", C1: "N14 con C2", E5: "N16 con log_hl"}
+  elementos_solo_Aux: {D4: "representado exactamente por D3 (N12)"}
+
+recuentos:
+  elementos: 45
+  por_familia: {tendencia: 12, momentum: 10, volatilidad: 10, volumen: 8, velas: 5}
+  elementos_con_P: 41
+  elementos_solo_L: 3
+  elementos_solo_Aux: 1
+  configuraciones: 102
+  series_P: 128
+  series_L: 16
+  salidas_calculadas: 144
+  series_Aux: 2
+  series_nuevas: 146
+  referencias_tda04_en_P: 6
+  columnas_P: 134
+  columnas_B: 123
+  identidades_lineales_P: 11
+  identidades_lineales_L: 3
+
+salidas:
+  datos: data/interim/mnq/tda17_indicadores_1m.parquet
+  informe: reports/mnq/TDA17_redundancia_informacional.md
+  tablas: [TDA17_catalogo.csv, TDA17_ventanas.csv, TDA17_identidades_exactas.csv, TDA17_auditoria_causalidad.csv, TDA17_perdidas_calentamiento.csv,
+           TDA17_correlacion_pearson.csv, TDA17_correlacion_spearman.csv, TDA17_r2_reconstruccion.csv, TDA17_r2_transferencia.csv,
+           TDA17_dimension_efectiva.csv, TDA17_agrupamiento.csv, TDA17_estabilidad_celdas.csv, TDA17_sensibilidades.csv,
+           TDA17_calibracion_g2.csv, TDA17_viabilidad_g2_3b.csv, TDA17_diagnostico_panel_L.csv, TDA17_rvol_comparabilidad.csv,
+           TDA17_clasificacion_final.csv]
+  graficos: [TDA17_mapa_correlacion.png, TDA17_dendrograma.png, TDA17_espectro_autovalores.png]
+
+decisiones:
+  D1: {estado: RESUELTA, contenido: "politica P1; reinicio solo en roll; incrementos solo CONS; niveles encadenados y marcados; S1/S2"}
+  D2: {estado: RESUELTA, contenido: "escalas por familia: canonicas y anclas 60/240"}
+  D3: {estado: RESUELTA, contenido: "formas adimensionales en P; MACD convencional en L y MACD_N en P; PPO convencional"}
+  D4: {estado: RESUELTA, contenido: "RVOL k en {5, 20}; J(t) fijo; cruza rolls con marca; S7; chequeo descriptivo sin consecuencias"}
+  D5: {estado: RESUELTA, contenido: "VWAP anclado al inicio de trading_date (18:00 NY)"}
+  D6: {estado: RESUELTA, contenido: "cuerpo relativo sin signo"}
+  D7: {estado: RESUELTA, contenido: "6 referencias TDA-04 en P; R_1m, r2_1m y zero_1m solo identidades"}
+  D8: {estado: RESUELTA, contenido: "umbrales de analisis.umbrales, analisis.clasificacion y g2.criterios"}
+  D9: {estado: RESUELTA, contenido: "bootstrap de bloques de 5 jornadas, 300 replicas; S4"}
+  D10: {estado: RESUELTA, contenido: "celdas 2020-2025 (2019 NO_EVALUABLE), 7 segmentos de TDA-07"}
+  D11: {estado: RESUELTA, contenido: "controles G2_1a, G2_1b, G2_2, G2_3a, G2_3b; V1, V1_prima, V2, V3"}
+  D12: {estado: RESUELTA, contenido: "R2 sobre rangos como variante secundaria"}
+  D13: {estado: RESUELTA, contenido: "diagnostico de reloj S5 (RETROSPECTIVO)"}
+  D14: {estado: APROBADA_EXPLICITAMENTE, contenido: "EXPLORATORIO_PREDECLARADO; holdout no usado en TDA-17; sin confirmacion futura automatica"}
+  D15: {estado: RESUELTA, contenido: "persistir data/interim/mnq/tda17_indicadores_1m.parquet (gitignored)"}
+  D16: {estado: RESUELTA, contenido: "implementacion propia sin dependencias nuevas"}
+  D17: {estado: RESUELTA, contenido: "panel L auxiliar por contrato; elementos 41 P / 3 L / 1 Aux"}
+  D18: {estado: RESUELTA, contenido: "no se anaden los sigma de TDA-10"}
+  D19: {estado: RESUELTA, contenido: "transferencia de la reconstruccion por anio y segmento"}
+  D20: {estado: RESUELTA, contenido: "huecos internos tratados como discontinuidad"}
+  D21: {estado: RESUELTA, contenido: "Spearman: rangos fijos por celda en bootstrap con validacion y alternativa exacta"}
+  D22: {estado: APROBADA_EXPLICITAMENTE, contenido: "Choppiness C2 como unica version; fuera de rango conservado y marcado; S8"}
+  D23: {estado: APROBADA_EXPLICITAMENTE, contenido: "R2 de cada columna frente a las demas; etiquetas de exactitud; PCA oficial P y complementario B"}
+  D24: {estado: APROBADA_EXPLICITAMENTE, contenido: "G2_3a sobre rejilla con desfases relativos; G2_3b con garantia por pares y viabilidad previa"}
+
+integridad:
+  manifiesto: reports/mnq/TDA17_manifiesto_protocolo.json
+  herramienta: src/ohlcv_dataroad/ingest/tda17_protocol_freeze.py
+  n_entradas: 5
+  n_artefactos_previos: 188
+  modos:
+    ESTRICTO: "verificacion oficial (python -m ohlcv_dataroad.ingest.tda17_protocol_freeze verificar, o pytest con TDA17_INTEGRIDAD=estricta): falla si falta o difiere cualquier fichero del protocolo, entrada o artefacto previo"
+    PORTABLE: "solo tests (por defecto, TDA17_INTEGRIDAD sin definir o =portable): omite con SKIP los ficheros ausentes, verifica los presentes; NO vale para congelar ni para autorizar la ejecucion"
+  ficheros_protocolo: 9              # PROTOCOL_FILES de la herramienta
+  validacion_rutas: "antes de calcular cualquier hash (verificar, manifiesto, congelar) se validan TODAS las rutas del manifiesto sin leer contenido: solo rutas relativas POSIX normalizadas (sin absolutas, .., barra invertida ni unidad); se rechazan el directorio de datos brutos (FORBIDDEN_PREFIXES de la herramienta), nombres de configs/mnq_snapshot.yaml holdout.holdout_files, rutas con holdout, y rutas que resuelven (enlaces incluidos) fuera del repositorio o a una ubicacion prohibida; una sola ruta prohibida detiene la verificacion sin abrir ningun fichero"
+  evidencia_sintetica: [tests/test_tda17_calentamiento_huecos.py, tests/test_tda17_diseno_v4a_sintetico.py, tests/test_tda17_diseno_v4b_g23b_viabilidad.py, tests/test_tda17_g2_2_generador.py, tests/test_tda17_supertrend.py]
+  congelamiento:
+    comando: "python -m ohlcv_dataroad.ingest.tda17_protocol_freeze congelar --confirmar"
+    precondiciones: ["YAML, informe y manifiesto en PENDIENTE_AUDITORIA_FINAL", "verificacion ESTRICTA conforme", "HEAD desciende de base_git", "sin ficheros versionados modificados"]
+    cambios: "solo la linea protocolo.estado del YAML y la linea **Estado:** del informe; el manifiesto pasa a CONGELADO con el registro congelamiento (fecha, HEAD, transiciones y huellas auditadas en PENDIENTE de los 9 ficheros del protocolo)"
+    atomicidad: "contenido nuevo calculado y validado en memoria; escritura con os.replace; verificacion ESTRICTA posterior; ante cualquier fallo se restauran los bytes originales de los tres ficheros"
+    verificacion_posterior: "en CONGELADO: YAML e informe, tras deshacer la transicion, reproducen exactamente su huella auditada; los otros 7 ficheros coinciden exactamente con la suya; recalcular el hash ordinario del manifiesto no oculta ninguna modificacion"
+    referencia_externa: "el registro vive dentro del manifiesto: una reescritura completa y coherente del manifiesto solo se detecta contra el commit Git del congelamiento (verificar --referencia-git <commit>, compara los 9 ficheros y el manifiesto) y contra los SHA-256 auditados publicados en la revision"
+    despues: "TDA17_INTEGRIDAD=estricta python -m pytest tests/test_tda17_protocol.py tests/test_tda17_calentamiento_huecos.py tests/test_tda17_diseno_v4a_sintetico.py tests/test_tda17_diseno_v4b_g23b_viabilidad.py tests/test_tda17_g2_2_generador.py tests/test_tda17_supertrend.py; tras el commit: verificar --referencia-git <commit>"
+  regeneracion_manifiesto: "solo en PENDIENTE; el manifiesto candidato se verifica en memoria antes de escribir y, ante cualquier fallo antes, durante o despues de la escritura, queda identico byte a byte al anterior"
+
+recursos_estimados:   # [ESTIMACION], no mediciones
+  tiempo_total_horas: [2.5, 5.0]
+  ram_pico_gb_max: 10
+  disco_parquet_gb: [1.5, 2.5]
+  perdida_poblacion_fraccion_orientativa: 0.033
