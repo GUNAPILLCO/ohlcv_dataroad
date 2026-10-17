@@ -1,0 +1,8 @@
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:129: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  _ev.write(_json.dumps({"comando": [sys.executable, *sys.argv], "inicio_utc": _dt.datetime.utcnow().isoformat(timespec="seconds"),
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:157: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "fin_utc": _dt.datetime.utcnow().isoformat(timespec="seconds")}) + "\n")
+CONTROL sin mutacion: 303 passed in 105.56s (0:01:45) | importa: C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine\src\ohlcv_dataroad\ingest\tda17_indicators.py
+DETECTADA    M55 F2 produccion sin barrera Git del commit auditado: 10 pruebas fallan; p. ej. ['test_f2_approval_must_match_the_audited_commit', 'test_f2_production_requires_a_verifiable_audited_commit[commit_inexistente]']
+1/1 mutaciones detectadas
+exit 0

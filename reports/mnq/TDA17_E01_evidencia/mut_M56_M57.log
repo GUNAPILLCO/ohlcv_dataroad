@@ -1,0 +1,9 @@
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:129: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  _ev.write(_json.dumps({"comando": [sys.executable, *sys.argv], "inicio_utc": _dt.datetime.utcnow().isoformat(timespec="seconds"),
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:157: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "fin_utc": _dt.datetime.utcnow().isoformat(timespec="seconds")}) + "\n")
+CONTROL sin mutacion: 303 passed in 101.32s (0:01:41) | importa: C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine\src\ohlcv_dataroad\ingest\tda17_indicators.py
+DETECTADA    M56 F2 Git sin comprobar la raiz del repositorio: 1 pruebas fallan; p. ej. ['test_f2_production_requires_a_verifiable_audited_commit[repositorio_padre]']
+DETECTADA    M57 F2 borrador activable: 2 pruebas fallan; p. ej. ['test_draft_document_is_traceable_but_not_activable', 'test_draft_of_an_approved_registry_cannot_activate_production']
+2/2 mutaciones detectadas
+exit 0

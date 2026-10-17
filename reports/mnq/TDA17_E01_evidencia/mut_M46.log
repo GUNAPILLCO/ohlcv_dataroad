@@ -1,0 +1,10 @@
+COMANDO: python C:/Users/heguu/AppData/Local/Temp/claude/C--Users-heguu-Desktop-ohlcv-dataroad/284e8924-bba5-4d30-aeb5-b0255b2fc51f/scratchpad/mut_engine.py C:/Users/heguu/Desktop/ohlcv_dataroad C:/Users/heguu/AppData/Local/Temp/claude/C--Users-heguu-Desktop-ohlcv-dataroad/284e8924-bba5-4d30-aeb5-b0255b2fc51f/scratchpad M46
+CWD: /c/Users/heguu/Desktop/ohlcv_dataroad
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:123: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  _ev.write(_json.dumps({"comando": [sys.executable, *sys.argv], "inicio_utc": _dt.datetime.utcnow().isoformat(timespec="seconds"),
+C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine.py:151: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "fin_utc": _dt.datetime.utcnow().isoformat(timespec="seconds")}) + "\n")
+CONTROL sin mutacion: 291 passed in 28.64s | importa: C:\Users\heguu\AppData\Local\Temp\claude\C--Users-heguu-Desktop-ohlcv-dataroad\284e8924-bba5-4d30-aeb5-b0255b2fc51f\scratchpad\mut_engine\src\ohlcv_dataroad\ingest\tda17_indicators.py
+DETECTADA    M46 integridad: sustituir sin comprobar cambio: 1 pruebas fallan; p. ej. ['test_whitelist_rejects_any_other_change[sustituir_sin_cambio]']
+1/1 mutaciones detectadas
+codigo de salida: 0

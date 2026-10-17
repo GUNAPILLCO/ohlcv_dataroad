@@ -16,9 +16,25 @@
         "E01-A: A8 ADX con DX no definido",
         "E01-B: ventanas de las marcas de discontinuidad, marca de sesion de VWAP y combinacion para S1/S2"
       ],
-      "estado": "PENDIENTE_AUDITORIA",
+      "estado": "APROBADA",
       "fecha_preparacion": "2026-10-17",
-      "aprobacion": null
+      "aprobacion": {
+        "fecha": "2026-10-17",
+        "aprobada_por": "Responsable del proyecto IRIS (declaración de aprobación; identidad no autenticada)",
+        "referencia_auditoria": {
+          "documento": "reports/mnq/TDA17_E01_acta_aprobacion.md",
+          "commit_auditado": "386815bde75833ec64763f65b70495d0f535c44d"
+        },
+        "sha256_auditados": {
+          "configs/tda17_enmienda_01.yaml": "62b91747d5102aef51cc2c51f014e20d3ba1e635e98cddee7c57ecebefa5d5cb",
+          "src/ohlcv_dataroad/ingest/tda17_enmiendas.py": "6c5d96d0513b5e0962f476c7175529b061c2c4ea6c81340c86b1918a9575b569",
+          "src/ohlcv_dataroad/ingest/tda17_indicators.py": "9d197a52576f18a19f6ebf51a6fb5f3bf966253515a1ec3439e3a44b4042dd1a",
+          "src/ohlcv_dataroad/ingest/tda17_primitives.py": "11f90df582baf823a8c523eff0ad268ea720207fa8eb9f8bc8227d49f1a9fb32",
+          "tests/test_tda17_indicators.py": "c3dc92f122beec2b4621e76c9012f178906814cf0c24130291f738f0ee83c417",
+          "tests/test_tda17_enmienda_01.py": "25a86dbe393501c6262d628dffdde7fd1df3aa8e6e54f0834b1908fc6d611790",
+          "tests/tda17_synthetic.py": "23e4f30a13069c8b717526d63bad029b50ad73493f7eca001a9b96f54d6ec64e"
+        }
+      }
     }
   ]
 }

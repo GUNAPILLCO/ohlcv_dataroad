@@ -1,0 +1,86 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 24%]
+........................................................................ [ 29%]
+........................................................................ [ 34%]
+........................................................................ [ 38%]
+........................................................................ [ 43%]
+........................................................................ [ 48%]
+........................................................................ [ 53%]
+........................................................................ [ 58%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+......................................ss................................ [ 97%]
+......................................                                   [100%]
+============================== warnings summary ===============================
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:192: RuntimeWarning: Mean of empty slice
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:201: RuntimeWarning: Mean of empty slice
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 52 warnings
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1593: RuntimeWarning: All-NaN slice encountered
+    return fnb._ureduce(a,
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:192: RuntimeWarning: All-NaN slice encountered
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:201: RuntimeWarning: All-NaN slice encountered
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py::test_bar_population_variables_use_all_admissible_bars_including_first_of_session
+tests/test_tda06_intraday_calendar_profile.py::test_structurally_closed_minutes_are_not_filled_with_synthetic_observations
+tests/test_tda06_intraday_calendar_profile.py::test_minute_profile_table_always_has_all_1440_minutes
+tests/test_tda06_intraday_calendar_profile.py::test_minute_aggregation_matches_hand_computed_median
+tests/test_tda06_intraday_calendar_profile.py::test_by_year_tables_do_not_mix_years
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1213: RuntimeWarning: Mean of empty slice
+    return np.nanmean(a, axis, out=out, keepdims=keepdims)
+
+tests/test_tda06_intraday_calendar_profile.py::test_s_m_guards_against_zero_or_non_finite_point
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:940: RuntimeWarning: invalid value encountered in divide
+    table["point"].to_numpy() / mean_level,
+
+tests/test_tda06_intraday_calendar_profile.py: 15 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:436: RuntimeWarning: Mean of empty slice
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 15 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:443: RuntimeWarning: Mean of empty slice
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 25 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:436: RuntimeWarning: All-NaN slice encountered
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 25 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:443: RuntimeWarning: All-NaN slice encountered
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 20 warnings
+  C:\Users\heguu\Desktop\ohlcv_dataroad\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:546: RuntimeWarning: Mean of empty slice
+    return np.nanmean(stacked, axis=0)
+
+tests/test_tda08_linear_mean_dependence.py::test_analyze_window_computes_mean_per_bar_and_rho1_on_the_correct_minute_range
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_never_opens_any_raw_or_holdout_file
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_never_opens_any_raw_or_holdout_file
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_end_to_end_produces_all_result_fields
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_end_to_end_produces_all_result_fields
+tests/test_tda08_linear_mean_dependence.py::test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolete
+tests/test_tda08_linear_mean_dependence.py::test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolete
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1396: RuntimeWarning: All-NaN slice encountered
+    return _nanquantile_unchecked(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1476 passed, 2 skipped, 213 warnings in 688.65s (0:11:28)
