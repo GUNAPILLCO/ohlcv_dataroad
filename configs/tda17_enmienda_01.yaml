@@ -1,0 +1,122 @@
+# TDA-17 -- Enmienda E01 al protocolo congelado TDA17_PROTOCOLO_v1.
+#
+# El protocolo base (configs/tda17.yaml, CONGELADO en el commit 9cdea2f) NO se modifica.
+# Este fichero contiene solo el CONTENIDO normativo de la enmienda; no lleva estado de
+# aprobacion, para que su huella no cambie al aprobarse. El estado vive en el registro
+# reports/mnq/TDA17_enmiendas.json. La huella autorizada de este fichero esta fijada en
+# src/ohlcv_dataroad/ingest/tda17_enmiendas.py (AUTHORIZED_AMENDMENTS).
+#
+# Aplicacion: tda17_enmiendas.load_effective_protocol() verifica el protocolo base, la
+# huella y el estado de E01, y aplica `cambios` contra una LISTA BLANCA fija en el codigo
+# (solo A8/ADX y marcas de discontinuidad). Cualquier otra operacion se rechaza.
+#
+# No cambia: parametros, umbrales, K, U, clases de calentamiento, formulas de +DI, -DI y DX,
+# politica P1, reinicios por roll, indicadores, recuentos ni decisiones D1-D24.
+#
+# DECISION IRIS: NINGUNA.
+
+enmienda:
+  id: E01
+  titulo: "ADX con DX no definido (E01-A) y ventanas de las marcas de discontinuidad (E01-B)"
+  protocolo_base:
+    id: TDA17_PROTOCOLO_v1
+    commit: 9cdea2f4657de1c54e3fccf86cf380b2eac8704e
+    sha256_yaml: 920cda43e59365e9a72f13ba6e8d5adb182640b188bf23a25059a3b4e9438938
+    sha256_manifiesto: 1b14b65a07dd207625071c3f657863574a0b4ab801a92bd917caace24f8db4d0
+  motivo:
+    E01-A: "el protocolo congelado no fija que hace ADX cuando DX no esta definido (0/0 -> NaN por reglas_frontera.divisiones); la lectura literal deja ADX en NaN durante el resto del contrato en cuanto una DX no definida entra en la semilla o en la recursion (p. ej. contratos que empiezan con precios constantes)"
+    E01-B: "reglas_frontera.marcas_por_fila enumera las marcas sin fijar su ventana; la regla del diseno v2 (§3.3, 'dentro de las ultimas L_eff barras') es ambigua para las entradas que dependen de un par (TR, BP, incrementos, r_1m), y S1/S2 dependen de ella"
+  no_cambia: [parametros, umbrales, K, U, clases_de_calentamiento, formulas_DI_DX, politica_P1, reinicio_por_roll, indicadores, recuentos, decisiones_D1_D24]
+
+cambios:
+  # ------------------------------------------------------------------ E01-A: ADX/DMI
+  - op: anadir
+    ruta: catalogo.A8.dx_no_definido
+    valor:
+      regla: OMITIR_EN_ETAPA_2
+      definicion: "DX no definido (W(TR) = 0 o +DI + -DI = 0 -> NaN por reglas_frontera.divisiones) permanece NaN: nunca se sustituye por 0 ni se rellena, y no es entrada de ADX"
+      semilla: "ADX se siembra con la media simple de las n primeras DX FINITAS recibidas desde el comienzo de la etapa 2 (actualizacion CONS U1 de la etapa 1)"
+      actualizacion: "despues de la semilla, solo las DX finitas actualizan ADX (ADX += (DX - ADX) / n); en una actualizacion CONS con DX no definido el estado se retiene sin decaimiento"
+      activacion: "la salida adx se ACTIVA en la primera actualizacion en la que se han acumulado n + k(1/n) DX finitas desde el comienzo de la etapa 2 (criterio de peso residual < 0,01 contado en entradas finitas: 77 para n = 14 y 335 para n = 60); antes, adx es NaN aunque la barra sea estructuralmente elegible"
+      sin_garantia: "si en el contrato nunca se acumulan n + k(1/n) DX finitas, adx es NaN en todo el contrato: no hay salida finita garantizada"
+      sin_cambios: "+DI, -DI y DX (formulas, terna W(TR), W(+DM), W(-DM) y su calentamiento), elegibilidad estructural u_t >= U, clase CONTADOR_CONS, politica P1 (terna y ADX retenidos fuera de CONS) y reinicio en cada roll"
+      equivalencia: "si todas las DX de la etapa 2 son finitas, el resultado es identico al Wilder convencional (semilla con las n primeras DX y recursion en cada actualizacion)"
+  - op: anadir
+    ruta: calentamiento.clases.CONTADOR_CONS.A8_dx_no_definido
+    valor: "A8 adx: la elegibilidad estructural sigue siendo u_t >= U (U = 2 U1 - 1); la salida adx tiene ademas ACTIVACION ALGORITMICA dependiente de los valores (n + k(1/n) DX finitas en la etapa 2, ver catalogo.A8.dx_no_definido). di_pos y di_neg no cambian. Despues de activarse, adx se emite tambien en barras no CONS (estado retenido, politica P1) y solo se pierde en un roll"
+  - op: sustituir
+    ruta: calentamiento.tres_niveles
+    valor: "(1) ELEGIBILIDAD ESTRUCTURAL: depende EXCLUSIVAMENTE del esqueleto temporal (reinicios, barras observadas y pares CONS), nunca de los valores; (2) ACTIVACION ALGORITMICA: condicion adicional que depende de los VALORES y que se evalua solo en barras estructuralmente elegibles; existe en DEPENDIENTE_DE_DATOS (KAMA) y en la salida adx de A8 (E01-A: n + k(1/n) DX finitas); en las demas clases y salidas la activacion coincide con la elegibilidad; (3) PRIMERA SALIDA FINITA: primera barra activada cuyo valor no es NaN por las reglas de division. Orden: elegibilidad <= activacion <= primera salida finita"
+  - op: sustituir
+    ruta: calentamiento.registro
+    valor: "TDA17_perdidas_calentamiento.csv: por serie y contrato: clase, K_teorico, U (si aplica), primera_barra_elegible, retraso = primera_barra_elegible - K_teorico, numero de barras no CONS durante el calentamiento, primera_activacion (DEPENDIENTE_DE_DATOS y salida adx de A8; igual a la elegible en las demas), primera_salida_finita y numero de barras elegibles con NaN por regla de division"
+
+  # ------------------------------------------------------------------ E01-B: marcas de discontinuidad
+  - op: anadir
+    ruta: reglas_frontera.ventanas_marcas
+    valor:
+      familias:
+        niveles: "ventana de L barras observadas cuyos NIVELES (C, H, L, TP, V o valores locales de la barra) usa la serie: cuenta los L - 1 pares INTERNOS (pares que terminan en t-L+2..t). El par que termina en la primera barra de la ventana no se cuenta: ningun nivel usado depende de el"
+        pares: "ventana de P entradas que dependen cada una del par que termina en su barra (TR y BP segun P1, incrementos, r_1m): cuenta los P pares que terminan en t-P+1..t, INCLUIDO el que termina en la primera barra de la ventana"
+        sesion: "VWAP: pares INTERNOS de la trading_date en curso, desde su primera barra hasta t (marca acumulativa). Se reinicia con VWAP (FJ, FJL y roll); el par de apertura de la jornada (FJ o FJL) no se cuenta, porque VWAP no hereda nada de la jornada anterior. Solo puede contener HI: n_disc_FJ = n_disc_FJL = 0 por construccion; cruza_hueco_largo = algun HI largo (> 90 min) en la sesion"
+      claves: [n_disc_HI, n_disc_FJ, n_disc_FJL, cruza_hueco_largo]
+      definicion_claves: "n_disc_X = numero de pares de tipo X contados en la ventana; cruza_hueco_largo = existe un par FJL o un HI largo (delta > 90 min) contado en la ventana"
+      reinicio: "las ventanas no cruzan rolls: la barra de reinicio no tiene par y nunca se cuenta como discontinuidad. Niveles y pares: NaN mientras la ventana de L o P barras no cabe en el contrato. Sesion: definida desde la primera barra del contrato"
+      memoria_efectiva: "para los indicadores recursivos (EMA, Wilder, MACD, TSI, RSI, ADX, Supertrend, KAMA, Keltner) la ventana se deriva de K, que representa una ventana de MEMORIA EFECTIVA (peso residual de la inicializacion < 0,01), no necesariamente toda su dependencia historica: una discontinuidad anterior a la ventana puede conservar un peso residual < 0,01 y no se marca"
+      expresiones: "n, n+1, K, K-1, er, er+1 y c son parametros de la configuracion o su K declarado; k_ema(n) y k_wilder(n) = k(2/(n+1)) y k(1/n) de calentamiento.criterio_recursivo"
+      asignacion:
+        A1: {niveles: n}
+        A2: {niveles: K}
+        A3: {niveles: n}
+        A4: {niveles: K}
+        A5: {niveles: er+1, pares: er}
+        A6: {niveles: K}
+        A7: {niveles: K}
+        A8: {pares: K-1}
+        A9: {niveles: n+1}
+        A10: {niveles: K}
+        A11: {niveles: K, pares: K}
+        A12: {niveles: n}
+        B1: {pares: n}
+        B2: {pares: n}
+        B3: {pares: K-1}
+        B4: {niveles: K}
+        B5: {niveles: n}
+        B6: {niveles: n}
+        B7: {pares: n}
+        B8: {pares: K-1}
+        B9: {pares: K-1}
+        B10: {pares: c}
+        C1: {pares: K}
+        C2: {pares: K}
+        C3: {niveles: n}
+        C4: {niveles: n+k_ema(n), pares: atr+k_wilder(atr)}
+        C5: {niveles: n}
+        C6: {pares: n}
+        C7: {niveles: n}
+        C8: {niveles: n}
+        C9: {niveles: n}
+        C10: {niveles: n, pares: n}
+        D1: {pares: n}
+        D2: {pares: n}
+        D3: {niveles: n}
+        D4: {}
+        D5: {niveles: K}
+        D6: {niveles: n+1}
+        D8: {sesion: trading_date}
+        E1: {}
+        E2: {}
+        E3: {}
+        E4: {}
+        E5: {}
+      sin_ventana: "D4 (solo Aux) y E1-E5 (K = 1, variables locales de la barra) no tienen marcas generales: su valor solo depende de la barra t"
+      fuera_de_alcance: "D7 RVOL: su ventana son las k jornadas de J(t) y cruza fronteras de jornada por construccion; no recibe marcas generales y conserva su marca propia rvol_cruza_roll (S7)"
+  - op: anadir
+    ruta: sensibilidades.marcas_por_serie
+    valor:
+      marca_de_serie: "union de las ventanas asignadas a la serie (reglas_frontera.ventanas_marcas.asignacion). Como todas terminan en t, la union es la ventana que contiene mas pares; sus n_disc_* y cruza_hueco_largo son las marcas de la serie. Sin ventana asignada: marcas = 0"
+      S1: "excluir la fila t de la serie s si cruza_hueco_largo_s(t) = 1"
+      S2: "solo series de escalas S y M (alcance predeclarado; las series de escala L no entran en S2): excluir la fila t de la serie s si n_disc_HI_s(t) + n_disc_FJ_s(t) + n_disc_FJL_s(t) > 0"
+      varias_series: "en un calculo que combina varias series (un par de Pearson o Spearman, el R2 de una columna frente a las demas, una PCA), la fila se excluye si se excluye para cualquiera de las series que intervienen"
+      marcas_nan: "una marca NaN (ventana que aun no cabe en el contrato) solo aparece en barras anteriores a K, que no son casos completos de P"
+      fuera_de_alcance: "D7 RVOL no interviene en S1 ni en S2: su sensibilidad es S7 (rvol_cruza_roll)"

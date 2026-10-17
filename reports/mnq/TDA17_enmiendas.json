@@ -1,0 +1,24 @@
+{
+  "descripcion": "Registro de enmiendas de TDA-17. El protocolo base (configs/tda17.yaml y los 9 ficheros protegidos del manifiesto) no se modifica. La huella autorizada de cada enmienda esta fijada tambien en src/ohlcv_dataroad/ingest/tda17_enmiendas.py. Este registro es una DECLARACION de aprobacion, no una firma criptografica: no autentica la identidad de quien aprueba. La aprobacion solo se registra aqui, tras la auditoria independiente, con fecha ISO, responsable declarado, referencia_auditoria {documento, commit_auditado} y sha256_auditados de los ficheros auditados; 'verificar' comprueba esas huellas contra el commit auditado y '--referencia-git' contra el commit publicado.",
+  "protocolo_base": {
+    "id": "TDA17_PROTOCOLO_v1",
+    "commit": "9cdea2f4657de1c54e3fccf86cf380b2eac8704e",
+    "sha256_yaml": "920cda43e59365e9a72f13ba6e8d5adb182640b188bf23a25059a3b4e9438938",
+    "sha256_manifiesto": "1b14b65a07dd207625071c3f657863574a0b4ab801a92bd917caace24f8db4d0"
+  },
+  "normalizacion_hash": "SHA-256 tras normalizar CRLF a LF",
+  "enmiendas": [
+    {
+      "id": "E01",
+      "fichero": "configs/tda17_enmienda_01.yaml",
+      "sha256": "62b91747d5102aef51cc2c51f014e20d3ba1e635e98cddee7c57ecebefa5d5cb",
+      "alcance": [
+        "E01-A: A8 ADX con DX no definido",
+        "E01-B: ventanas de las marcas de discontinuidad, marca de sesion de VWAP y combinacion para S1/S2"
+      ],
+      "estado": "PENDIENTE_AUDITORIA",
+      "fecha_preparacion": "2026-10-17",
+      "aprobacion": null
+    }
+  ]
+}
