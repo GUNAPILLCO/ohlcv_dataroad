@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# TDA-17: salidas oficiales de TH35 (E02, decisiones 17-19). check_official_publication y
+# reproduce_official_publication las verifican byte a byte: sin conversion de finales de linea.
+reports/mnq/TDA17_auditoria_causalidad.csv -text
+reports/mnq/TDA17_estabilidad_celdas.csv -text
+reports/mnq/TDA17_r2_reconstruccion.csv -text
+reports/mnq/TDA17_correlacion_spearman.csv -text
+reports/mnq/TDA17_clasificacion_final.csv -text
+reports/mnq/TDA17_diagnostico_bloqueo.csv -text
+reports/mnq/TDA17_procedencia_oficial.json -text

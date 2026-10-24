@@ -1,0 +1,330 @@
+# TDA-17 -- Enmienda E02 al protocolo congelado TDA17_PROTOCOLO_v1 (requiere E01).
+#
+# El protocolo base (configs/tda17.yaml, CONGELADO en el commit 9cdea2f) y E01 (configs/tda17_enmienda_01.yaml,
+# APROBADA y publicada en 24f9f1d) NO se modifican. Este fichero contiene solo el CONTENIDO normativo de E02: no
+# lleva estado de aprobacion, que vive en reports/mnq/TDA17_enmiendas_E02.json (hoy PENDIENTE_AUDITORIA). La huella
+# autorizada de este fichero esta fijada en src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py (cargador escalonado
+# M2, reports/mnq/TDA17_especificacion_migracion_M2.md).
+#
+# Los valores reproducen las claves propuestas en reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md
+# (secciones 1.5, 2.5, 3.8 y 4.6) con las opciones autorizadas por el responsable (registro de decisiones:
+# reports/mnq/TDA17_E02_registro_decisiones.md). Todas las operaciones son 'anadir' sobre claves NUEVAS: ninguna
+# sustituye una regla congelada. No cambian tau, nulos esperados, umbrales, replicas, longitud de bloque, la semilla
+# 1717, tolerancias, parametros del catalogo ni D1-D24. La unica cifra nueva es la semilla 3717 de la auditoria causal.
+# La decision 11 (hueco espectral y EXACTA por celda) esta APLAZADA y no tiene clave en E02.
+#
+# Autorizacion COMPLEMENTARIA (2026-10-19): las seis recomendaciones de
+# reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md (decisiones 14-19 del registro de decisiones) se
+# anaden como cinco operaciones 'anadir' sobre claves NUEVAS al final de 'cambios'. Las once operaciones
+# anteriores y la autorizacion del 2026-10-18 se conservan sin cambios.
+#
+# DECISION IRIS: NINGUNA.
+
+enmienda:
+  id: E02
+  requiere: E01
+  titulo: "Nucleo de decisiones de TH35/TH37: convencion y ambito del control de rango, bloqueo hasta explicar, intervalos bootstrap, validacion de Spearman, celdas no publicables, subniveles y auditoria causal"
+  protocolo_base:
+    id: TDA17_PROTOCOLO_v1
+    commit: 9cdea2f4657de1c54e3fccf86cf380b2eac8704e
+    sha256_yaml: 920cda43e59365e9a72f13ba6e8d5adb182640b188bf23a25059a3b4e9438938
+    sha256_manifiesto: 1b14b65a07dd207625071c3f657863574a0b4ab801a92bd917caace24f8db4d0
+  autorizacion_metodologica:
+    fecha: "2026-10-18"
+    responsable: "Responsable del proyecto IRIS (declaracion de autorizacion; identidad no autenticada)"
+    documento: reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md
+    sha256_documento: 192c5a43be79835d620ee7484df1b8f8242e8ef73e49a70f182b6109cb92f0a0
+    decisiones:
+      "1": "A1-a + F5-a"
+      "2": "A4-a"
+      "3": "A2-a"
+      "4": "B1-a (cuantiles 0.05 y 0.95)"
+      "5": "B2-a"
+      "6": "B6 (PCG64, SeedSequence(1717).spawn por celda)"
+      "7": "B3-a + F2-a"
+      "8": "F3-I + F3-I-b"
+      "9": "B13-a"
+      "10": "D17-1a (semilla nueva 3717)"
+      "11": "APLAZADA: sin clave en E02; la publicacion de EXACTA por celda queda BLOQUEADA"
+      "12": "INCLUIDA: subniveles con el R2_TODAS puntual de la celda GLOBAL"
+      "13": "Checklist de garantias M2 (implementacion, sin clave)"
+    alcance: "autoriza las decisiones METODOLOGICAS; NO aprueba el codigo de E02 ni autoriza ejecutar sobre MNQ (registro de E02 PENDIENTE_AUDITORIA hasta el ciclo A2 -> P2)"
+  autorizacion_complementaria:
+    fecha: "2026-10-19"
+    responsable: "Responsable del proyecto IRIS (declaracion de autorizacion; identidad no autenticada)"
+    documento: reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md
+    sha256_documento: f16672c3ac80505e3a70a0d1ef68619dff56175da9f153bab936f0c117cb46d6
+    anexo: reports/mnq/TDA17_E02_anexo_relaciones_N.md
+    decisiones:
+      "14": "S-a: replica INVALIDA en la validacion de Spearman -> falla la validacion de esa celda en esa ronda"
+      "15": "N-a: SIN_SUBNIVEL_R2_NO_PUBLICABLE"
+      "16": "R-a corregida: tipo de cada N1-N21, columnas de P (anexo), sin nulos esperados nuevos"
+      "17": "esquema minimo de las cinco tablas oficiales (seccion 4.1)"
+      "18": "ruta unica official_publish_th35 + TDA17_procedencia_oficial.json, vinculadas al calculo verificado"
+      "19": "con bloqueo: solo TDA17_auditoria_causalidad.csv y TDA17_diagnostico_bloqueo.csv (seccion 4.3)"
+    alcance: "autoriza las decisiones METODOLOGICAS 14-19; NO aprueba el codigo de E02 ni autoriza ejecutar sobre MNQ"
+  motivo: "el protocolo congelado no fija la convencion ni el ambito del recuento de nulos, el procedimiento de explicacion del bloqueo, el nivel y tipo de los intervalos, el remuestreo por celda, el tratamiento de replicas y celdas no publicables, la validacion de Spearman, el R2 de los subniveles ni el procedimiento de la auditoria causal TH37 (inventario de decisiones pendientes, revision 3.1)"
+  no_cambia: [tau_relativa, nulos_esperados, umbrales, replicas_bootstrap, longitud_bloque_jornadas, semilla_bootstrap, tolerancias, parametros_catalogo, decisiones_D1_D24, E01]
+
+cambios:
+  # ------------------------------------------------------------------ decision 1: A1-a + F5-a
+  - op: anadir
+    ruta: identidades.verificacion_numerica.convencion
+    valor:
+      cantidad: AUTOVALORES
+      matrices:
+        P_centrada: CORRELACION_PEARSON_POBLACION_CELDA
+        B_centrada: CORRELACION_PEARSON_POBLACION_CELDA
+        P_sin_centrar: COSENOS_SIN_CENTRAR
+        L: CORRELACION_PEARSON_POR_CONTRATO
+      desigualdad: "lambda_i <= tau_relativa * lambda_max (tau_relativa de esta misma seccion, sin cambios)"
+      negativos_por_redondeo: CUENTAN_COMO_NULOS_SIN_RECORTE
+      valores_singulares: DIAGNOSTICO_PUBLICADO_NO_BLOQUEANTE
+      matriz_no_definida:
+        centrada: COLUMNA_CON_VARIANZA_CERO_EN_LA_POBLACION_DE_LA_CELDA
+        sin_centrar: COLUMNA_CON_NORMA_CERO
+        tratamiento: CELDA_NO_DEFINIDA_SIN_ANALISIS_MATRICIAL_E_INCUMPLIMIENTO_PARA_TODAS_LAS_COLUMNAS
+        global_no_definida: BLOQUEO_TH35_CON_PROCEDIMIENTO_A2
+        no_es: DISCREPANCIA_DE_NULOS
+  # ------------------------------------------------------------------ decision 2: A4-a
+  - op: anadir
+    ruta: identidades.verificacion_numerica.ambito
+    valor:
+      bloqueantes: [GLOBAL, ANIOS_EVALUABLES, SEGMENTOS]
+      informativas: [ANIO_2019, ANIO_X_SEGMENTO, PANEL_L_POR_CONTRATO, REPLICAS_G2]
+      sensibilidades: BLOQUEA_SOLO_LA_SENSIBILIDAD
+      alcance_del_bloqueo: TODAS_LAS_CONCLUSIONES_TH35
+  # ------------------------------------------------------------------ decision 3: A2-a
+  - op: anadir
+    ruta: identidades.verificacion_numerica.procedimiento_bloqueo
+    valor:
+      estado: BLOQUEADO_HASTA_EXPLICAR
+      conclusiones_bloqueadas: [CLASIFICACION_TH35, SUBNIVELES, ETIQUETA_EXACTA, TRANSFERENCIA, K_PA, SENSIBILIDAD_AFECTADA]
+      diagnosticos_obligatorios: [ESPECTRO_DOS_CONVENCIONES, DIRECCIONES_NULAS_CON_CARGAS, R2_TRES_METODOS_MARCADO,
+                                  RESIDUOS_IDENTIDADES_REGISTRADAS, RELACIONES_N_IMPLICADAS, AMBITO_AFECTADO]
+      expediente: [celdas, recuentos, direcciones, relaciones_candidatas, atribucion, tratamiento_propuesto]
+      levantamiento: ENMIENDA_FORMAL_POSTERIOR_AUDITADA_CICLO_M2
+      prohibido: [CAMBIAR_TAU, CAMBIAR_NULOS_ESPERADOS, REGISTRAR_CUASIDEPENDENCIA_COMO_IDENTIDAD_LINEAL,
+                  CONSULTAR_CLASIFICACION_ANTES_DEL_LEVANTAMIENTO, DESBLOQUEO_AUTOMATICO]
+  # ------------------------------------------------------------------ decision 4: B1-a
+  - op: anadir
+    ruta: analisis.bootstrap.intervalo
+    valor:
+      tipo: PERCENTIL
+      cuantiles: [0.05, 0.95]
+      interpretacion: "cada extremo se usa como cota unilateral en la regla de clasificacion; cobertura NOMINAL"
+      metodo_cuantil: EMPIRICO_INTERPOLACION_LINEAL_TIPO_7
+      aplica_a: [R2_TODAS, SPEARMAN]
+  # ------------------------------------------------------------------ decision 5: B2-a
+  - op: anadir
+    ruta: analisis.bootstrap.ambito
+    valor:
+      por_celda: true
+      unidad: TRADING_DATE_CON_FILAS_EN_LA_POBLACION_DE_LA_CELDA
+      jornada_en_segmento: PARTE_DE_LA_TRADING_DATE_EN_EL_SEGMENTO
+      orden_circular: CRONOLOGICO_DENTRO_DE_LA_CELDA
+      poblacion_replica: FIJA_CASOS_COMPLETOS_DE_LA_CELDA
+  # ------------------------------------------------------------------ decision 6: B6
+  - op: anadir
+    ruta: analisis.bootstrap.reproducibilidad
+    valor:
+      bitgen: PCG64
+      flujos: "SeedSequence(semilla).spawn(n_celdas), en el orden declarado de celdas: GLOBAL, anios ascendentes, segmentos en el orden de etiquetas"
+      consumo: "una llamada integers(0, D, size=ceil(D / longitud_bloque_jornadas)) por replica"
+      sensibilidad_S4: "mismos flujos por celda, reiniciados"
+      version_numpy: "si cambia la secuencia, se recalcula con el mismo procedimiento; nada se recalibra"
+  # ------------------------------------------------------------------ decision 7: B3-a + F2-a
+  - op: anadir
+    ruta: analisis.bootstrap.estadistico_replica
+    valor:
+      r2: METODO_OFICIAL_SOBRE_LA_CORRELACION_DE_LA_REPLICA
+      verificaciones_cruzadas: SOLO_ESTIMACION_PUNTUAL
+      replicas_excluidas: NINGUNA
+      diagnostico: TAMANO_DE_BASE_POR_REPLICA
+      columnas_exactas: IC_DEGENERADO_PUBLICADO
+      replica_invalida:
+        causas: [VAR_CERO, BASE_DEGENERADA, NO_FINITO, FUERA_DE_RANGO]
+        rango_admisible: "[0, 1] sin margen"
+        tratamiento: IC_NO_CALCULABLE_SI_ALGUNA_INVALIDA
+        prohibido: [DESCARTAR, REGENERAR, SUSTITUIR, RECORTAR]
+        informe: RECUENTO_E_INDICES_POR_CELDA_COLUMNA_Y_CAUSA
+        clasificacion: CUENTA_COMO_INCUMPLIMIENTO
+        spearman: "rangos constantes de una columna en una replica: replica INVALIDA e IC NO_CALCULABLE"
+  # ------------------------------------------------------------------ decision 8: F3-I + F3-I-b
+  - op: anadir
+    ruta: analisis.spearman.validacion_detalle
+    valor:
+      celdas: [GLOBAL, ANIO_2024]
+      replicas_validacion: PRIMERAS_30_DEL_FLUJO_DE_LA_CELDA
+      estadistico: "mediana sobre pares y extremos de |IC_rangos_fijos - IC_exacto|"
+      criterio: "<= tolerancia_mediana_dif_ic en ambas celdas"
+      alternativa_si_falla: "VALIDACION AMPLIADA con las primeras 100 replicas del flujo (mismo estadistico y tolerancia)"
+      publicacion: "IC con rangos fijos y las 300 replicas de analisis.bootstrap si la validacion (30 o 100) pasa"
+      si_falla_la_ampliada: IC_SPEARMAN_NO_PUBLICADOS_COEFICIENTES_SI
+      replica_invalida: "una replica INVALIDA en la validacion hace que la validacion falle para ese par"
+  # ------------------------------------------------------------------ decision 9: B13-a
+  - op: anadir
+    ruta: analisis.clasificacion.celdas_no_publicables
+    valor:
+      incluye: [R2_NO_PUBLICABLE_POR_COLINEALIDAD, IC_NO_CALCULABLE, MATRIZ_NO_DEFINIDA]
+      tratamiento: CUENTA_COMO_INCUMPLIMIENTO_DE_AMBAS_CONDICIONES
+      informe: RECUENTO_POR_COLUMNA
+  # ------------------------------------------------------------------ decision 12: B9 (incluida)
+  - op: anadir
+    ruta: analisis.clasificacion.subniveles_r2
+    valor:
+      fuente: R2_TODAS_PUNTUAL_CELDA_GLOBAL
+      caracter: DESCRIPTIVO_FUERA_DE_LA_REGLA_DE_ESTABILIDAD
+  # ------------------------------------------------------------------ decision 10: D17-1a
+  - op: anadir
+    ruta: analisis.auditoria_causalidad
+    valor:
+      futuro:
+        modos: [TRUNCAMIENTO, PERTURBACION_FUTURA]
+        unidad: CONTRATO
+        vecindad_del_evento: [-1, 0, 1]
+        cortes_deterministas:
+          discontinuidades: [PRIMERA_Y_ULTIMA_FJ, PRIMERA_Y_ULTIMA_FJL, PRIMER_Y_ULTIMO_HI_CORTO, PRIMER_Y_ULTIMO_HI_LARGO]
+          reinicio_y_roll: [BARRAS_1_2_3, ULTIMA_BARRA]
+          calentamiento: PRIMERA_BARRA_ELEGIBLE_DE_CADA_K_Y_CLASE
+          activacion: [A5_KAMA, A8_ADX]
+          estado_recursivo: [A11_PRIMER_Y_ULTIMO_CAMBIO_DE_DIRECCION, VENTANA_VALIDEZ_PERDIDA_Y_RECUPERACION]
+          cuantiles: [0.25, 0.5, 0.75]
+        cortes_aleatorios:
+          por_contrato: 10
+          semilla: 3717
+          flujos: "SeedSequence(3717).spawn(n_contratos)"
+          rango: "barras uniformes entre la 2 y la penultima"
+        duplicados: "un corte se usa una vez y se registran todos sus motivos"
+        no_aplicable:
+          motivos: [EVENTO_INEXISTENTE, CONTRATO_CORTO]
+          sustitucion: NINGUNA
+          cuenta_como: NI_DISCREPANCIA_NI_CONFORMIDAD
+        d7_rvol: TRUNCAMIENTO_GLOBAL
+        alcance: AUDITORIA_POR_MUESTREO_NO_EXHAUSTIVA
+        igualdad: EXACTA_BIT_A_BIT_INCLUIDOS_NAN_MARCAS_Y_MASCARAS
+        incluye: [SERIES_CATALOGO, MARCAS, VARIABLES_TDA04_DE_P]
+      origen_parametros: TABLA_DECLARADA
+      roll:
+        precio: {transformaciones: [MULTIPLICATIVA, ADITIVA, ARBITRARIA], otros_contratos: true, igualdad: EXACTA}
+        volumen: {solo_puede_cambiar: D7, filas: rvol_cruza_roll}
+        entrada_sin_ajustes: VERIFICAR
+      tabla:
+        fichero: TDA17_auditoria_causalidad.csv
+        campos: [prueba, contrato, punto_corte, motivo_corte, serie, filas_comparadas, discrepancias, max_abs_diff,
+                 resultado, parametro, origen, etiqueta]
+        pruebas: [TRUNCAMIENTO, PERTURBACION_FUTURA, ROLL_PRECIO, ROLL_VOLUMEN, ORIGEN_PARAMETRO]
+        resultados: [CONFORME, DISCREPANCIA, NO_APLICABLE]
+      consecuencia: SERIE_CON_DISCREPANCIA_FUERA_DE_SALIDAS_Y_BLOQUEO_TH35_HASTA_CORREGIR
+  # ------------------------------------------------------------------ decision 14: S-a (autorizacion complementaria)
+  - op: anadir
+    ruta: analisis.spearman.validacion_replica_invalida
+    valor:
+      regla: FALLA_LA_VALIDACION_DE_LA_CELDA_EN_LA_RONDA
+      metodos: [RANGOS_FIJOS, RECALCULO_EXACTO]
+      causas: [VAR_CERO, NO_FINITO]
+      despues: PROCEDIMIENTO_AUTORIZADO_F3_I_b
+      imputacion: NINGUNA
+      exclusion_del_par: PROHIBIDA
+  # ------------------------------------------------------------------ decision 15: N-a
+  - op: anadir
+    ruta: analisis.clasificacion.subniveles_r2_global_no_publicable
+    valor:
+      aplica_a: COLUMNA_NO_REGISTRADA_CON_R2_TODAS_GLOBAL_R2_NO_PUBLICABLE_POR_COLINEALIDAD
+      subnivel: SIN_SUBNIVEL_R2_NO_PUBLICABLE
+      motivo: R2_NO_PUBLICABLE_POR_COLINEALIDAD
+      sustitucion: NINGUNA
+  # ------------------------------------------------------------------ decision 16: R-a corregida (anexo N -> columnas de P)
+  - op: anadir
+    ruta: identidades.verificacion_numerica.relaciones_N
+    valor:
+      nulos_esperados_adicionales: 0
+      solo_generan_nulos: LINEAL_AFIN_EXACTA_CON_TODOS_LOS_TERMINOS_EN_P_YA_REGISTRADA_EN_L1_L11
+      tipos:
+        LA-P: {descripcion: "lineal afin con todos sus terminos en P", diagnostico: CARGAS_EN_DIRECCIONES_NULAS}
+        LA-F: {descripcion: "lineal en su forma original con algun termino fuera de P o fuera de la fila", diagnostico: SIN_DIRECCION_EN_P}
+        NL-P: {descripcion: "no lineal con todos sus terminos en P", diagnostico: CARGAS_EN_DIRECCIONES_NULAS}
+        NL-F: {descripcion: "no lineal que cruza paneles", diagnostico: SIN_DIRECCION_EN_P}
+        DES: {descripcion: "desigualdad", diagnostico: RECUENTO_DE_VIOLACIONES}
+        DIAG: {descripcion: "diagnostico no universal", diagnostico: NO_IDENTIDAD}
+      valor_numerico: EXPEDIENTE_DE_LA_ENMIENDA_DE_EXPLICACION
+      relaciones:
+        - {id: N1, tipo: NL-F, columnas_P: [r_1m], fuera_de_P: [R_1m]}
+        - {id: N2, tipo: NL-P, columnas_P: [abs_r_1m, r_1m], fuera_de_P: [r2_1m, zero_1m], resto: NL-F}
+        - {id: N3, tipo: LA-F, columnas_P: [B5_n14__wr, B5_n60__wr], fuera_de_P: ["%K_rapido (interno de B4)"]}
+        - {id: N4, tipo: LA-P, columnas_P: [C5_n60__pos, B5_n60__wr], coincide_con: L10}
+        - {id: N5, tipo: LA-F, columnas_P: [B7_n14__cmo, B7_n60__cmo], fuera_de_P: [RSI_Cutler]}
+        - {id: N6, tipo: NL-F, columnas_P: [B7_n14__cmo, B7_n60__cmo], fuera_de_P: ["ER (interno de A5)"]}
+        - {id: N7, tipo: NL-P, columnas_P: [A12_n20__pend_rel, A3_n20__dist, A1_n20__dist, A12_n60__pend_rel, A3_n60__dist,
+                                            A1_n60__dist, A12_n240__pend_rel, A3_n240__dist, A1_n240__dist]}
+        - {id: N8, tipo: NL-P, columnas_P: [C3_n20_k2__pct_b, A1_n20__dist, C3_n20_k2__ln_bw, C3_n60_k2__pct_b, A1_n60__dist,
+                                            C3_n60_k2__ln_bw, C3_n240_k2__pct_b, A1_n240__dist, C3_n240_k2__ln_bw]}
+        - {id: N9, tipo: NL-P, columnas_P: [C4_n20_atr10_m2__pos, A2_n20__dist, C4_n20_atr10_m2__ln_ancho, C4_n60_atr30_m2__pos,
+                                            A2_n60__dist, C4_n60_atr30_m2__ln_ancho, C4_n240_atr120_m2__pos, A2_n240__dist,
+                                            C4_n240_atr120_m2__ln_ancho]}
+        - {id: N10, tipo: DIAG, columnas_P: [A11_n10_m3__dir, A11_n10_m3__dist, A11_n60_m3__dir, A11_n60_m3__dist]}
+        - {id: N11, tipo: NL-P, columnas_P: [E4_barra__valor, E1_barra__valor, E2_barra__valor, E3_barra__valor]}
+        - {id: N12, tipo: LA-F, columnas_P: [D3_n20__cmf, D3_n60__cmf, D3_n240__cmf], fuera_de_P: [D4_acumulado__adl_acumulado]}
+        - {id: N13, tipo: LA-F, columnas_P: [D1_n20__flujo, D1_n60__flujo, D1_n240__flujo], fuera_de_P: [D1__obv_acumulado]}
+        - {id: N14, tipo: NL-F, columnas_P: [C2_n14__ln_natr, C2_n60__ln_natr, C2_n240__ln_natr],
+           fuera_de_P: [C1_n14__atr_ticks, C1_n60__atr_ticks, C1_n240__atr_ticks]}
+        - {id: N15, tipo: NL-F, columnas_P: [B1_n10__roc, B1_n60__roc, B1_n240__roc],
+           fuera_de_P: [B2_n10__mom_ticks, B2_n60__mom_ticks, B2_n240__mom_ticks]}
+        - {id: N16, tipo: NL-F, columnas_P: [log_hl], fuera_de_P: [E5_barra__valor]}
+        - {id: N17, tipo: NL-P, columnas_P: [C7_n20__ln_sigma, C7_n60__ln_sigma, C7_n240__ln_sigma, C8_n20__ln_sigma,
+                                             C8_n60__ln_sigma, C8_n240__ln_sigma, log_hl, log_co]}
+        - {id: N18, tipo: NL-F, columnas_P: [A6_f12_s26_g9__n_linea, A6_f12_s26_g9__n_senal, A6_f12_s26_g9__n_hist,
+                                             A6_f28_s60_g21__n_linea, A6_f28_s60_g21__n_senal, A6_f28_s60_g21__n_hist,
+                                             A6_f111_s240_g83__n_linea, A6_f111_s240_g83__n_senal, A6_f111_s240_g83__n_hist],
+           fuera_de_P: [A6_f12_s26_g9__conv_linea, A6_f12_s26_g9__conv_senal, A6_f12_s26_g9__conv_hist,
+                        A6_f28_s60_g21__conv_linea, A6_f28_s60_g21__conv_senal, A6_f28_s60_g21__conv_hist,
+                        A6_f111_s240_g83__conv_linea, A6_f111_s240_g83__conv_senal, A6_f111_s240_g83__conv_hist]}
+        - {id: N19, tipo: NL-P, columnas_P: [A7_f28_s60_g21__linea, A6_f28_s60_g21__n_linea, A2_n60__dist,
+                                             A7_f111_s240_g83__linea, A6_f111_s240_g83__n_linea, A2_n240__dist]}
+        - {id: N20, tipo: LA-F, columnas_P: [B1_n10__roc, B1_n60__roc, B1_n240__roc, r_1m]}
+        - {id: N21, tipo: DES, columnas_P: [log_co, log_hl], desigualdad: {valor_absoluto: log_co, menor_o_igual_que: log_hl},
+           violacion: "|log_co| > log_hl en una fila de la poblacion de la celda (comparacion exacta, sin tolerancia)"}
+  # ------------------------------------------------------------------ decisiones 17 y 18: esquema minimo y vinculacion
+  - op: anadir
+    ruta: salidas.esquema_minimo
+    valor:
+      directorio: reports/mnq
+      ruta_publicacion: official_publish_th35
+      recibe_tablas: false
+      calculo: OFFICIAL_TH35_EN_EL_MISMO_PROCESO
+      formato: {separador: ",", fin_de_linea: LF, codificacion: utf-8, indice: false}
+      tablas:
+        TDA17_auditoria_causalidad.csv: {fuente: auditoria_causalidad, columnas: TABLA_CAMPOS_DE_ANALISIS_AUDITORIA_CAUSALIDAD}
+        TDA17_estabilidad_celdas.csv:
+          fuente: per_cell
+          columnas: [columna, celda, tipo, estado, estado_matriz, r2, ic_inf, ic_sup, publicable, ic_estado]
+        TDA17_r2_reconstruccion.csv:
+          fuente: "analisis_celdas[*] con matriz definida (r2_todas + exactitud)"
+          columnas: [celda, columna, r2, r2_espectral, r2_minima_norma, dif_cruzada, publicable, etiqueta_publicacion, etiqueta_exactitud]
+        TDA17_correlacion_spearman.csv:
+          fuente: spearman
+          columnas: [celda, columna_i, columna_j, rho, ic_inf, ic_sup, ic_estado, replicas_invalidas]
+        TDA17_clasificacion_final.csv:
+          fuente: "clasificacion + subniveles"
+          columnas: [columna, clasificacion, subnivel, motivo_subnivel, r2_global, MATRIZ_NO_DEFINIDA,
+                     R2_NO_PUBLICABLE_POR_COLINEALIDAD, IC_NO_CALCULABLE, total_no_publicables]
+      sin_bloqueo: [TDA17_auditoria_causalidad.csv, TDA17_estabilidad_celdas.csv, TDA17_r2_reconstruccion.csv,
+                    TDA17_correlacion_spearman.csv, TDA17_clasificacion_final.csv]
+      con_bloqueo: [TDA17_auditoria_causalidad.csv, TDA17_diagnostico_bloqueo.csv]
+      demas_tablas: BLOQUEADAS_HASTA_DEFINICION
+      procedencia:
+        fichero: TDA17_procedencia_oficial.json
+        campos: [publicacion_E02, remoto_E02, sha256_efectiva, entradas, huella_marco, filas, estado, bloqueos, tablas]
+      verificacion: "verificar --referencia-git P2: huella de cada tabla publicada = la registrada; el registro cita P2, la efectiva y las entradas del manifiesto vigentes"
+  # ------------------------------------------------------------------ decision 19: publicacion con bloqueo (seccion 4.3)
+  - op: anadir
+    ruta: salidas.diagnostico_bloqueo
+    valor:
+      fichero: TDA17_diagnostico_bloqueo.csv
+      solo_con_estado: BLOQUEADO_HASTA_EXPLICAR
+      formato: LARGO_UNA_FILA_POR_VALOR
+      columnas: [celda, alcance, matriz, seccion, elemento, columna, metodo, valor, etiqueta, marca]
+      secciones: [AMBITO, ESPECTRO, DIRECCION_NULA, R2, EXACTITUD, RESIDUO_IDENTIDAD, RELACION_N]
+      marca: DIAGNOSTICO_BLOQUEADO
+      excluye: [CLASIFICACION_TH35, SUBNIVELES, TDA17_estabilidad_celdas.csv]
+      levanta_el_bloqueo: false

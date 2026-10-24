@@ -1,0 +1,25 @@
+{
+  "descripcion": "Registro de la enmienda E02 de TDA-17 (cargador escalonado M2). La aprobacion, cuando exista, es una DECLARACION de aprobacion del responsable del proyecto (identidad declarada, no autenticada), no una firma criptografica. El registro de E01 (reports/mnq/TDA17_enmiendas.json) no se modifica.",
+  "protocolo_base": {
+    "id": "TDA17_PROTOCOLO_v1",
+    "commit": "9cdea2f4657de1c54e3fccf86cf380b2eac8704e",
+    "sha256_yaml": "920cda43e59365e9a72f13ba6e8d5adb182640b188bf23a25059a3b4e9438938",
+    "sha256_manifiesto": "1b14b65a07dd207625071c3f657863574a0b4ab801a92bd917caace24f8db4d0"
+  },
+  "requiere": {
+    "E01": "3150ea3a5e6fda45280d6ab3936f61136f837ae6d106251b3f474cfedfdd5db9",
+    "commit_auditado_E01": "386815bde75833ec64763f65b70495d0f535c44d",
+    "publicacion_E01": "24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1"
+  },
+  "enmiendas": [
+    {
+      "id": "E02",
+      "fichero": "configs/tda17_enmienda_02.yaml",
+      "sha256": "fd7478d557e9a798c52b2af0806e89a6945c90cf5d8f35ea328afb581ad0d317",
+      "alcance": "Decisiones normativas autorizadas metodologicamente el 2026-10-18 (registro: reports/mnq/TDA17_E02_registro_decisiones.md): convencion, ambito y bloqueo del control de rango (A1-a+F5-a, A4-a, A2-a); intervalo percentil 0.05/0.95 (B1-a); bootstrap por celda con flujos PCG64 (B2-a, B6); estadistico de replica y replicas invalidas (B3-a+F2-a); validacion de Spearman (F3-I+F3-I-b); celdas no publicables (B13-a); subniveles con el R2 global (B9); auditoria causal TH37 (D17-1a, semilla 3717). Aplazada: hueco espectral y EXACTA por celda (decision 11). Autorizacion complementaria del 2026-10-19 (decisiones 14-19): replica invalida en la validacion de Spearman (S-a), SIN_SUBNIVEL_R2_NO_PUBLICABLE (N-a), relaciones N1-N21 por tipo con anexo de columnas de P (R-a corregida), esquema minimo de cinco tablas, ruta unica official_publish_th35 con TDA17_procedencia_oficial.json y publicacion con bloqueo limitada a la auditoria causal y TDA17_diagnostico_bloqueo.csv.",
+      "estado": "PENDIENTE_AUDITORIA",
+      "fecha_preparacion": "2026-10-18",
+      "aprobacion": null
+    }
+  ]
+}

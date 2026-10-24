@@ -35,3 +35,6 @@ __pycache__/
 # Variables de entorno
 .env
 
+# TDA-17: cerrojo y preparacion temporales de la publicacion oficial (tda17_salidas), nunca versionados
+reports/mnq/.TDA17_publicacion.lock
+reports/mnq/.TDA17_publicacion_en_curso/
