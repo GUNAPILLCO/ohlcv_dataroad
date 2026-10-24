@@ -1,0 +1,17 @@
+# v11: suite completa estricta en estado APROBADO con HEAD = P2 (clon temporal C:/tm14/c, push deshabilitado); relanzada tras el reinicio de Windows, ejecutada sola
+# HEAD d76472e3a903bfb17daa1d6adb98825c91b80be3; padre efaccf88cf3916f9d73c383e0ead1798b060faca; cambios sin commit: 0
+# estado E02 en el clon: [('E02', 'APROBADA')]
+# push url: no-push://deshabilitado; inicio 2026-10-23T22:15:45-03:00
+# modulo importado: C:\tm14\c\src\ohlcv_dataroad\ingest\tda17_enmiendas_e02.py
+# cd C:/tm14/c; PYTHONPATH=C:/tm14/c/src TDA17_INTEGRIDAD=estricta python -m pytest -p no:cacheprovider -q -rs
+SKIPPED [2] tests\test_tda17_protocol.py:808: este sistema no permite crear enlaces simbolicos
+SKIPPED [1] tests\test_tda17_salidas.py:623: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:649: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [2] tests\test_tda17_salidas.py:672: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:701: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:720: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:739: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+1796 passed, 13 skipped, 213 warnings in 4136.30s (1:08:56)
+codigo_salida_pytest=0
+# cambios sin commit tras la suite: 0
+# fin 2026-10-23T23:24:44-03:00

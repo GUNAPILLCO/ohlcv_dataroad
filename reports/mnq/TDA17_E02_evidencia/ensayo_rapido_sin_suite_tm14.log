@@ -1,0 +1,396 @@
+$ git clone -q C:\Users\heguu\Desktop\ohlcv_dataroad C:\tm14\c
+
+[rc=0]
+
+$ git remote set-url origin https://github.com/GUNAPILLCO/ohlcv_dataroad.git
+
+[rc=0]
+
+$ git remote set-url --push origin no-push://deshabilitado
+
+[rc=0]
+
+$ git remote -v
+origin	https://github.com/GUNAPILLCO/ohlcv_dataroad.git (fetch)
+origin	no-push://deshabilitado (push)
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py comprobar-a2
+Precondiciones de A2
+  OK    HEAD = P1 24f9f1d2bb83
+  OK    rama main
+  OK    indice vacio (nada preparado)
+  OK    cambios del arbol = exactamente los 26 ficheros de A2 (sobran [], faltan [])
+  OK    arbol: configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    arbol: tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    arbol: tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    arbol: tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    arbol: tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    arbol: tests/test_tda17_causalidad.py = a4508c40a223
+  OK    arbol: tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    arbol: tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    arbol: tests/test_tda17_salidas.py = 20be16897d9e
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md = 192c5a43be79
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md = f16672c3ac80
+  OK    arbol: reports/mnq/TDA17_E02_anexo_relaciones_N.md = 8cac7280d7db
+  OK    E02_SHA256 del cargador = huella auditada del YAML
+  OK    AUDITED_E02 = los 15 ficheros auditados
+  OK    registro PENDIENTE_AUDITORIA, aprobacion null
+  OK    sin acta ni evidencias de P2 todavia
+  OK    E01 publicada e intacta (verify_e01)
+  OK    tda17_protocol_freeze verificar --referencia-git 9cdea2f: VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_enmiendas verificar --referencia-git 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1: VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas_e02 verificar: VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 PENDIENTE_AUDITORIA fd7478d557e9; modo BORRADOR; activable: NO; ejecucion oficial: NO; efectiva 66ab24579c51)
+
+CORRECTO
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py a2 --ejecutar
+[main efaccf8] feat(tda17): E02 amendment, audited version (commit A2, registry pending)
+ 26 files changed, 11245 insertions(+)
+ create mode 100644 configs/tda17_enmienda_02.yaml
+ create mode 100644 reports/mnq/TDA17_E02_anexo_relaciones_N.md
+ create mode 100644 reports/mnq/TDA17_E02_cierre_formal.md
+ create mode 100644 reports/mnq/TDA17_E02_paquete_auditoria.md
+ create mode 100644 reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md
+ create mode 100644 reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md
+ create mode 100644 reports/mnq/TDA17_E02_registro_decisiones.md
+ create mode 100644 reports/mnq/TDA17_enmiendas_E02.json
+ create mode 100644 reports/mnq/TDA17_especificacion_migracion_M2.md
+ create mode 100644 reports/mnq/TDA17_inventario_decisiones_pendientes.md
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_analysis.py
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_causalidad.py
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_entradas.py
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_g2.py
+ create mode 100644 src/ohlcv_dataroad/ingest/tda17_salidas.py
+ create mode 100644 tests/test_tda17_analysis.py
+ create mode 100644 tests/test_tda17_causalidad.py
+ create mode 100644 tests/test_tda17_e02_motor.py
+ create mode 100644 tests/test_tda17_enmienda_02.py
+ create mode 100644 tests/test_tda17_g2.py
+ create mode 100644 tests/test_tda17_procedencia.py
+ create mode 100644 tests/test_tda17_rango_diagnostico.py
+ create mode 100644 tests/test_tda17_salidas.py
+Precondiciones de A2
+  OK    HEAD = P1 24f9f1d2bb83
+  OK    rama main
+  OK    indice vacio (nada preparado)
+  OK    cambios del arbol = exactamente los 26 ficheros de A2 (sobran [], faltan [])
+  OK    arbol: configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    arbol: tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    arbol: tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    arbol: tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    arbol: tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    arbol: tests/test_tda17_causalidad.py = a4508c40a223
+  OK    arbol: tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    arbol: tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    arbol: tests/test_tda17_salidas.py = 20be16897d9e
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md = 192c5a43be79
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md = f16672c3ac80
+  OK    arbol: reports/mnq/TDA17_E02_anexo_relaciones_N.md = 8cac7280d7db
+  OK    E02_SHA256 del cargador = huella auditada del YAML
+  OK    AUDITED_E02 = los 15 ficheros auditados
+  OK    registro PENDIENTE_AUDITORIA, aprobacion null
+  OK    sin acta ni evidencias de P2 todavia
+  OK    E01 publicada e intacta (verify_e01)
+  OK    tda17_protocol_freeze verificar --referencia-git 9cdea2f: VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_enmiendas verificar --referencia-git 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1: VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas_e02 verificar: VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 PENDIENTE_AUDITORIA fd7478d557e9; modo BORRADOR; activable: NO; ejecucion oficial: NO; efectiva 66ab24579c51)
+Commit A2
+  $ git add -- \
+      .gitattributes \
+      .gitignore \
+      configs/tda17_enmienda_02.yaml \
+      reports/mnq/TDA17_E02_anexo_relaciones_N.md \
+      reports/mnq/TDA17_E02_cierre_formal.md \
+      reports/mnq/TDA17_E02_paquete_auditoria.md \
+      reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md \
+      reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md \
+      reports/mnq/TDA17_E02_registro_decisiones.md \
+      reports/mnq/TDA17_enmiendas_E02.json \
+      reports/mnq/TDA17_especificacion_migracion_M2.md \
+      reports/mnq/TDA17_inventario_decisiones_pendientes.md \
+      src/ohlcv_dataroad/ingest/tda17_analysis.py \
+      src/ohlcv_dataroad/ingest/tda17_causalidad.py \
+      src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py \
+      src/ohlcv_dataroad/ingest/tda17_entradas.py \
+      src/ohlcv_dataroad/ingest/tda17_g2.py \
+      src/ohlcv_dataroad/ingest/tda17_salidas.py \
+      tests/test_tda17_analysis.py \
+      tests/test_tda17_causalidad.py \
+      tests/test_tda17_e02_motor.py \
+      tests/test_tda17_enmienda_02.py \
+      tests/test_tda17_g2.py \
+      tests/test_tda17_procedencia.py \
+      tests/test_tda17_rango_diagnostico.py \
+      tests/test_tda17_salidas.py
+  $ git commit -F C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\mensaje_A2.txt
+  OK    padre de A2 = P1
+  OK    A2 cambia exactamente los ficheros previstos
+  OK    los 8 ficheros de E01 no cambian entre P1 y A2
+  OK    A2 contiene configs/tda17_enmienda_02.yaml auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py auditado
+  OK    A2 contiene tests/test_tda17_enmienda_02.py auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_analysis.py auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_g2.py auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_causalidad.py auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_salidas.py auditado
+  OK    A2 contiene src/ohlcv_dataroad/ingest/tda17_entradas.py auditado
+  OK    A2 contiene tests/test_tda17_analysis.py auditado
+  OK    A2 contiene tests/test_tda17_g2.py auditado
+  OK    A2 contiene tests/test_tda17_rango_diagnostico.py auditado
+  OK    A2 contiene tests/test_tda17_causalidad.py auditado
+  OK    A2 contiene tests/test_tda17_e02_motor.py auditado
+  OK    A2 contiene tests/test_tda17_procedencia.py auditado
+  OK    A2 contiene tests/test_tda17_salidas.py auditado
+  OK    arbol limpio tras A2
+
+A2 = efaccf88cf3916f9d73c383e0ead1798b060faca
+
+CORRECTO
+warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'configs/tda17_enmienda_02.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_E02_anexo_relaciones_N.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_E02_paquete_auditoria.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_E02_registro_decisiones.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_enmiendas_E02.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_especificacion_migracion_M2.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reports/mnq/TDA17_inventario_decisiones_pendientes.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/ohlcv_dataroad/ingest/tda17_analysis.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/ohlcv_dataroad/ingest/tda17_entradas.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/ohlcv_dataroad/ingest/tda17_g2.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_tda17_enmienda_02.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_tda17_g2.py', LF will be replaced by CRLF the next time Git touches it
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py aprobar --a2 efaccf88cf3916f9d73c383e0ead1798b060faca --fecha 2026-10-23 --aprobada-por ENSAYO del procedimiento (no es una aprobacion) --evidencias C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\evidencia
+Aprobacion de E02 (registro + acta + evidencias)
+  OK    HEAD = A2 (SHA completo)
+  OK    padre de A2 = P1
+  OK    arbol limpio en A2
+  OK    fecha 2026-10-23 en [2026-10-18, hoy]
+  OK    aprobada_por no vacio
+  OK    sha256_auditados (en A2) = version auditada
+  OK    evidencias preparadas en C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\evidencia (24 ficheros)
+  OK    acta sin marcadores pendientes
+  (ENSAYO: no se escribe nada; con --escribir se escriben el registro, el acta y las evidencias)
+{
+  "fecha": "2026-10-23",
+  "aprobada_por": "ENSAYO del procedimiento (no es una aprobacion)",
+  "referencia_auditoria": {
+    "documento": "reports/mnq/TDA17_E02_acta_aprobacion.md",
+    "commit_auditado": "efaccf88cf3916f9d73c383e0ead1798b060faca"
+  },
+  "sha256_auditados": {
+    "configs/tda17_enmienda_02.yaml": "fd7478d557e9a798c52b2af0806e89a6945c90cf5d8f35ea328afb581ad0d317",
+    "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py": "9484cb1ebc1bca7367a2131fa5881d059670319a230e7eb1aec81d3efa4f3c05",
+    "tests/test_tda17_enmienda_02.py": "0a62fddbaa5b30a8a0ce0eba1200d15fa12dc5b0a738a4c25831545f7813e449",
+    "src/ohlcv_dataroad/ingest/tda17_analysis.py": "f26bf380e0bbc2874c1939873a995513a693de6d4b848fdb8c1be88c26515fe0",
+    "src/ohlcv_dataroad/ingest/tda17_g2.py": "586b97b79cde7730a5d27b71935d8263387c2ae1f4111ae22564d20d2902fb6b",
+    "src/ohlcv_dataroad/ingest/tda17_causalidad.py": "1f5b6f3b1348762d83c11ca6b581d04ee945049531a8a878ca0cc05cb3910e89",
+    "src/ohlcv_dataroad/ingest/tda17_salidas.py": "c8c3272caacaf333f714d0abaa78243ef27f2599c58e8b782a1877fb7e0468e0",
+    "src/ohlcv_dataroad/ingest/tda17_entradas.py": "fae54edd2773c7244a16d1e309643a7acf33d32fe9be3528c89f9f03134e
+
+CORRECTO
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py aprobar --a2 efaccf88cf3916f9d73c383e0ead1798b060faca --fecha 2026-10-23 --aprobada-por ENSAYO del procedimiento (no es una aprobacion) --evidencias C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\evidencia --escribir
+Aprobacion de E02 (registro + acta + evidencias)
+  OK    HEAD = A2 (SHA completo)
+  OK    padre de A2 = P1
+  OK    arbol limpio en A2
+  OK    fecha 2026-10-23 en [2026-10-18, hoy]
+  OK    aprobada_por no vacio
+  OK    sha256_auditados (en A2) = version auditada
+  OK    evidencias preparadas en C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\evidencia (24 ficheros)
+  OK    acta sin marcadores pendientes
+  OK    load_effective_protocol_e02: activable, ejecucion_oficial false (aprobacion preparatoria)
+
+CORRECTO
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe -m ohlcv_dataroad.ingest.tda17_enmiendas_e02 verificar
+VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 APROBADA fd7478d557e9; modo PRODUCCION; activable: SI; ejecucion oficial: NO; efectiva 66ab24579c51)
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py p2 --a2 efaccf88cf3916f9d73c383e0ead1798b060faca --ejecutar
+[main d76472e] docs(tda17): approve E02 citing audited commit A2 (commit P2)
+ 26 files changed, 3497 insertions(+), 2 deletions(-)
+ create mode 100644 reports/mnq/TDA17_E02_acta_aprobacion.md
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/.gitattributes
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/README.md
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/datos_antes.txt
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/datos_despues.txt
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/datos_integridad.py
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/ensayo_a2_p2.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/ensayo_a2_p2_sin_suite.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/mut_manual_v10.py
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/mut_manual_v8.py
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/mut_manual_v9.py
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/suite_estricta_final.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut.py
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_part0.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_part1.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_part2.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_part3.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part0.json
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part1.json
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part2.json
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part3.json
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_resultados_final.json
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_v10_manuales.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_v8_manuales.log
+ create mode 100644 reports/mnq/TDA17_E02_evidencia/t_mut_v9_manuales.log
+Precondiciones de P2
+  OK    HEAD = A2
+  OK    el registro solo cambia estado y aprobacion respecto de A2
+  OK    registro APROBADA citando A2
+  OK    cambios = registro, acta y evidencias (26 rutas)
+  OK    arbol: configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    arbol: tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    arbol: tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    arbol: tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    arbol: tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    arbol: tests/test_tda17_causalidad.py = a4508c40a223
+  OK    arbol: tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    arbol: tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    arbol: tests/test_tda17_salidas.py = 20be16897d9e
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md = 192c5a43be79
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md = f16672c3ac80
+  OK    arbol: reports/mnq/TDA17_E02_anexo_relaciones_N.md = 8cac7280d7db
+  OK    E02_SHA256 del cargador = huella auditada del YAML
+  OK    AUDITED_E02 = los 15 ficheros auditados
+  OK    E02 activable (aprobacion preparatoria)
+Commit P2
+  $ git add -- \
+      reports/mnq/TDA17_E02_acta_aprobacion.md \
+      reports/mnq/TDA17_E02_evidencia/.gitattributes \
+      reports/mnq/TDA17_E02_evidencia/README.md \
+      reports/mnq/TDA17_E02_evidencia/datos_antes.txt \
+      reports/mnq/TDA17_E02_evidencia/datos_despues.txt \
+      reports/mnq/TDA17_E02_evidencia/datos_integridad.py \
+      reports/mnq/TDA17_E02_evidencia/ensayo_a2_p2.log \
+      reports/mnq/TDA17_E02_evidencia/ensayo_a2_p2_sin_suite.log \
+      reports/mnq/TDA17_E02_evidencia/mut_manual_v10.py \
+      reports/mnq/TDA17_E02_evidencia/mut_manual_v8.py \
+      reports/mnq/TDA17_E02_evidencia/mut_manual_v9.py \
+      reports/mnq/TDA17_E02_evidencia/suite_estricta_final.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut.py \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_part0.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_part1.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_part2.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_part3.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part0.json \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part1.json \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part2.json \
+      reports/mnq/TDA17_E02_evidencia/t_mut_final_resultados_part3.json \
+      reports/mnq/TDA17_E02_evidencia/t_mut_resultados_final.json \
+      reports/mnq/TDA17_E02_evidencia/t_mut_v10_manuales.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_v8_manuales.log \
+      reports/mnq/TDA17_E02_evidencia/t_mut_v9_manuales.log \
+      reports/mnq/TDA17_enmiendas_E02.json
+  $ git commit -F C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\mensaje_P2.txt
+
+P2 = d76472e3a903bfb17daa1d6adb98825c91b80be3
+
+CORRECTO
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py comprobar-p2 --a2 efaccf88cf3916f9d73c383e0ead1798b060faca
+Verificaciones locales tras P2 (antes del push)
+  OK    padre de P2 = A2
+  OK    arbol limpio en P2
+  OK    E01 y E02 del arbol = P2 (verify_against_git_e02)
+  OK    los 15 ficheros auditados no cambian entre A2 y P2
+  OK    E02 APROBADA y activable
+  OK    tda17_protocol_freeze verificar --referencia-git 9cdea2f: VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_enmiendas verificar --referencia-git d76472e3a903bfb17daa1d6adb98825c91b80be3: VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas_e02 verificar: VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 APROBADA fd7478d557e9; modo PRODUCCION; activable: SI; ejecucion oficial: NO; efectiva 66ab24579c51)
+
+Siguiente (manual): comprobar-remoto; git push origin main (sin --force); despues
+  python -m ohlcv_dataroad.ingest.tda17_enmiendas_e02 verificar --referencia-git d76472e3a903bfb17daa1d6adb98825c91b80be3
+
+CORRECTO
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe C:\Users\heguu\Desktop\TDA17_E02_cierre_estado\herramientas\tda17_e02_cierre.py comprobar-remoto
+Remoto autorizado (solo lectura)
+  OK    refs/heads/main del remoto = P1 (24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1): el push sera de avance rapido (P1 -> A2 -> P2)
+
+CORRECTO
+[rc=0]
+
+$ git log --oneline -4
+d76472e docs(tda17): approve E02 citing audited commit A2 (commit P2)
+efaccf8 feat(tda17): E02 amendment, audited version (commit A2, registry pending)
+24f9f1d docs(tda17): approve E01 citing audited commit A (commit P)
+386815b feat(tda17): E01 amendment, audited version (commit A, registry pending)
+[rc=0]
+
+$ git show --stat --format=%H%n%s d76472e3a903bfb17daa1d6adb98825c91b80be3
+d76472e3a903bfb17daa1d6adb98825c91b80be3
+docs(tda17): approve E02 citing audited commit A2 (commit P2)
+
+ reports/mnq/TDA17_E02_acta_aprobacion.md           |   57 ++
+ reports/mnq/TDA17_E02_evidencia/.gitattributes     |    1 +
+ reports/mnq/TDA17_E02_evidencia/README.md          |   60 ++
+ reports/mnq/TDA17_E02_evidencia/datos_antes.txt    |    9 +
+ reports/mnq/TDA17_E02_evidencia/datos_despues.txt  |    9 +
+ .../mnq/TDA17_E02_evidencia/datos_integridad.py    |   21 +
+ reports/mnq/TDA17_E02_evidencia/ensayo_a2_p2.log   |  250 +++++
+ .../TDA17_E02_evidencia/ensayo_a2_p2_sin_suite.log |  390 +++++++
+ reports/mnq/TDA17_E02_evidencia/mut_manual_v10.py  |   38 +
+ reports/mnq/TDA17_E02_evidencia/mut_manual_v8.py   |   27 +
+ reports/mnq/TDA17_E02_evidencia/mut_manual_v9.py   |   37 +
+ .../TDA17_E02_evidencia/suite_estricta_final.log   |   13 +
+ reports/mnq/TDA17_E02_evidencia/t_mut.py           |  177 ++++
+ .../mnq/TDA17_E02_evidencia/t_mut_final_part0.log  |   21 +
+ .../mnq/TDA17_E02_evidencia/t_mut_final_part1.log  |   21 +
+ .../mnq/TDA17_E02_evidencia/t_mut_final_part2.log  |   21 +
+ .../mnq/TDA17_E02_evidencia/t_mut_final_part3.log  |   21 +
+ .../t_mut_final_resultados_part0.json              |  255 +++++
+ .../t_mut_final_resultados_part1.json              |  274 +++++
+ .../t_mut_final_resultados_part2.json              |  275 +++++
+ .../t_mut_final_resultados_part3.json              |  264 +++++
+ .../t_mut_resultados_final.json                    | 1076 ++++++++++++++++++++
+ .../mnq/TDA17_E02_evidencia/t_mut_v10_manuales.log |   74 ++
+ .../mnq/TDA17_E02_evidencia/t_mut_v8_manuales.log  |   27 +
+ .../mnq/TDA17_E02_evidencia/t_mut_v9_manuales.log  |   53 +
+ reports/mnq/TDA17_enmiendas_E02.json               |   28 +-
+ 26 files changed, 3497 insertions(+), 2 deletions(-)
+[rc=0]
+
+$ C:\Users\heguu\miniconda3\python.exe -m ohlcv_dataroad.ingest.tda17_enmiendas_e02 verificar --referencia-git d76472e3a903bfb17daa1d6adb98825c91b80be3
+VERIFICACION DE E02: NO CONFORME
+[E02_REMOTO] la publicacion P2 d76472e3a903bfb17daa1d6adb98825c91b80be3 no esta en la rama publicada del remoto (24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1)
+[rc=1]
+
+verificar --referencia-git P2 sin push: se detiene en E02_REMOTO (esperado)
+$ git push origin main
+git: 'remote-no-push' is not a git command. See 'git --help'.
+fatal: remote helper 'no-push' aborted session
+[rc=128]
+
+push en el clon: imposible (esperado)
+
+ENSAYO CORRECTO: A2 = efaccf88cf3916f9d73c383e0ead1798b060faca, P2 = d76472e3a903bfb17daa1d6adb98825c91b80be3 (solo en el clon)

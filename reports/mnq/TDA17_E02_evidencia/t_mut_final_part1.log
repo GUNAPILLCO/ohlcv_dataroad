@@ -1,0 +1,21 @@
+CONTROL {'codigo': 0, 'resumen': '215 passed, 11 skipped in 3470.44s (0:57:50)', 'segundos': 3471}
+E01_BYTES DETECTADO 1 failed, 225 deselected in 5.42s
+E01_REGISTRO DETECTADO 1 failed, 225 deselected in 4.59s
+E02_ASCENDENCIA DETECTADO 1 failed, 225 deselected in 5.03s
+E02_COMMIT DETECTADO 2 failed, 2 passed, 222 deselected in 7.60s
+E02_ESTADO DETECTADO 1 failed, 225 deselected in 5.02s
+E02_NO_OFICIAL DETECTADO 2 failed, 39 passed, 185 deselected in 28.38s
+E02_P2_APROBADA DETECTADO 1 failed, 225 deselected in 6.59s
+E02_P2_HEAD DETECTADO 2 failed, 224 deselected in 11.93s
+E02_REGISTRO DETECTADO 2 failed, 224 deselected in 5.56s
+E02_REMOTO_NO_AUTORIZADO DETECTADO 2 failed, 4 passed, 220 deselected in 22.13s
+E02_RUTAS DETECTADO 1 failed, 225 deselected in 4.44s
+TH37_AUSENTE DETECTADO 2 failed, 2 passed, 222 deselected in 427.25s (0:07:07)
+ENTRADA_NO_DECLARADA DETECTADO 1 failed, 1 passed, 224 deselected in 1.10s
+SALIDA_CONCURRENTE DETECTADO 2 failed, 224 deselected in 233.69s (0:03:53)
+SALIDA_ESQUEMA DETECTADO 11 failed, 1 passed, 214 deselected in 248.41s (0:04:08)
+SALIDA_INCOMPLETA DETECTADO 5 failed, 1 passed, 220 deselected in 334.63s (0:05:34)
+SALIDA_RECUPERACION DETECTADO 4 failed, 9 passed, 11 skipped, 202 deselected in 516.18s (0:08:36)
+SUPERVIVIENTES: []
+INFRAESTRUCTURA: []
+rc=0

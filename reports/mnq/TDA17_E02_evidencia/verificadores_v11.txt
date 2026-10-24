@@ -1,0 +1,64 @@
+# v11: verificadores en el repositorio del proyecto (estado PENDIENTE), tras todas las ejecuciones; 2026-10-23T23:25:11-03:00
+# HEAD 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1; rama main; cambios: 26
+## TDA17_INTEGRIDAD=estricta python tda17_e02_cierre.py comprobar-a2 (incluye los 3 verificadores: protocolo estricto, E01 y E02)
+Precondiciones de A2
+  OK    HEAD = P1 24f9f1d2bb83
+  OK    rama main
+  OK    indice vacio (nada preparado)
+  OK    cambios del arbol = exactamente los 26 ficheros de A2 (sobran [], faltan [])
+  OK    arbol: configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    arbol: tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    arbol: src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    arbol: tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    arbol: tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    arbol: tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    arbol: tests/test_tda17_causalidad.py = a4508c40a223
+  OK    arbol: tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    arbol: tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    arbol: tests/test_tda17_salidas.py = 20be16897d9e
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md = 192c5a43be79
+  OK    arbol: reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md = f16672c3ac80
+  OK    arbol: reports/mnq/TDA17_E02_anexo_relaciones_N.md = 8cac7280d7db
+  OK    E02_SHA256 del cargador = huella auditada del YAML
+  OK    AUDITED_E02 = los 15 ficheros auditados
+  OK    registro PENDIENTE_AUDITORIA, aprobacion null
+  OK    sin acta ni evidencias de P2 todavia
+  OK    E01 publicada e intacta (verify_e01)
+  OK    tda17_protocol_freeze verificar --referencia-git 9cdea2f: VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_enmiendas verificar --referencia-git 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1: VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas_e02 verificar: VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 PENDIENTE_AUDITORIA fd7478d557e9; modo BORRADOR; activable: NO; ejecucion oficial: NO; efectiva 66ab24579c51)
+
+CORRECTO
+rc=0
+## git status --porcelain
+ M .gitattributes
+ M .gitignore
+?? configs/tda17_enmienda_02.yaml
+?? reports/mnq/TDA17_E02_anexo_relaciones_N.md
+?? reports/mnq/TDA17_E02_cierre_formal.md
+?? reports/mnq/TDA17_E02_paquete_auditoria.md
+?? reports/mnq/TDA17_E02_propuesta_ambiguedades_y_salidas.md
+?? reports/mnq/TDA17_E02_propuesta_decisiones_normativas.md
+?? reports/mnq/TDA17_E02_registro_decisiones.md
+?? reports/mnq/TDA17_enmiendas_E02.json
+?? reports/mnq/TDA17_especificacion_migracion_M2.md
+?? reports/mnq/TDA17_inventario_decisiones_pendientes.md
+?? src/ohlcv_dataroad/ingest/tda17_analysis.py
+?? src/ohlcv_dataroad/ingest/tda17_causalidad.py
+?? src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py
+?? src/ohlcv_dataroad/ingest/tda17_entradas.py
+?? src/ohlcv_dataroad/ingest/tda17_g2.py
+?? src/ohlcv_dataroad/ingest/tda17_salidas.py
+?? tests/test_tda17_analysis.py
+?? tests/test_tda17_causalidad.py
+?? tests/test_tda17_e02_motor.py
+?? tests/test_tda17_enmienda_02.py
+?? tests/test_tda17_g2.py
+?? tests/test_tda17_procedencia.py
+?? tests/test_tda17_rango_diagnostico.py
+?? tests/test_tda17_salidas.py

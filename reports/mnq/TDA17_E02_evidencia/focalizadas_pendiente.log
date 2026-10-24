@@ -1,0 +1,11 @@
+# v11: pruebas focalizadas, estado PENDIENTE (repositorio del proyecto, HEAD 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1); inicio 2026-10-23T18:58:44-03:00
+# TDA17_INTEGRIDAD=estricta python -m pytest -p no:cacheprovider -q -rs tests/test_tda17_salidas.py tests/test_tda17_e02_motor.py tests/test_tda17_enmienda_02.py tests/test_tda17_procedencia.py
+SKIPPED [1] tests\test_tda17_salidas.py:623: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:649: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [2] tests\test_tda17_salidas.py:672: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:701: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:720: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:739: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+192 passed, 11 skipped in 2954.65s (0:49:14)
+rc=0
+# fin 2026-10-23T19:47:59-03:00

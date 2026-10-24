@@ -1,0 +1,13 @@
+# v11: suite completa estricta, estado PENDIENTE (arbol de A2 v11, repositorio del proyecto), ejecutada sola
+# HEAD 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1; inicio 2026-10-23T14:38:06-03:00
+# TDA17_INTEGRIDAD=estricta python -m pytest -p no:cacheprovider -q -rs
+SKIPPED [2] tests\test_tda17_protocol.py:808: este sistema no permite crear enlaces simbolicos
+SKIPPED [1] tests\test_tda17_salidas.py:623: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:649: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [2] tests\test_tda17_salidas.py:672: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:701: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [3] tests\test_tda17_salidas.py:720: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+SKIPPED [1] tests\test_tda17_salidas.py:739: el sistema no permite crear enlaces simbolicos (Windows sin privilegio)
+1796 passed, 13 skipped, 213 warnings in 3828.40s (1:03:48)
+codigo_salida_pytest=0
+# fin 2026-10-23T15:41:55-03:00

@@ -1,0 +1,21 @@
+CONTROL {'codigo': 0, 'resumen': '215 passed, 11 skipped in 3423.11s (0:57:03)', 'segundos': 3424}
+E01_FICHEROS DETECTADO 1 failed, 225 deselected in 5.65s
+E02_ANADIR DETECTADO 3 failed, 2 passed, 221 deselected in 7.45s
+E02_CAMPOS DETECTADO 2 failed, 224 deselected in 6.20s
+E02_DOC DETECTADO 1 failed, 225 deselected in 4.19s
+E02_HUELLA DETECTADO 2 failed, 224 deselected in 6.16s
+E02_OFICIAL_NO_VERIFICABLE DETECTADO 2 failed, 224 deselected in 15.46s
+E02_P2_EXISTE DETECTADO 1 failed, 225 deselected in 5.17s
+E02_PENDIENTE_CON_DATOS DETECTADO 1 failed, 225 deselected in 4.81s
+E02_REMOTO DETECTADO 3 failed, 3 passed, 220 deselected in 17.93s
+E02_REQUIERE DETECTADO 1 failed, 225 deselected in 5.06s
+PROTOCOLO_ESTRICTO DETECTADO 1 failed, 225 deselected in 5.85s
+TH37_FUERA_DEL_PLAN DETECTADO 1 failed, 225 deselected in 224.46s (0:03:44)
+ENTRADA_PROHIBIDA DETECTADO 1 failed, 225 deselected in 1.28s
+SALIDA_EFECTIVA DETECTADO 1 failed, 225 deselected in 234.80s (0:03:54)
+SALIDA_EXISTENTE DETECTADO 7 failed, 1 skipped, 218 deselected in 328.47s (0:05:28)
+SALIDA_P2 DETECTADO 1 failed, 225 deselected in 243.91s (0:04:03)
+SALIDA_RUTA_UNICA DETECTADO 2 failed, 1 passed, 223 deselected in 13.38s
+SUPERVIVIENTES: []
+INFRAESTRUCTURA: []
+rc=0

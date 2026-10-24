@@ -1,0 +1,69 @@
+# v11: controles de seguridad en ambos estados (sonda probe.py, P2 inexistente f*40; configuracion oficial falsificada)
+# Fuente de la sonda:
+#   import copy, io, contextlib
+#   from ohlcv_dataroad.ingest import tda17_analysis as an, tda17_causalidad as ca, tda17_enmiendas_e02 as m2, tda17_g2 as g2, tda17_salidas as sal, tda17_entradas as ent
+#   print("ROOT", m2.ROOT)
+#   F="f"*40
+#   def t(name, fn):
+#       try: r=fn(); print(name, "-> OK", type(r).__name__)
+#       except Exception as e: print(name, "->", type(e).__name__, str(e))
+#   t("production_config", lambda: an.production_config()["trazabilidad_protocolo"])
+#   for n,f in [("official_config",lambda: an.official_config(F)),("official_th35",lambda: an.official_th35(F)),("official_causal_audit",lambda: ca.official_causal_audit(F)),("official_g2_controls",lambda: g2.official_g2_controls(F)),("official_publish_th35",lambda: sal.official_publish_th35(F)),("check_official_publication",lambda: sal.check_official_publication(F)),("reproduce_official_publication",lambda: sal.reproduce_official_publication(F))]:
+#       t(n,f)
+#   def eff():
+#       tr=m2.load_effective_protocol_e02()["trazabilidad_protocolo"]
+#       return {k:tr.get(k) for k in ("modo","activable","ejecucion_oficial","publicacion_E02")}
+#   try: print("load_effective_protocol_e02 -> OK", eff())
+#   except Exception as e: print("load_effective_protocol_e02 ->", type(e).__name__, str(e))
+#   try: prep_real=an.production_config()
+#   except Exception as e: print("preparatoria real: no existe (", str(e)[:16], ")")
+#   else:
+#       t("require_e02_oficial(preparatoria real)", lambda: m2.require_e02_oficial(prep_real))
+#       t("load_official_inputs(preparatoria real)", lambda: ent.load_official_inputs(prep_real))
+#   t("official_config_e02 None a*40", lambda: m2.official_config_e02(None,"a"*40))
+#   cfg=m2.effective_document_e02(borrador=True)
+#   prep=copy.deepcopy(cfg); prep["trazabilidad_protocolo"].update(modo="PRODUCCION", activable=True); prep["trazabilidad_protocolo"]["enmiendas"][-1]["estado"]="APROBADA"
+#   ofi=copy.deepcopy(prep); ofi["trazabilidad_protocolo"].update(ejecucion_oficial=True, publicacion_E02=F)
+#   t("require ofi", lambda: m2.require_e02_oficial(ofi))
+#   t("load_official_inputs forged", lambda: ent.load_official_inputs(ofi))
+#   b=io.StringIO()
+#   with contextlib.redirect_stdout(b): rc=m2.main(["verificar"])
+#   print("CLI", rc, b.getvalue().strip())
+
+## Estado PENDIENTE: repositorio del proyecto, HEAD 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1
+ROOT C:\Users\heguu\Desktop\ohlcv_dataroad
+production_config -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+official_config -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+official_th35 -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+official_causal_audit -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+official_g2_controls -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+official_publish_th35 -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+check_official_publication -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+reproduce_official_publication -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+load_effective_protocol_e02 -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+preparatoria real: no existe ( [E02_PENDIENTE]  )
+official_config_e02 None a*40 -> ProtocolNotAuthorizedError [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+require ofi -> ProtocolNotAuthorizedError [E02_OFICIAL_NO_VERIFICABLE] la configuracion oficial no se puede derivar de M2: [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+load_official_inputs forged -> ProtocolNotAuthorizedError [E02_OFICIAL_NO_VERIFICABLE] la configuracion oficial no se puede derivar de M2: [E02_PENDIENTE] E02 no aprobada (estado PENDIENTE_AUDITORIA): la configuracion no es activable
+CLI 0 VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 PENDIENTE_AUDITORIA fd7478d557e9; modo BORRADOR; activable: NO; ejecucion oficial: NO; efectiva 66ab24579c51)
+rc=0
+
+## Estado APROBADO: clon C:/tm14/c, HEAD = P2 d76472e3a903bfb17daa1d6adb98825c91b80be3
+ROOT C:\tm14\c
+production_config -> OK dict
+official_config -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+official_th35 -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+official_causal_audit -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+official_g2_controls -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+official_publish_th35 -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+check_official_publication -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+reproduce_official_publication -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+load_effective_protocol_e02 -> OK {'modo': 'PRODUCCION', 'activable': True, 'ejecucion_oficial': False, 'publicacion_E02': None}
+require_e02_oficial(preparatoria real) -> ProtocolNotAuthorizedError [E02_NO_OFICIAL] la configuracion no procede de la ejecucion oficial vinculada a P2
+load_official_inputs(preparatoria real) -> ProtocolNotAuthorizedError [E02_NO_OFICIAL] la configuracion no procede de la ejecucion oficial vinculada a P2
+official_config_e02 None a*40 -> ProtocolNotAuthorizedError [E02_P2_EXISTE] la publicacion aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa no existe en el repositorio
+require ofi -> ProtocolNotAuthorizedError [E02_OFICIAL_NO_VERIFICABLE] la configuracion oficial no se puede derivar de M2: [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+load_official_inputs forged -> ProtocolNotAuthorizedError [E02_OFICIAL_NO_VERIFICABLE] la configuracion oficial no se puede derivar de M2: [E02_P2_EXISTE] la publicacion ffffffffffffffffffffffffffffffffffffffff no existe en el repositorio
+CLI 0 VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 APROBADA fd7478d557e9; modo PRODUCCION; activable: SI; ejecucion oficial: NO; efectiva 66ab24579c51)
+rc=0
+# cambios sin commit en C:/tm14/c tras la sonda: 0

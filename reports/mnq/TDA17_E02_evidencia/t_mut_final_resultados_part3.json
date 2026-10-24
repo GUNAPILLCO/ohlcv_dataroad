@@ -1,0 +1,264 @@
+{
+  "ids": [
+    "E01_FICHEROS",
+    "E02_ANADIR",
+    "E02_CAMPOS",
+    "E02_DOC",
+    "E02_HUELLA",
+    "E02_OFICIAL_NO_VERIFICABLE",
+    "E02_P2_EXISTE",
+    "E02_PENDIENTE_CON_DATOS",
+    "E02_REMOTO",
+    "E02_REQUIERE",
+    "PROTOCOLO_ESTRICTO",
+    "TH37_FUERA_DEL_PLAN",
+    "ENTRADA_PROHIBIDA",
+    "SALIDA_EFECTIVA",
+    "SALIDA_EXISTENTE",
+    "SALIDA_P2",
+    "SALIDA_RUTA_UNICA"
+  ],
+  "resultados": {
+    "E01_FICHEROS": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 5.65s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E01_FICHEROS]"
+      ],
+      "errores": [],
+      "selector": "E01_FICHEROS",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 6
+    },
+    "E02_ANADIR": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "3 failed, 2 passed, 221 deselected in 7.45s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_whitelist_in_borrador[E02_ANADIR-existente]",
+        "tests/test_tda17_enmienda_02.py::test_negative_whitelist_in_borrador[E02_ANADIR-sustituir]",
+        "tests/test_tda17_enmienda_02.py::test_negative_whitelist_in_borrador[E02_ANADIR-ruta]"
+      ],
+      "errores": [],
+      "selector": "whitelist_in_borrador",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 8
+    },
+    "E02_CAMPOS": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "2 failed, 224 deselected in 6.20s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_CAMPOS-falta]",
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_CAMPOS-sobra]"
+      ],
+      "errores": [],
+      "selector": "E02_CAMPOS",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 7
+    },
+    "E02_DOC": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 4.19s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_DOC]"
+      ],
+      "errores": [],
+      "selector": "E02_DOC",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 5
+    },
+    "E02_HUELLA": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "2 failed, 224 deselected in 6.16s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_HUELLA-yaml]",
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_HUELLA-registro]"
+      ],
+      "errores": [],
+      "selector": "E02_HUELLA",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 7
+    },
+    "E02_OFICIAL_NO_VERIFICABLE": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "2 failed, 224 deselected in 15.46s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_forged_official_configs_are_rejected",
+        "tests/test_tda17_e02_motor.py::test_official_config_requires_the_official_execution"
+      ],
+      "errores": [],
+      "selector": "forged or official_config_requires",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 16
+    },
+    "E02_P2_EXISTE": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 5.17s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_official_p2_format_and_existence"
+      ],
+      "errores": [],
+      "selector": "p2_format_and_existence",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 6
+    },
+    "E02_PENDIENTE_CON_DATOS": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 4.81s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_pending_with_approval_data_in_borrador"
+      ],
+      "errores": [],
+      "selector": "pending_with_approval_data",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 5
+    },
+    "E02_REMOTO": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "3 failed, 3 passed, 220 deselected in 17.93s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_official_remote_local_ref_says_published_but_real_remote_does_not",
+        "tests/test_tda17_enmienda_02.py::test_negative_official_remote_unavailable_or_without_branch",
+        "tests/test_tda17_enmienda_02.py::test_official_remote_commit_missing_locally_is_downloaded_or_rejected"
+      ],
+      "errores": [],
+      "selector": "remote",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 18
+    },
+    "E02_REQUIERE": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 5.06s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_production_load[E02_REQUIERE]"
+      ],
+      "errores": [],
+      "selector": "E02_REQUIERE",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 6
+    },
+    "PROTOCOLO_ESTRICTO": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 5.85s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_negative_official_strict_protocol_verification"
+      ],
+      "errores": [],
+      "selector": "strict_protocol",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py",
+      "segundos": 6
+    },
+    "TH37_FUERA_DEL_PLAN": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 224.46s (0:03:44)",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_causalidad.py::test_repeated_or_foreign_rows_are_rejected"
+      ],
+      "errores": [],
+      "selector": "repeated_or_foreign",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_causalidad.py",
+      "segundos": 225
+    },
+    "ENTRADA_PROHIBIDA": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 1.28s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_procedencia.py::test_inputs_read_verified_checks_the_same_bytes"
+      ],
+      "errores": [],
+      "selector": "inputs_read_verified",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_entradas.py",
+      "segundos": 2
+    },
+    "SALIDA_EFECTIVA": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 234.80s (0:03:54)",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_salidas.py::test_publication_tampering_is_detected"
+      ],
+      "errores": [],
+      "selector": "tampering",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_salidas.py",
+      "segundos": 235
+    },
+    "SALIDA_EXISTENTE": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "7 failed, 1 skipped, 218 deselected in 328.47s (0:05:28)",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_salidas.py::test_publish_blocked_writes_only_the_causal_audit_the_diagnostic_and_the_provenance",
+        "tests/test_tda17_salidas.py::test_rollback_never_deletes_a_symbolic_link_to_its_staged_file[emulado]",
+        "tests/test_tda17_salidas.py::test_destination_created_after_the_check_is_never_overwritten[causal]",
+        "tests/test_tda17_salidas.py::test_destination_created_after_the_check_is_never_overwritten[diagnostico]",
+        "tests/test_tda17_salidas.py::test_destination_created_after_the_check_is_never_overwritten[registro]",
+        "tests/test_tda17_salidas.py::test_destination_created_after_the_check_is_never_overwritten[diagnostico_y_reemplazo]",
+        "tests/test_tda17_salidas.py::test_destination_created_after_the_check_is_never_overwritten[diagnostico_y_reemplazo_identico]"
+      ],
+      "errores": [],
+      "selector": "publish_blocked or created_after_the_check or rollback_never_deletes_a_symbolic",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_salidas.py",
+      "segundos": 329
+    },
+    "SALIDA_P2": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "1 failed, 225 deselected in 243.91s (0:04:03)",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_salidas.py::test_publication_tampering_is_detected"
+      ],
+      "errores": [],
+      "selector": "tampering",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_salidas.py",
+      "segundos": 244
+    },
+    "SALIDA_RUTA_UNICA": {
+      "estado": "DETECTADO",
+      "detectado": true,
+      "codigo": 1,
+      "resumen": "2 failed, 1 passed, 223 deselected in 13.38s",
+      "pruebas_que_fallan": [
+        "tests/test_tda17_enmienda_02.py::test_official_execution_at_p2_and_after_unrelated_commits",
+        "tests/test_tda17_salidas.py::test_other_tables_stay_blocked_and_the_route_is_unique"
+      ],
+      "errores": [],
+      "selector": "route_is_unique or official_execution",
+      "modulo": "src/ohlcv_dataroad/ingest/tda17_salidas.py",
+      "segundos": 14
+    }
+  },
+  "modulo_importado": "C:\\tm17d\\c\\src\\ohlcv_dataroad\\ingest\\tda17_enmiendas_e02.py",
+  "control": {
+    "codigo": 0,
+    "resumen": "215 passed, 11 skipped in 3423.11s (0:57:03)",
+    "segundos": 3424
+  }
+}
