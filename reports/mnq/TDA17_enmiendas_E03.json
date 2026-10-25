@@ -1,0 +1,25 @@
+{
+  "descripcion": "TDA-17 -- registro de la enmienda E03 (motor paralelo; solo implementacion). Aprobacion: commit auditado A3 y publicacion P3.",
+  "protocolo_base": {
+    "id": "TDA17_PROTOCOLO_v1",
+    "commit": "9cdea2f4657de1c54e3fccf86cf380b2eac8704e",
+    "sha256_yaml": "920cda43e59365e9a72f13ba6e8d5adb182640b188bf23a25059a3b4e9438938",
+    "sha256_manifiesto": "1b14b65a07dd207625071c3f657863574a0b4ab801a92bd917caace24f8db4d0"
+  },
+  "requiere": {
+    "E02": "27b8e5b775310212e7b660af7b9a0afad3917af25600f197b0882692bded3b49",
+    "commit_auditado_E02": "2b6ad7abdf6609e6970f1fe6ee1e2569edc698b4",
+    "publicacion_E02": "ff224dc7e30f7631dc46eea17db5a60dd44b07cc"
+  },
+  "enmiendas": [
+    {
+      "id": "E03",
+      "fichero": "configs/tda17_enmienda_03.yaml",
+      "sha256": "85cbf62b6c1ac9b5e0fca7e869d6502a0f5784bcde5ed26be809d3cc8042c747",
+      "alcance": "IMPLEMENTACION",
+      "estado": "PENDIENTE_AUDITORIA",
+      "fecha_preparacion": "2026-10-25",
+      "aprobacion": null
+    }
+  ]
+}

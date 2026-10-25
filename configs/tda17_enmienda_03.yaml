@@ -1,0 +1,99 @@
+# TDA-17 -- Enmienda E03: motor de ejecucion PARALELO de TH37 -> TH35.
+# Alcance: SOLO IMPLEMENTACION. No cambia el protocolo congelado, E01, E02 ni ninguna decision estadistica,
+# parametro, umbral, semilla, flujo PCG64, sorteo ni orden de agregacion. No modifica ningun fichero auditado.
+# Criterio de aceptacion: tablas oficiales IDENTICAS BYTE A BYTE a las del motor E02 en el MISMO entorno numerico,
+# sin tolerancias.
+enmienda:
+  id: E03
+  titulo: Motor de ejecucion paralelo de TH37 -> TH35 (solo implementacion)
+  fecha_preparacion: "2026-10-25"
+  alcance: IMPLEMENTACION
+  decisiones_estadisticas: NINGUNA
+  espacio_de_nombres:
+    modulos: src/ohlcv_dataroad/tda17_e03
+    pruebas: tests/tda17_e03
+    guarda_de_cobertura: tests/tda17_e03/test_e03_cobertura.py (E01 + E02 + protocolo + E03, todo el repositorio)
+  base:
+    protocolo: 9cdea2f4657de1c54e3fccf86cf380b2eac8704e
+    publicacion_E01: 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1
+    commit_auditado_E02: 2b6ad7abdf6609e6970f1fe6ee1e2569edc698b4
+    publicacion_E02: ff224dc7e30f7631dc46eea17db5a60dd44b07cc
+    registro_E02: reports/mnq/TDA17_enmiendas_E02.json
+    ficheros_E02_sin_cambios: TODOS_LOS_AUDITADOS_DE_E02
+  aprobacion:
+    commit_auditado: A3 (desciende de la publicacion P2 de E02; contiene la version aprobada de cada fichero auditado)
+    publicacion: P3 (descendiente estricta de A3, en la rama publicada del repositorio autorizado de E02)
+  criterio_equivalencia:
+    tipo: BYTES_IDENTICOS
+    referencia: tda17_analysis.th35_pipeline (motor E02) en el mismo entorno numerico
+    tolerancias: NINGUNA
+    tablas:
+      - TDA17_auditoria_causalidad.csv
+      - TDA17_estabilidad_celdas.csv
+      - TDA17_r2_reconstruccion.csv
+      - TDA17_correlacion_spearman.csv
+      - TDA17_clasificacion_final.csv
+      - TDA17_diagnostico_bloqueo.csv
+  entorno_numerico:
+    # Hallazgo F1: los resultados del motor E02 dependen del numero de hilos de OpenBLAS (la particion del trabajo de
+    # BLAS/LAPACK cambia los ultimos bits). Decision del responsable (2026-10-25): 1 hilo por proceso en la ejecucion
+    # oficial y en su reproduccion (tambien con el motor E02).
+    hilos_blas: 1
+    aplicacion: OPENBLAS_SET_NUM_THREADS_EN_EL_PRINCIPAL_Y_VARIABLES_AL_ARRANCAR_CADA_WORKER
+    regla_workers: IGUAL_AL_PROCESO_PRINCIPAL
+    verificacion: HILOS_EFECTIVOS_DE_CADA_OPENBLAS_EN_EL_PRINCIPAL_Y_EN_CADA_TAREA
+    reproduccion: MISMOS_HILOS_EFECTIVOS (motor E03 y motor E02)
+  paralelismo:
+    procesos: spawn
+    procesos_max: 20
+    nucleos_reservados: 4
+    reserva_memoria_mb: 4096
+    memoria_medida: PRIVADA (las paginas compartidas de solo lectura se cuentan una vez por etapa)
+    # Ninguna tarea arranca si memoria disponible - datos compartidos pendientes - crecimiento posible de las activas -
+    # memoria prevista de la tarea < reserva. Con tareas activas espera; sin ninguna activa cierra los workers libres,
+    # espera espera_memoria_s y, si sigue sin caber, rechaza la ejecucion (E03_MEMORIA_INSUFICIENTE). La reserva nunca
+    # se elimina.
+    memoria_insuficiente: RECHAZO_EXPLICITO
+    espera_memoria_s: 10
+    max_sin_medir: 2
+    margen_pico: 1.15
+    cortes_por_bloque: 12
+    replicas_por_bloque: 10
+    datos_TH37: COMPARTIDOS_SOLO_LECTURA (bloques numericos proyectados en memoria; reconstruccion verificada bit a bit)
+    descomposicion:
+      TH37_futuro: CONTRATO_Y_BLOQUE_DE_CORTES (ca.audit_future con subplan)
+      TH37_origen: UNA_TAREA (ca.audit_parameter_origin)
+      TH37_roll: CONTRATO (cuerpo literal de ca.audit_roll)
+      TH37_barrera: PROCESO_PRINCIPAL (ca.audit_table + ca.verify_causal_audit, antes de TH35)
+      TH35_celdas: CELDA (an.analyze_cell + momentos + an.bootstrap_spearman_fixed)
+      TH35_r2: BLOQUE_DE_REPLICAS (cuerpo literal de an.bootstrap_r2; agregacion literal en el principal)
+      TH35_validacion_spearman: REPLICA (cuerpo literal de an._validation_cell; rondas literales de an.spearman_validation)
+    sorteos: PROCESO_PRINCIPAL (an.cell_draws)
+    orden_de_agregacion: E02
+  progreso:
+    estado: estado.json
+    registro: progreso.jsonl
+    intervalo_s: 20
+    minimo_medidas_eta: 5
+  puntos_de_control:
+    identidad: [sha256_motor, sha256_configuracion, huella_marco, entorno_numerico, cortes_por_bloque, replicas_por_bloque]
+    integridad: SHA256_POR_TAREA
+    ejecucion_incompleta: NUNCA_VALIDA
+    # El SHA-256 de cada punto de control vive en el mismo directorio: detecta errores, no falsificaciones.
+    reanudacion_oficial: DESHABILITADA
+    reanudacion_sintetica: SOLO_PRUEBAS
+    directorio_oficial: NUEVO_Y_FUERA_DEL_REPOSITORIO
+  ruta_oficial: ohlcv_dataroad.tda17_e03.enmienda.official_publish_th35_e03
+  publicacion_oficial:
+    tablas_y_registro_E02: SIN_CAMBIOS (mismos bytes y mismo registro TDA17_procedencia_oficial.json vinculado a P2)
+    comprobante_E03: TDA17_procedencia_E03.json
+    # El comprobante (P3, A3, remoto, huella del YAML, huella exacta del registro de E02, huellas de las tablas, hilos
+    # BLAS y resumen del motor) se prepara y promueve en la MISMA transaccion que las tablas, ANTES del registro de E02,
+    # que confirma la publicacion: o estan los tres (tablas, comprobante y registro) o no hay publicacion confirmada.
+    transaccion: MISMA_QUE_E02 (cerrojo, preparacion con fsync, diario de huellas, promocion sin sobrescribir)
+    salidas_existentes: RECHAZO_ANTES_DEL_CALCULO_Y_DE_NUEVO_BAJO_EL_CERROJO_AL_PUBLICAR
+    verificacion: ohlcv_dataroad.tda17_e03.enmienda.check_official_publication_e03
+  reproduccion:
+    # ambas verifican antes la publicacion completa (registro de E02 y comprobante de E03)
+    - ohlcv_dataroad.tda17_e03.enmienda.reproduce_official_publication_e03
+    - ohlcv_dataroad.tda17_e03.enmienda.reproduce_with_e02_engine_e03
