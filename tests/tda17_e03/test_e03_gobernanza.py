@@ -9,6 +9,9 @@ en el repositorio del proyecto. Las entradas analizadas son SINTETICAS (``data/s
 del protocolo de E02 comprueba por SHA-256, como en las pruebas de E02, los ficheros de datos del manifiesto
 (enlazados, nunca escritos ni cargados). Sin holdout ni ``data/raw``.
 
+Registro del PROYECTO (R4, como E02 v11): admite exactamente PENDIENTE_AUDITORIA y APROBADA (``check_project_state``); el
+mismo control se ejerce en el repositorio temporal en ambos estados y frente a aprobaciones falsificadas.
+
 Negativas: tipo EXACTO y mensaje COMPLETO (``assert_rejects`` de las pruebas de E02). Los controles que solo se
 alcanzan tras otra barrera (E03_DOC, E03_P3_APROBADA) se prueban fijando con ``monkeypatch`` la constante o la funcion
 de la barrera anterior.
@@ -21,6 +24,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -43,26 +47,74 @@ APPROVAL_DATE = "2026-10-25"
 PENDING_MSG = "[E03_PENDIENTE] E03 no aprobada (estado PENDIENTE_AUDITORIA): la ruta oficial del motor E03 no se activa"
 
 
-# =========================================================================== registro del PROYECTO (sin aprobar)
-def test_project_registry_is_pending_and_the_official_e03_route_is_blocked(tmp_path):
-    reg = json.loads((SRC / m3.REGISTRY_E03).read_text(encoding="utf-8"))
+# =========================================================================== registro del PROYECTO (PENDIENTE o APROBADA)
+NO_P3_MSG = f"[E03_P3_EXISTE] la publicacion {'0' * 40} no existe en el repositorio"
+P3_A3_MSG = "[E03_P3_A3] el commit auditado A3 debe ser antecesor estricto de la publicacion P3"
+
+
+def pending_registry(reg: dict) -> dict:
+    """Forma PENDIENTE (la del commit auditado) de un registro de E03: la aprobacion solo cambia ``estado`` y
+    ``aprobacion``."""
+    reg = copy.deepcopy(reg)
+    (entry,) = reg["enmiendas"]
+    entry.update(estado=e01.ESTADO_PENDIENTE, aprobacion=None)
+    return reg
+
+
+def check_project_state(root: Path, tmp_path: Path) -> str:
+    """Estado de E03 en el registro de ``root``: PENDIENTE_AUDITORIA (hasta el commit auditado; produccion y ruta
+    oficial rechazan con E03_PENDIENTE) o APROBADA (aprobacion PREPARATORIA verificable que cita el commit auditado, con
+    acta existente; nunca oficial sin una P3 valida). Cualquier otro estado es un fallo (como E02 v11). Devuelve el
+    estado."""
+    reg = json.loads((root / m3.REGISTRY_E03).read_text(encoding="utf-8"))
     assert list(reg) == list(m3.REGISTRY_FIELDS) and reg["requiere"] == m3._requiere()
     (entry,) = reg["enmiendas"]
-    assert entry["estado"] == e01.ESTADO_PENDIENTE and entry["aprobacion"] is None
-    assert entry["sha256"] == m3.E03_SHA256 == e01.sha256_text_file(SRC / m3.E03_YAML)
-    doc = yaml.safe_load((SRC / m3.E03_YAML).read_text(encoding="utf-8"))["enmienda"]
+    assert entry["estado"] in (e01.ESTADO_PENDIENTE, e01.ESTADO_APROBADA), entry["estado"]
+    assert entry["sha256"] == m3.E03_SHA256 == e01.sha256_text_file(root / m3.E03_YAML)
+    doc = yaml.safe_load((root / m3.E03_YAML).read_text(encoding="utf-8"))["enmienda"]
     assert doc["entorno_numerico"]["hilos_blas"] == 1 and doc["puntos_de_control"]["reanudacion_oficial"] == "DESHABILITADA"
     assert doc["base"]["publicacion_E02"] == m3.E02_P2 and doc["base"]["commit_auditado_E02"] == m3.E02_A2
     assert doc["paralelismo"]["memoria_insuficiente"] == "RECHAZO_EXPLICITO" and doc["paralelismo"]["reserva_memoria_mb"] == 4096
     assert doc["publicacion_oficial"]["comprobante_E03"] == m3.COMPROBANTE
     r = m3.official_resources(doc)
     assert r.memoria_estricta is True and r.reserva_mb == 4096.0 and r.hilos_blas is None
-    errors, info = m3.verify(SRC)
-    assert errors == [] and info["ruta_oficial_e03"] == f"BLOQUEADA: {PENDING_MSG}" and info["estado"] == e01.ESTADO_PENDIENTE
-    assert_rejects(PENDING_MSG, m3.official_e03, SRC, "0" * 40)
-    assert_rejects(PENDING_MSG, m3.load_e03_aprobada, SRC)
-    assert_rejects(PENDING_MSG, m3.official_publish_th35_e03, "0" * 40, SRC, ejecucion=tmp_path / "ej")
+    if entry["estado"] == e01.ESTADO_PENDIENTE:
+        assert entry["aprobacion"] is None
+        errors, info = m3.verify(root)
+        assert errors == [] and info["ruta_oficial_e03"] == f"BLOQUEADA: {PENDING_MSG}" and info["estado"] == e01.ESTADO_PENDIENTE
+        assert_rejects(PENDING_MSG, m3.official_e03, root, "0" * 40)
+        assert_rejects(PENDING_MSG, m3.load_e03_aprobada, root)
+        assert_rejects(PENDING_MSG, m3.official_publish_th35_e03, "0" * 40, root, ejecucion=tmp_path / "ej")
+        assert not (tmp_path / "ej").exists()
+        return e01.ESTADO_PENDIENTE
+    a = entry["aprobacion"]
+    assert isinstance(a, dict) and set(a) == set(e01.APPROVAL_FIELDS), a
+    ref = a["referencia_auditoria"]
+    assert isinstance(ref, dict) and set(ref) == set(e01.AUDIT_REFERENCE_FIELDS), ref
+    commit, documento = ref["commit_auditado"], ref["documento"]
+    assert isinstance(commit, str) and len(commit) == 40 and set(commit) <= set("0123456789abcdef"), commit
+    assert a["sha256_auditados"] == {r: e01.sha256_text_file(root / r) for r in m3.AUDITED_E03}    # arbol = aprobado
+    assert a["sha256_auditados"] == {r: m2._hash_at(root, commit, r) for r in m3.AUDITED_E03}      # = commit auditado
+    assert pending_registry(reg) == json.loads(git(root, "show", f"{commit}:{m3.REGISTRY_E03}"))  # commit: PENDIENTE
+    assert commit != m3.E02_P2 and m2._ancestor(root, m3.E02_P2, commit) and m2._ancestor(root, commit, "HEAD")
+    acta = root / documento
+    assert isinstance(documento, str) and not Path(documento).is_absolute() and ".." not in Path(documento).parts
+    assert acta.is_file() and not acta.is_symlink(), documento                                    # acta existente
+    prep = m3.load_e03_aprobada(root)
+    assert (prep["estado"], prep["modo"], prep["ejecucion_oficial"], prep["publicacion_E03"], prep["aprobacion"]) == \
+        (e01.ESTADO_APROBADA, "PRODUCCION", False, None, a)
+    errors, info = m3.verify(root)                                         # sin --referencia-git: nunca oficial
+    assert errors == [] and info["estado"] == e01.ESTADO_APROBADA and info["ruta_oficial_e03"] == f"BLOQUEADA: {NO_P3_MSG}"
+    assert_rejects(NO_P3_MSG, m3.official_e03, root, "0" * 40)              # sin P3 no hay ejecucion oficial
+    assert_rejects(P3_A3_MSG, m3.official_e03, root, commit)                # el commit auditado no es una P3
+    assert_rejects(NO_P3_MSG, m3.official_publish_th35_e03, "0" * 40, root, ejecucion=tmp_path / "ej")
     assert not (tmp_path / "ej").exists()
+    return e01.ESTADO_APROBADA
+
+
+def test_project_registry_is_pending_or_approved_and_the_official_e03_route_needs_a_valid_p3(tmp_path):
+    """R4: el registro del proyecto admite exactamente PENDIENTE_AUDITORIA y APROBADA (antes solo PENDIENTE)."""
+    assert check_project_state(SRC, tmp_path) in (e01.ESTADO_PENDIENTE, e01.ESTADO_APROBADA)
 
 
 def test_the_e02_publication_constants_are_the_published_ones():
@@ -164,6 +216,89 @@ def test_the_synthetic_approval_chain_is_accepted(repo3):
     assert ctx["cfg"] == an.official_config(m3.E02_P2, root)                 # la configuracion de E02, sin cambios
     errors, v = m3.verify(root, p3)
     assert errors == [] and v["ruta_oficial_e03"] == "ACTIVABLE"
+
+
+# --------------------------------------------------------------------------- R4: control del proyecto en ambos estados
+ACTA = "reports/mnq/TDA17_E03_acta_sintetica.md"
+
+
+def publish_with_minutes(repo3) -> str:
+    """P3' = P3 + acta SINTETICA + aprobacion simulada que la cita, publicada en el remoto TEMPORAL. Devuelve P3'."""
+    root, a3 = repo3["root"], repo3["A3"]
+    (root / ACTA).parent.mkdir(parents=True, exist_ok=True)
+    (root / ACTA).write_text("# Acta SINTETICA de E03 (PRUEBA_SINTETICA)\n", encoding="utf-8")
+    approve(root, a3, referencia_auditoria={"documento": ACTA, "commit_auditado": a3})
+    git(root, "add", "--", ACTA, m3.REGISTRY_E03)
+    git(root, "commit", "-q", "-m", "P3 con acta (sintetica)")
+    git(root, "push", "-q", "origin", "main")
+    return git(root, "rev-parse", "HEAD")
+
+
+def test_the_project_state_check_in_a_temporary_repository_in_both_states(repo3, tmp_path):
+    """El control del registro del proyecto (``check_project_state``) sobre el repositorio temporal: la P3 publicada
+    con acta (APROBADA) habilita la via oficial, y solo con esa P3; el commit auditado A3 (PENDIENTE) no."""
+    root, a3 = repo3["root"], repo3["A3"]
+    p3 = publish_with_minutes(repo3)
+    assert check_project_state(root, tmp_path / "aprobada") == e01.ESTADO_APROBADA
+    info = m3.official_e03(root, p3)["e03"]
+    assert (info["ejecucion_oficial"], info["publicacion_E03"], info["commit_auditado_E03"]) == (True, p3, a3)
+    assert info["remoto_E03"] == {"repositorio": str(repo3["bare"]), "ref": "refs/heads/main", "sha": p3}
+    errors, v = m3.verify(root, p3)
+    assert errors == [] and v["ruta_oficial_e03"] == "ACTIVABLE"
+    git(root, "checkout", "-q", a3)                                         # el commit auditado: registro PENDIENTE
+    assert check_project_state(root, tmp_path / "pendiente") == e01.ESTADO_PENDIENTE
+
+
+def _append(path: Path) -> None:
+    with open(path, "ab") as fh:
+        fh.write(b"\n# cambio no auditado\n")
+
+
+def _forged_states(root: Path, a3: str):
+    """Aprobaciones del proyecto falsificadas o incoherentes (sobre la P3 publicada con acta)."""
+    def entry(fn):
+        return lambda: edit_registry(root, lambda r: fn(r["enmiendas"][0]))
+
+    def ref(**kw):
+        return entry(lambda e: e["aprobacion"]["referencia_auditoria"].update(**kw))
+    yield "otro_commit", ref(commit_auditado=m3.E02_P2)
+    yield "commit_inexistente", ref(commit_auditado="f" * 40)
+    yield "commit_abreviado", ref(commit_auditado=a3[:12])
+    yield "huella", entry(lambda e: e["aprobacion"]["sha256_auditados"].update({m3.AUDITED_E03[2]: "0" * 64}))
+    yield "huella_falta", entry(lambda e: e["aprobacion"]["sha256_auditados"].pop(m3.AUDITED_E03[-1]))
+    yield "fichero_alterado", lambda: _append(root / m3.AUDITED_E03[2])
+    yield "yaml_alterado", lambda: _append(root / m3.E03_YAML)
+    yield "sin_acta", lambda: (root / ACTA).unlink()
+    yield "acta_inexistente", ref(documento="reports/mnq/NO_EXISTE.md")
+    yield "acta_directorio", ref(documento="reports/mnq")
+    yield "acta_absoluta", ref(documento=str((root / ACTA).resolve()))
+    yield "acta_fuera", ref(documento=f"../{root.name}/{ACTA}")
+    yield "campos", entry(lambda e: e["aprobacion"].update(extra=1))
+    yield "fecha_futura", entry(lambda e: e["aprobacion"].update(fecha="2999-01-01"))
+    yield "responsable", entry(lambda e: e["aprobacion"].update(aprobada_por=" "))
+    yield "estado_desconocido", entry(lambda e: e.update(estado="APROBADA_PROVISIONAL"))
+    yield "aprobada_sin_datos", entry(lambda e: e.update(aprobacion=None))
+    yield "pendiente_con_datos", entry(lambda e: e.update(estado=e01.ESTADO_PENDIENTE))
+    yield "registro_cambiado", lambda: edit_registry(root, lambda r: r.update(descripcion="cambiada"))
+
+
+FORGED = ["otro_commit", "commit_inexistente", "commit_abreviado", "huella", "huella_falta", "fichero_alterado",
+          "yaml_alterado", "sin_acta", "acta_inexistente", "acta_directorio", "acta_absoluta", "acta_fuera", "campos",
+          "fecha_futura", "responsable", "estado_desconocido", "aprobada_sin_datos", "pendiente_con_datos",
+          "registro_cambiado"]
+
+
+@pytest.mark.parametrize("case", FORGED)
+def test_a_forged_or_inconsistent_project_approval_is_always_rejected(repo3, tmp_path, case):
+    root, a3 = repo3["root"], repo3["A3"]
+    publish_with_minutes(repo3)
+    assert check_project_state(root, tmp_path / "control") == e01.ESTADO_APROBADA     # control sin falsificar
+    assert [c for c, _ in _forged_states(root, a3)] == FORGED
+    (fn,) = [f for c, f in _forged_states(root, a3) if c == case]
+    fn()
+    with pytest.raises((AssertionError, m3.ProtocolNotAuthorizedError)):
+        check_project_state(root, tmp_path / "falsificada")
+    assert not (tmp_path / "falsificada" / "ej").exists()
 
 
 # --------------------------------------------------------------------------- registro y documento
@@ -641,6 +776,40 @@ def test_official_e03_route_has_no_resumption_and_needs_a_new_directory_outside_
     assert_rejects("[E03_ENTORNO] sin medida de la memoria privada de los procesos (psutil): el control de RAM no es "
                    "verificable", m3.official_publish_th35_e03, p3, root, ejecucion=tmp_path / "ej3")
     assert not any((official3["out"] / n).exists() for n in sal.OFFICIAL) and not inside.exists()
+
+
+def test_a_dead_worker_during_the_official_e03_run_publishes_nothing(official3, tmp_path, monkeypatch):
+    """R4: un worker que muere durante la ejecucion oficial (aqui, justo antes de recibir su tarea) termina la
+    ejecucion con E03_TRABAJADOR: ningun worker vivo y ninguna salida oficial, comprobante ni area de preparacion."""
+    root, p3, out = official3["root"], official3["P3"], official3["out"]
+    real = mo._Motor._enviar
+
+    def kill_then_send(self, w):
+        w.proc.terminate()
+        w.proc.join(30)
+        return real(self, w)
+    monkeypatch.setattr(mo._Motor, "_enviar", kill_then_send)
+    res = {}
+
+    def run():
+        try:
+            m3.official_publish_th35_e03(p3, root, ejecucion=tmp_path / "ej")
+        except BaseException as exc:                                          # noqa: BLE001
+            res["exc"] = exc
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    th.join(300)
+    assert not th.is_alive(), "la ruta oficial sigue esperando a un worker muerto (bloqueo indefinido)"
+    exc = res.get("exc")
+    assert type(exc) is mo.MotorE03Error and str(exc).startswith("[E03_TRABAJADOR] el worker "), repr(exc)
+    assert "durante el envio" in str(exc), str(exc)
+    assert not any(os.path.lexists(out / n) for n in m3._salidas_e03()) and not (out / sal.STAGING).exists()
+    assert not (tmp_path / "ej" / "COMPLETA.json").exists()
+    eventos = [json.loads(x)["evento"] for x in (tmp_path / "ej" / "progreso.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert "worker_fallo" in eventos
+    vivos = [c for c in mo.psutil.Process().children(recursive=True)
+             if c.is_running() and "multiprocessing" in " ".join(c.cmdline())]
+    assert vivos == [], vivos
 
 
 def test_official_e03_route_rejects_an_unverifiable_blas(official3, tmp_path, monkeypatch):

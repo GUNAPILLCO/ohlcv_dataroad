@@ -46,6 +46,14 @@ estimacion del tiempo restante SOLO con tareas medidas. Puntos de control por ta
 ejecucion; una ejecucion incompleta nunca produce resultado (``COMPLETA.json`` solo al terminar). La REANUDACION solo
 existe fuera de la ruta oficial (``Ejecucion(oficial=True)`` la rechaza: el SHA-256 del registro de progreso protege
 la integridad frente a errores, no la autenticidad frente a quien puede escribir el directorio).
+
+Comunicacion con los workers (R4): el principal NUNCA espera indefinidamente a un worker muerto o bloqueado. En Windows
+el extremo del pipe del worker queda duplicado en el principal hasta que el worker lo toma al arrancar; si el worker
+muere antes, el pipe no se rompe y un envio mayor que su bufer esperaba para siempre. Por eso (1) ninguna tarea se
+envia antes de que el worker confirme su arranque (``("listo", pid)``, plazo ``espera_arranque_s``); (2) todo envio
+de una tarea y toda recepcion de un resultado se hacen con plazo (``espera_envio_s``) vigilando la vida del worker;
+(3) un worker muerto, bloqueado o que no arranca termina la ejecucion entera con ``E03_TRABAJADOR`` tras terminar los
+procesos (``_abortar``): nunca hay resultado ni publicacion parcial.
 """
 from __future__ import annotations
 
@@ -109,6 +117,8 @@ class Recursos:
     margen_pico: float = 1.15
     memoria_estricta: bool = False           # ruta OFICIAL: ninguna tarea arranca si no cabe (E03_MEMORIA_INSUFICIENTE)
     espera_memoria_s: float = 10.0           # con memoria_estricta: espera a que el sistema libere antes de rechazar
+    espera_arranque_s: float = 300.0         # el worker confirma que tomo su extremo del pipe (si no: E03_TRABAJADOR)
+    espera_envio_s: float = 300.0            # envio de una tarea o recepcion de un resultado (si no: E03_TRABAJADOR)
     barajar: int | None = None               # SOLO pruebas: orden de despacho aleatorio (semilla)
     fallo_tras: int | None = None            # SOLO pruebas: interrupcion simulada tras n tareas nuevas
 
@@ -539,7 +549,9 @@ def _ejecutar_tarea(fn_name: str, args: tuple):
 
 
 def _trabajador(conn) -> None:
-    """Bucle de un worker: recibe (id, funcion, argumentos), devuelve ("ok"|"error", id, resultado, medidas)."""
+    """Bucle de un worker: confirma el arranque (``("listo", pid, None, None)``: ya posee su extremo del pipe), recibe
+    (id, funcion, argumentos) y devuelve ("ok"|"error", id, resultado, medidas)."""
+    conn.send(("listo", os.getpid(), None, None))
     while True:
         msg = conn.recv()
         if msg is None:
@@ -581,6 +593,9 @@ class _Worker:
     tarea: Tarea | None = None
     inicio: float = 0.0
     activos_al_inicio: int = 0
+    creado: float = field(default_factory=time.time)
+    listo: bool = False                         # confirmo su arranque: ya se le pueden enviar tareas
+    mensaje: tuple | None = None                # tarea asignada pendiente de envio (worker aun sin confirmar)
 
 
 @dataclass
@@ -1014,11 +1029,11 @@ class _Motor:
                     break
                 listos = mpc.wait([w.conn for w in activos] + [w.proc.sentinel for w in activos], timeout=0.5)
                 for w in activos:
-                    if w.conn in listos or w.conn.poll():
-                        try:
-                            tipo, tid, val, med = w.conn.recv()
-                        except (EOFError, OSError):
-                            _fail("E03_TRABAJADOR", f"el worker {w.pid} termino durante la tarea {w.tarea.id}")
+                    if w.conn in listos or self._hay_mensaje(w):
+                        tipo, tid, val, med = self._transferir(w, w.conn.recv, "la recepcion")
+                        if tipo == "listo":
+                            self._confirmar_arranque(w, tid)
+                            continue
                         t, n_act = w.tarea, w.activos_al_inicio
                         w.tarea = None
                         if tipo == "error":
@@ -1027,8 +1042,9 @@ class _Motor:
                             raise val
                         self._completar(etapa, t, val, med, n_act, res)
                     elif w.proc.sentinel in listos and not w.proc.is_alive():
-                        _fail("E03_TRABAJADOR", f"el worker {w.pid} termino (codigo {w.proc.exitcode}) durante la "
-                                                f"tarea {w.tarea.id}")
+                        self._fallo_worker(w, f"termino (codigo {w.proc.exitcode})")
+                    elif not w.listo and time.time() - w.creado > self.r.espera_arranque_s:
+                        self._fallo_worker(w, f"no confirmo su arranque en {self.r.espera_arranque_s:g} s")
                 if time.time() - ultimo >= self.r.intervalo_estado_s:
                     self._escribir_estado(etapa, cola)
                     ultimo = time.time()
@@ -1037,6 +1053,9 @@ class _Motor:
             raise
 
     def _despachar(self, cola: list[Tarea], res: dict) -> None:
+        for w in self.workers:                           # un worker libre vive en su recv: si murio, es un fallo
+            if w.tarea is None and not w.proc.is_alive():
+                self._fallo_worker(w, f"termino (codigo {w.proc.exitcode}) sin tarea asignada")
         while cola:
             hechas = set(res)
             t = next((x for x in cola if all(d in hechas for d in x.deps)), None)
@@ -1056,7 +1075,68 @@ class _Motor:
             w.tarea, w.inicio = t, time.time()
             w.activos_al_inicio = len(self._activos())
             self.max_activos = max(self.max_activos, w.activos_al_inicio)
-            w.conn.send((t.id, t.fn, self._resolver(t, res)))
+            w.mensaje = (t.id, t.fn, self._resolver(t, res))
+            if w.listo:                                  # un worker sin confirmar recibe la tarea al confirmar
+                self._enviar(w)
+
+    # ------------------------------------------------------------------ comunicacion con plazo (R4)
+    def _enviar(self, w: _Worker) -> None:
+        msg, w.mensaje = w.mensaje, None
+        self._transferir(w, lambda: w.conn.send(msg), "el envio")
+
+    def _confirmar_arranque(self, w: _Worker, pid: int) -> None:
+        if pid != w.pid:
+            self._fallo_worker(w, f"confirmo el arranque con otro pid ({pid})")
+        w.listo = True
+        if w.mensaje is not None:
+            self._enviar(w)
+
+    def _hay_mensaje(self, w: _Worker) -> bool:
+        try:
+            return w.conn.poll()
+        except (EOFError, OSError):
+            self._fallo_worker(w, "termino (pipe cerrado)")
+
+    def _transferir(self, w: _Worker, fn, que: str):
+        """``fn`` (envio de la tarea o recepcion de un mensaje por el pipe de ``w``) con plazo ``espera_envio_s``,
+        vigilando la vida del worker: un worker muerto o bloqueado nunca deja al principal esperando (lo termina y
+        rechaza con E03_TRABAJADOR; el hilo de la transferencia, daemon, se abandona)."""
+        out: dict = {}
+
+        def run():
+            try:
+                out["valor"] = fn()
+            except BaseException as exc:                 # noqa: BLE001 - se clasifica abajo
+                out["error"] = exc
+        th = threading.Thread(target=run, daemon=True, name=f"e03-pipe-{w.pid}")
+        th.start()
+        limite = time.time() + self.r.espera_envio_s
+        while True:
+            th.join(0.05)
+            if not th.is_alive():
+                break
+            if not w.proc.is_alive():
+                th.join(2.0)                             # lo ya escrito en el pipe sigue legible tras la salida
+                if not th.is_alive():
+                    break
+                self._fallo_worker(w, f"termino (codigo {w.proc.exitcode}) durante {que}")
+            if time.time() >= limite:
+                self._fallo_worker(w, f"no completo {que} en {self.r.espera_envio_s:g} s")
+        if isinstance(out.get("error"), (EOFError, OSError)):
+            self._fallo_worker(w, f"termino durante {que} ({type(out['error']).__name__})")
+        if "error" in out:
+            raise out["error"]
+        return out["valor"]
+
+    def _fallo_worker(self, w: _Worker, detalle: str):
+        """Worker muerto, bloqueado o que no arranca: evento ``worker_fallo``, se termina y la ejecucion entera falla
+        con E03_TRABAJADOR (``_ejecutar_procesos`` termina los demas en ``_abortar``)."""
+        tarea = f"; tarea {w.tarea.id}" if w.tarea is not None else ""
+        with contextlib.suppress(Exception):
+            self.ej.evento(evento="worker_fallo", pid=w.pid, detalle=f"{detalle}{tarea}")
+        with contextlib.suppress(Exception):
+            w.proc.terminate()
+        _fail("E03_TRABAJADOR", f"el worker {w.pid} {detalle}{tarea}")
 
     def _abortar(self) -> None:
         for w in self.workers:

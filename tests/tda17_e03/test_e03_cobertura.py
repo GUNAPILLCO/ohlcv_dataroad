@@ -172,3 +172,12 @@ def test_static_guards_of_the_engine():
     sin = inspect.getsource(mo._Motor._sin_memoria_y_sin_activas)
     assert sin.index("if not self.r.memoria_estricta:") < sin.index("_fail(\"E03_MEMORIA_INSUFICIENTE\"")
     assert "E03_RECURSOS_OFICIALES" in inspect.getsource(mo.run_th35_e03)
+    # R4: ninguna tarea antes de que el worker confirme su arranque; envio y recepcion siempre con plazo
+    trab = inspect.getsource(mo._trabajador)
+    assert trab.index('conn.send(("listo", os.getpid(), None, None))') < trab.index("conn.recv()")
+    desp = inspect.getsource(mo._Motor._despachar)
+    assert "conn.send" not in desp and desp.index("if w.listo:") < desp.index("self._enviar(w)")
+    assert "self._transferir(w, lambda: w.conn.send(msg)" in inspect.getsource(mo._Motor._enviar)
+    proc = inspect.getsource(mo._Motor._ejecutar_procesos)
+    assert "conn.recv()" not in proc and "self._transferir(w, w.conn.recv," in proc and "conn.poll()" not in proc
+    assert src.count("conn.recv()") == 1                                  # solo el bucle del worker

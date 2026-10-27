@@ -13,6 +13,7 @@ import copy
 import inspect
 import json
 import os
+import pickle
 import subprocess
 import sys
 import threading
@@ -374,9 +375,72 @@ def test_worker_error_propagates_with_the_same_type_and_message(tmp_path, cfg, t
     assert any(e["evento"] == "tarea_error" and e["id"] == "TH37O" for e in _events(tmp_path / "ej"))
 
 
+# --------------------------------------------------------------------------- workers muertos o bloqueados (R4)
+def _bounded(fn, plazo: float = 120.0):
+    """Ejecuta ``fn`` con un vigilante: si el motor no termina en ``plazo`` la prueba FALLA (bloqueo indefinido) en
+    lugar de colgar la suite. Devuelve la excepcion lanzada (None si no lanza)."""
+    out = {}
+
+    def run():
+        try:
+            fn()
+        except BaseException as exc:                                          # noqa: BLE001
+            out["exc"] = exc
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    th.join(plazo)
+    if th.is_alive():
+        for c in mo.psutil.Process().children(recursive=True):
+            c.kill()
+        pytest.fail(f"el motor sigue esperando tras {plazo:g} s: bloqueo indefinido")
+    return out.get("exc")
+
+
+def _spy_workers(motor, on_new=None, before_send=None) -> list:
+    """Procesos de los workers creados (para comprobar la limpieza) y acciones al crearlos o antes de cada envio."""
+    procs, real_new, real_send = [], motor._nuevo_worker, motor._enviar
+
+    def new():
+        w = real_new()
+        procs.append(w.proc)
+        if on_new is not None:
+            on_new(w)
+        return w
+
+    def send(w):
+        if before_send is not None:
+            before_send(w)
+        return real_send(w)
+    motor._nuevo_worker, motor._enviar = new, send
+    return procs
+
+
+def _assert_failed_cleanly(exc, motor, procs, ej: Path, fragment: str) -> None:
+    """Rechazo EXPLICITO E03_TRABAJADOR, ningun worker vivo, evento de fallo, ninguna tarea completada ni resultado."""
+    assert type(exc) is mo.MotorE03Error and str(exc).startswith("[E03_TRABAJADOR] el worker "), repr(exc)
+    assert fragment in str(exc), str(exc)
+    assert motor.workers == [] and procs and not [p for p in procs if p.is_alive()]
+    ev = _events(ej)
+    assert [e for e in ev if e["evento"] == "worker_fallo"] and not [e for e in ev if e["evento"] == "tarea_completa"]
+    assert not (ej / "COMPLETA.json").exists()
+
+
+def _large_cfg(cfg) -> dict:
+    big = copy.deepcopy(cfg)
+    big["_relleno_prueba_r4"] = "x" * (4 * 1024 * 1024)                    # tarea GRANDE: mucho mayor que el bufer
+    return big
+
+
+def _th37_tasks(datos, c, n: int = 1) -> list:
+    return [mo.Tarea(f"TH37O/{k}", "_t_th37_origin", (datos, c), "TH37O") for k in range(n)]
+
+
 def test_a_dead_worker_fails_the_whole_run(tmp_path, cfg, th37_frame):
+    """La prueba original (asesino 1 s despues de asignar la tarea), reforzada en R4: rechazo explicito, limpieza de
+    procesos, evento de fallo y nunca un resultado; un bloqueo indefinido (el defecto de R3) hace FALLAR la prueba."""
     motor = _motor(tmp_path / "ej", 1)
     datos = _th37_ref(motor, th37_frame)
+    procs = _spy_workers(motor)
 
     def killer():
         for _ in range(600):
@@ -388,10 +452,111 @@ def test_a_dead_worker_fails_the_whole_run(tmp_path, cfg, th37_frame):
             time.sleep(0.05)
     th = threading.Thread(target=killer, daemon=True)
     th.start()
-    with pytest.raises(mo.MotorE03Error, match=r"^\[E03_TRABAJADOR\]"):
-        motor.ejecutar("TH37", [mo.Tarea(f"TH37O/{k}", "_t_th37_origin", (datos, cfg), "TH37O") for k in range(3)])
+    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, cfg, 3)))
     th.join()
-    assert motor.workers == [] and not (tmp_path / "ej" / "COMPLETA.json").exists()
+    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "")
+
+
+def test_a_worker_that_dies_before_receiving_a_large_task_fails_explicitly(tmp_path, cfg, th37_frame):
+    """Reproduccion determinista del bloqueo de R3: el worker muere ANTES de tomar su extremo del pipe (sigue duplicado
+    en el principal) y la tarea no cabe en el bufer; antes el envio esperaba para siempre."""
+    motor = _motor(tmp_path / "ej", 1)
+    datos = _th37_ref(motor, th37_frame)
+    big = _large_cfg(cfg)
+    assert len(pickle.dumps(("TH37O/0", "_t_th37_origin", (datos, big)))) > 4 * 1024 * 1024
+
+    def kill_now(w):
+        w.proc.terminate()
+        w.proc.join(30)
+    procs = _spy_workers(motor, on_new=kill_now)
+    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, big)))
+    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "termino (codigo")
+
+
+def test_a_worker_that_dies_during_the_send_of_a_large_task_fails_explicitly(tmp_path, cfg, th37_frame):
+    """El worker ya confirmo su arranque, se suspende (no lee) y muere mientras el principal le envia la tarea grande."""
+    assert mo.psutil is not None
+    motor = _motor(tmp_path / "ej", 1)
+    datos = _th37_ref(motor, th37_frame)
+
+    def suspend_then_kill(w):
+        mo.psutil.Process(w.pid).suspend()
+        threading.Timer(1.0, w.proc.terminate).start()
+    procs = _spy_workers(motor, before_send=suspend_then_kill)
+    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, _large_cfg(cfg))))
+    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "durante el envio")
+
+
+def test_a_blocked_worker_that_never_reads_its_task_fails_explicitly(tmp_path, cfg, th37_frame):
+    """Worker vivo pero bloqueado (suspendido): el envio tiene plazo; se termina el worker y se rechaza."""
+    assert mo.psutil is not None
+    motor = _motor(tmp_path / "ej", 1, espera_envio_s=2.0)
+    datos = _th37_ref(motor, th37_frame)
+    procs = _spy_workers(motor, before_send=lambda w: mo.psutil.Process(w.pid).suspend())
+    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, _large_cfg(cfg))))
+    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "no completo el envio en 2 s")
+
+
+def test_a_worker_that_never_confirms_its_start_fails_explicitly(tmp_path, cfg, th37_frame):
+    """Worker suspendido nada mas crearse: nunca confirma su arranque y nunca se le envia la tarea."""
+    assert mo.psutil is not None
+    motor = _motor(tmp_path / "ej", 1, espera_arranque_s=2.0)
+    datos = _th37_ref(motor, th37_frame)
+    sends = []
+    procs = _spy_workers(motor, on_new=lambda w: mo.psutil.Process(w.pid).suspend(), before_send=sends.append)
+    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, cfg)))
+    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "no confirmo su arranque en 2 s")
+    assert sends == []
+
+
+def test_a_worker_that_dies_while_idle_fails_explicitly(tmp_path, cfg, th37_frame):
+    """Un worker libre (entre etapas) que muere se detecta al despachar: rechazo explicito, nunca se le asigna nada."""
+    motor = _motor(tmp_path / "ej", 1)
+    datos = _th37_ref(motor, th37_frame)
+    procs = _spy_workers(motor)
+    assert _bounded(lambda: motor.ejecutar("TH37A", _th37_tasks(datos, cfg))) is None
+    (w,) = motor.workers
+    assert w.tarea is None and w.listo
+    w.proc.terminate()
+    w.proc.join(30)
+    exc = _bounded(lambda: motor.ejecutar("TH37B", [mo.Tarea("TH37O/b", "_t_th37_origin", (datos, cfg), "TH37O")]))
+    assert type(exc) is mo.MotorE03Error and str(exc).startswith(f"[E03_TRABAJADOR] el worker {w.pid} termino (codigo ")
+    assert str(exc).endswith(") sin tarea asignada") and motor.workers == [] and not [p for p in procs if p.is_alive()]
+    assert [e for e in _events(tmp_path / "ej") if e["evento"] == "worker_fallo"]
+
+
+def test_the_pipe_transfers_are_bounded_and_watch_the_worker(tmp_path):
+    """``_transferir`` (envio y recepcion): plazo, muerte del worker, pipe roto y transferencia normal."""
+    motor = _motor(tmp_path / "ej", 1, espera_envio_s=0.3)
+
+    class _Proc:
+        def __init__(self, alive):
+            self.alive, self.exitcode, self.terminated = alive, None if alive else 9, False
+
+        def is_alive(self):
+            return self.alive
+
+        def terminate(self):
+            self.terminated = True
+    never = threading.Event()
+
+    def broken():
+        raise EOFError
+
+    def worker(pid, alive=True):
+        return mo._Worker(proc=_Proc(alive), conn=None, pid=pid, listo=True)
+    def rejects(message, w, fn, que):
+        exc = _bounded(lambda: motor._transferir(w, fn, que), 30.0)
+        assert type(exc) is mo.MotorE03Error and str(exc) == message, repr(exc)
+    w1, w2, w3 = worker(4241), worker(4242, alive=False), worker(4243)
+    rejects("[E03_TRABAJADOR] el worker 4241 no completo la recepcion en 0.3 s", w1, never.wait, "la recepcion")
+    rejects("[E03_TRABAJADOR] el worker 4242 termino (codigo 9) durante el envio", w2, never.wait, "el envio")
+    rejects("[E03_TRABAJADOR] el worker 4243 termino durante la recepcion (EOFError)", w3, broken, "la recepcion")
+    assert w1.proc.terminated and w2.proc.terminated and w3.proc.terminated
+    assert motor._transferir(worker(4244), lambda: ("ok", "T", 1, {}), "la recepcion") == ("ok", "T", 1, {})
+    fallos = [e for e in _events(tmp_path / "ej") if e["evento"] == "worker_fallo"]
+    assert [e["pid"] for e in fallos] == [4241, 4242, 4243]
+    never.set()
 
 
 def test_low_memory_runs_one_task_at_a_time(tmp_path, cfg, monkeypatch):
