@@ -1,0 +1,71 @@
+# antes; 2026-10-26T23:12:17-03:00; HEAD fbd7ef64bb9bd038c0b49c36c65eab169eab9036
+## Git
+  OK    origin/main = P2 ff224dc7e30f7631dc46eea17db5a60dd44b07cc
+  OK    rama main = HEAD
+  cambios del arbol: (ninguno)
+  OK    HEAD = A3 fbd7ef64bb9bd038c0b49c36c65eab169eab9036
+  OK    A3 tiene un unico padre, P2
+  OK    indice vacio
+  OK    arbol limpio
+## Paquete R4 auditado
+  OK    zip R4 sha256 73db0a649cdd934ea05d3e0805faab2cd22c5435f3582635169af0c94f4e2d27
+  OK    codigo_A4prima/src/ohlcv_dataroad/tda17_e03/motor.py = 8c2f9fce9825 (procedimiento)
+  OK    codigo_A4prima/tests/tda17_e03/test_e03_motor.py = 89d2c92d611f (procedimiento)
+  OK    codigo_A4prima/tests/tda17_e03/test_e03_gobernanza.py = 51338e941e21 (procedimiento)
+  OK    codigo_A4prima/tests/tda17_e03/test_e03_cobertura.py = 3743ad9e422d (procedimiento)
+## 8 ficheros auditados de E03 (A3; arbol = commit = huella esperada)
+  OK    HUELLAS cubre exactamente AUDITED_E03
+  OK    configs/tda17_enmienda_03.yaml = 85cbf62b6c1a
+  OK    src/ohlcv_dataroad/tda17_e03/__init__.py = ae22ee28987b
+  OK    src/ohlcv_dataroad/tda17_e03/motor.py = 9b8ec138bd58
+  OK    src/ohlcv_dataroad/tda17_e03/enmienda.py = c96b95a938a7
+  OK    tests/tda17_e03/e03_equivalencia.py = daf95ae8b625
+  OK    tests/tda17_e03/test_e03_motor.py = a54ed6077b28
+  OK    tests/tda17_e03/test_e03_gobernanza.py = f425c7c4df78
+  OK    tests/tda17_e03/test_e03_cobertura.py = 542d36d957a3
+  OK    E03_SHA256 = huella del YAML (85cbf62b...)
+  OK    registro E03: PENDIENTE_AUDITORIA, sin aprobacion
+  OK    registro E03 identico al de A3
+## E02 (15 huellas: arbol = registro = A2 = HEAD)
+  OK    registro E02 APROBADA con 15 huellas
+  OK    configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    tests/test_tda17_causalidad.py = a4508c40a223
+  OK    tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    tests/test_tda17_salidas.py = 20be16897d9e
+  OK    registro E02 = el publicado en P2
+## E01 (huellas aprobadas)
+  OK    configs/tda17_enmienda_01.yaml = 62b91747d510
+  OK    src/ohlcv_dataroad/ingest/tda17_enmiendas.py = 6c5d96d0513b
+  OK    src/ohlcv_dataroad/ingest/tda17_indicators.py = 9d197a52576f
+  OK    src/ohlcv_dataroad/ingest/tda17_primitives.py = 11f90df582ba
+  OK    tests/test_tda17_indicators.py = c3dc92f122be
+  OK    tests/test_tda17_enmienda_01.py = 25a86dbe3935
+  OK    tests/tda17_synthetic.py = 23e4f30a1306
+## Fuera de E03 nada cambia respecto de P2
+  OK    diff P2->HEAD fuera de E03: ninguno
+## Verificadores oficiales (TDA17_INTEGRIDAD=estricta)
+  $ python -m ohlcv_dataroad.ingest.tda17_protocol_freeze verificar --referencia-git 9cdea2f4657de1c54e3fccf86cf380b2eac8704e  (rc=0)
+    VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_protocol_freeze CONFORME
+  $ python -m ohlcv_dataroad.ingest.tda17_enmiendas verificar --referencia-git 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1  (rc=0)
+    VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas CONFORME
+  $ python -m ohlcv_dataroad.ingest.tda17_enmiendas_e02 verificar --referencia-git ff224dc7e30f7631dc46eea17db5a60dd44b07cc  (rc=0)
+    VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 APROBADA fd7478d557e9; modo PRODUCCION; activable: SI; ejecucion oficial: SI; efectiva 66ab24579c51)
+  OK    tda17_enmiendas_e02 CONFORME
+  $ python -m ohlcv_dataroad.tda17_e03.enmienda verificar  (rc=0)
+    VERIFICACION DE E03: CONFORME (estado PENDIENTE_AUDITORIA; YAML 85cbf62b6c1a; hilos BLAS 1; reanudacion oficial DESHABILITADA; ruta oficial E03 BLOQUEADA: [E03_PENDIENTE] E03 no aprobada (estado PENDIENTE_AUDITORIA): la ruta oficial del motor E03 no se activa)
+  OK    enmienda CONFORME
+  OK    ruta oficial E03 BLOQUEADA por E03_PENDIENTE
+# RESULTADO: TODO CONFORME

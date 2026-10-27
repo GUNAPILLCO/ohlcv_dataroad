@@ -1,0 +1,179 @@
+..................................F........F..                           [100%]
+================================== FAILURES ===================================
+_ test_an_e03_publication_interrupted_between_the_receipt_and_the_e02_record_is_never_valid _
+
+message = '[SALIDA_INCOMPLETA] publicacion oficial interrumpida o en curso (sin registro de procedencia confirmado)'
+fn = <function check_official_publication_e03 at 0x00000266C697E200>
+args = ('1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', WindowsPath('C:/tm19/r3/t3/m30/r'))
+kwargs = {}
+
+    def assert_rejects(message: str, fn, *args, **kwargs) -> None:
+        """Negativa valida solo si lanza EXACTAMENTE ProtocolNotAuthorizedError con el mensaje COMPLETO esperado."""
+        try:
+>           fn(*args, **kwargs)
+
+tests\test_tda17_enmienda_02.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\ohlcv_dataroad\tda17_e03\enmienda.py:488: in check_official_publication_e03
+    publicacion de E02 completa y confirmada (``sal.check_official_publication``, sin cambios) y el comprobante de
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\ohlcv_dataroad\tda17_e03\enmienda.py:294: in official_e03
+    remote = verify_remote_publication_e03(root, publicacion, a3)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\ohlcv_dataroad\tda17_e03\enmienda.py:247: in verify_remote_publication_e03
+    _check_authorized_remote(root)
+src\ohlcv_dataroad\tda17_e03\enmienda.py:240: in _check_authorized_remote
+    _fail("E03_REMOTO_NO_AUTORIZADO", f"origin ({url or 'inexistente'}) no es el repositorio autorizado {m2.AUTHORIZED_REMOTE}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cid = 'E03_REMOTO_NO_AUTORIZADO'
+msg = 'origin (C:\\tm19\\r3\\t3\\m30\\r_remoto.git) no es el repositorio autorizado https://github.com/GUNAPILLCO/ohlcv_dataroad.git'
+
+    def _fail(cid: str, msg: str):
+>       raise ProtocolNotAuthorizedError(f"[{cid}] {msg}")
+E       ohlcv_dataroad.ingest.tda17_indicators.ProtocolNotAuthorizedError: [E03_REMOTO_NO_AUTORIZADO] origin (C:\tm19\r3\t3\m30\r_remoto.git) no es el repositorio autorizado https://github.com/GUNAPILLCO/ohlcv_dataroad.git
+
+src\ohlcv_dataroad\tda17_e03\enmienda.py:82: ProtocolNotAuthorizedError
+
+During handling of the above exception, another exception occurred:
+
+official3 = {'root': WindowsPath('C:/tm19/r3/t3/m30/r'), 'A3': '38f0a890214d348e7893b0e08c995c1bb2fc651a', 'P3': '1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', 'bare': WindowsPath('C:/tm19/r3/t3/m30/r_remoto.git'), ...}
+tmp_path = WindowsPath('C:/tm19/r3/t3/test_an_e03_publication_interr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000266C6B77A80>
+
+    def test_an_e03_publication_interrupted_between_the_receipt_and_the_e02_record_is_never_valid(official3, tmp_path,
+                                                                                                 monkeypatch):
+        """Muerte del proceso (sin deshacer) despues de promover tablas y comprobante y antes del registro de E02: la
+        publicacion no es valida para E02 ni para E03; la recuperacion retira lo demostrablemente suyo."""
+        root, p3, out = official3["root"], official3["P3"], official3["out"]
+        real = sal._promote
+    
+        def die_before_record(src, dst):
+            if dst.name == sal.PROVENANCE:
+                raise _Muerte("muerte simulada")
+            real(src, dst)
+        monkeypatch.setattr(sal, "_promote", die_before_record)
+        monkeypatch.setattr(sal, "_rollback", lambda out_dir, hashes: None)          # el proceso muere: nada se deshace
+        with pytest.raises(_Muerte):
+            m3.official_publish_th35_e03(p3, root, ejecucion=tmp_path / "ej")
+        monkeypatch.undo()
+        assert (out / m3.COMPROBANTE).exists() and (out / sal.STAGING).exists() and not (out / sal.PROVENANCE).exists()
+>       assert_rejects("[SALIDA_INCOMPLETA] publicacion oficial interrumpida o en curso (sin registro de procedencia "
+                       "confirmado)", m3.check_official_publication_e03, p3, root)
+
+tests\tda17_e03\test_e03_gobernanza.py:506: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+message = '[SALIDA_INCOMPLETA] publicacion oficial interrumpida o en curso (sin registro de procedencia confirmado)'
+fn = <function check_official_publication_e03 at 0x00000266C697E200>
+args = ('1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', WindowsPath('C:/tm19/r3/t3/m30/r'))
+kwargs = {}
+
+    def assert_rejects(message: str, fn, *args, **kwargs) -> None:
+        """Negativa valida solo si lanza EXACTAMENTE ProtocolNotAuthorizedError con el mensaje COMPLETO esperado."""
+        try:
+            fn(*args, **kwargs)
+        except Exception as exc:                                               # noqa: BLE001 (se comprueba el tipo exacto)
+            assert type(exc) is Err, f"tipo {type(exc).__name__}: {exc}"
+>           assert str(exc) == message, f"motivo distinto:\n  obtenido: {exc}\n  esperado: {message}"
+E           AssertionError: motivo distinto:
+E               obtenido: [E03_REMOTO_NO_AUTORIZADO] origin (C:\tm19\r3\t3\m30\r_remoto.git) no es el repositorio autorizado https://github.com/GUNAPILLCO/ohlcv_dataroad.git
+E               esperado: [SALIDA_INCOMPLETA] publicacion oficial interrumpida o en curso (sin registro de procedencia confirmado)
+E           assert '[E03_REMOTO_..._dataroad.git' == '[SALIDA_INCO...a confirmado)'
+E             
+E             - [SALIDA_INCOMPLETA] publicacion oficial interrumpida o en curso (sin registro de procedencia confirmado)
+E             + [E03_REMOTO_NO_AUTORIZADO] origin (C:\tm19\r3\t3\m30\r_remoto.git) no es el repositorio autorizado https://github.com/GUNAPILLCO/ohlcv_dataroad.git
+
+tests\test_tda17_enmienda_02.py:79: AssertionError
+__________ test_existing_outputs_are_rejected_before_any_computation __________
+
+message = "[SALIDA_EXISTENTE] ya existen salidas oficiales (no se sobrescriben): ['TDA17_procedencia_E03.json']"
+fn = <function official_publish_th35_e03 at 0x00000266C697E0C0>
+args = ('1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', WindowsPath('C:/tm19/r3/t3/m30/r'))
+kwargs = {'ejecucion': WindowsPath('C:/tm19/r3/t3/test_existing_outputs_are_reje0/ej')}
+
+    def assert_rejects(message: str, fn, *args, **kwargs) -> None:
+        """Negativa valida solo si lanza EXACTAMENTE ProtocolNotAuthorizedError con el mensaje COMPLETO esperado."""
+        try:
+>           fn(*args, **kwargs)
+
+tests\test_tda17_enmienda_02.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\ohlcv_dataroad\tda17_e03\enmienda.py:437: in official_publish_th35_e03
+    cfg, info, result, blobs, resumen = _official_run_e03(publicacion, root, Path(ejecucion), destino_libre)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\ohlcv_dataroad\tda17_e03\enmienda.py:345: in _official_run_e03
+    antes_del_calculo(cfg)
+src\ohlcv_dataroad\tda17_e03\enmienda.py:435: in destino_libre
+    _destino_libre(out)
+src\ohlcv_dataroad\tda17_e03\enmienda.py:404: in _destino_libre
+    _recover_e03(out_dir)
+src\ohlcv_dataroad\tda17_e03\enmienda.py:393: in _recover_e03
+    _fail("E03_SALIDA_RECUPERACION", f"no puede demostrarse que {COMPROBANTE} pertenezca a la publicacion "
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cid = 'E03_SALIDA_RECUPERACION'
+msg = 'no puede demostrarse que TDA17_procedencia_E03.json pertenezca a la publicacion interrumpida: se conserva y la recuperacion queda bloqueada'
+
+    def _fail(cid: str, msg: str):
+>       raise ProtocolNotAuthorizedError(f"[{cid}] {msg}")
+E       ohlcv_dataroad.ingest.tda17_indicators.ProtocolNotAuthorizedError: [E03_SALIDA_RECUPERACION] no puede demostrarse que TDA17_procedencia_E03.json pertenezca a la publicacion interrumpida: se conserva y la recuperacion queda bloqueada
+
+src\ohlcv_dataroad\tda17_e03\enmienda.py:82: ProtocolNotAuthorizedError
+
+During handling of the above exception, another exception occurred:
+
+official3 = {'root': WindowsPath('C:/tm19/r3/t3/m30/r'), 'A3': '38f0a890214d348e7893b0e08c995c1bb2fc651a', 'P3': '1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', 'bare': WindowsPath('C:/tm19/r3/t3/m30/r_remoto.git'), ...}
+tmp_path = WindowsPath('C:/tm19/r3/t3/test_existing_outputs_are_reje0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000266C6EFB230>
+
+    def test_existing_outputs_are_rejected_before_any_computation(official3, tmp_path, monkeypatch):
+        """Rechazo previo (barato) tras la cadena oficial y antes de cargar entradas o crear la ejecucion; la
+        comprobacion bajo el cerrojo al publicar se mantiene (``_publish_files_e03``)."""
+        root, p3, out = official3["root"], official3["P3"], official3["out"]
+        out.mkdir(parents=True, exist_ok=True)
+        (out / m3.COMPROBANTE).write_bytes(b"{}\n")
+        monkeypatch.setattr(ent, "load_official_inputs", lambda *a, **k: pytest.fail("no debe cargar entradas"))
+>       assert_rejects(f"[SALIDA_EXISTENTE] ya existen salidas oficiales (no se sobrescriben): {[m3.COMPROBANTE]}",
+                       m3.official_publish_th35_e03, p3, root, ejecucion=tmp_path / "ej")
+
+tests\tda17_e03\test_e03_gobernanza.py:617: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+message = "[SALIDA_EXISTENTE] ya existen salidas oficiales (no se sobrescriben): ['TDA17_procedencia_E03.json']"
+fn = <function official_publish_th35_e03 at 0x00000266C697E0C0>
+args = ('1fb4e8f9fd8507b972d61dc833a5a8d95a450a6b', WindowsPath('C:/tm19/r3/t3/m30/r'))
+kwargs = {'ejecucion': WindowsPath('C:/tm19/r3/t3/test_existing_outputs_are_reje0/ej')}
+
+    def assert_rejects(message: str, fn, *args, **kwargs) -> None:
+        """Negativa valida solo si lanza EXACTAMENTE ProtocolNotAuthorizedError con el mensaje COMPLETO esperado."""
+        try:
+            fn(*args, **kwargs)
+        except Exception as exc:                                               # noqa: BLE001 (se comprueba el tipo exacto)
+            assert type(exc) is Err, f"tipo {type(exc).__name__}: {exc}"
+>           assert str(exc) == message, f"motivo distinto:\n  obtenido: {exc}\n  esperado: {message}"
+E           AssertionError: motivo distinto:
+E               obtenido: [E03_SALIDA_RECUPERACION] no puede demostrarse que TDA17_procedencia_E03.json pertenezca a la publicacion interrumpida: se conserva y la recuperacion queda bloqueada
+E               esperado: [SALIDA_EXISTENTE] ya existen salidas oficiales (no se sobrescriben): ['TDA17_procedencia_E03.json']
+E           assert '[E03_SALIDA_...eda bloqueada' == "[SALIDA_EXIS...ia_E03.json']"
+E             
+E             - [SALIDA_EXISTENTE] ya existen salidas oficiales (no se sobrescriben): ['TDA17_procedencia_E03.json']
+E             + [E03_SALIDA_RECUPERACION] no puede demostrarse que TDA17_procedencia_E03.json pertenezca a la publicacion interrumpida: se conserva y la recuperacion queda bloqueada
+
+tests\test_tda17_enmienda_02.py:79: AssertionError
+============================ slowest 10 durations =============================
+720.80s call     tests/tda17_e03/test_e03_gobernanza.py::test_official_e03_route_publishes_the_same_bytes_as_the_e02_route
+102.76s call     tests/tda17_e03/test_e03_gobernanza.py::test_an_e03_publication_interrupted_between_the_receipt_and_the_e02_record_is_never_valid
+15.54s call     tests/tda17_e03/test_e03_gobernanza.py::test_the_synthetic_approval_chain_is_accepted
+3.89s call     tests/tda17_e03/test_e03_gobernanza.py::test_existing_outputs_are_rejected_before_any_computation
+3.87s call     tests/tda17_e03/test_e03_gobernanza.py::test_official_e03_route_rejects_an_unverifiable_blas
+3.46s call     tests/tda17_e03/test_e03_gobernanza.py::test_remote_identity_rejections
+2.88s setup    tests/tda17_e03/test_e03_gobernanza.py::test_the_synthetic_approval_chain_is_accepted
+1.49s call     tests/tda17_e03/test_e03_gobernanza.py::test_publication_rejections
+0.87s call     tests/tda17_e03/test_e03_gobernanza.py::test_a_modified_e02_file_blocks_the_official_e03_route_with_the_e02_control
+0.75s call     tests/tda17_e03/test_e03_gobernanza.py::test_a_local_approval_that_is_not_published_never_enables_production
+=========================== short test summary info ===========================
+FAILED tests/tda17_e03/test_e03_gobernanza.py::test_an_e03_publication_interrupted_between_the_receipt_and_the_e02_record_is_never_valid
+FAILED tests/tda17_e03/test_e03_gobernanza.py::test_existing_outputs_are_rejected_before_any_computation
+2 failed, 44 passed in 866.71s (0:14:26)
+rc=1

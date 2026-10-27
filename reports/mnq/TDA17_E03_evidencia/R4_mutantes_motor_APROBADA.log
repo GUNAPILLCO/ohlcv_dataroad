@@ -1,0 +1,10 @@
+_sin_mutar                       CONTROL_OK      rc=0 9 passed, 103 deselected, 2 warnings in 36.78s (39 s; 0 pruebas detectan)
+MM1_envio_directo                DETECTADO       rc=1 3 failed, 6 passed, 103 deselected, 2 warnings in 156.74s (0:02:36) (158 s; 3 pruebas detectan)
+MM2_sin_confirmacion_de_arranque DETECTADO       rc=1 1 failed, 8 passed, 103 deselected in 170.20s (0:02:50) (172 s; 1 pruebas detectan)
+MM3_transferencia_sin_plazo      DETECTADO       rc=1 2 failed, 7 passed, 103 deselected, 2 warnings in 181.47s (0:03:01) (183 s; 2 pruebas detectan)
+MM4_transferencia_sin_vigilar_la_vida DETECTADO       rc=1 1 failed, 8 passed, 103 deselected, 2 warnings in 34.78s (36 s; 1 pruebas detectan)
+MM5_libre_muerto_ignorado        DETECTADO       rc=1 1 failed, 8 passed, 103 deselected, 2 warnings in 37.28s (39 s; 1 pruebas detectan)
+MM6_fallo_sin_evento             DETECTADO       rc=1 8 failed, 1 passed, 103 deselected, 2 warnings in 39.17s (41 s; 8 pruebas detectan)
+MM7_fallo_sin_terminar           DETECTADO       rc=1 1 failed, 8 passed, 103 deselected, 2 warnings in 36.46s (38 s; 1 pruebas detectan)
+MM8_sin_plazo_de_arranque        DETECTADO       rc=1 1 failed, 8 passed, 103 deselected, 2 warnings in 155.81s (0:02:35) (157 s; 1 pruebas detectan)
+RESULTADO: TODOS DETECTADOS

@@ -1,0 +1,42 @@
+{
+  "src/ohlcv_dataroad/tda17_e03/motor.py": {
+    "sha256_bytes_A4prima": "8c2f9fce9825700e700635c5dc11e7f893112b3c209047859248c78f9539e752",
+    "sha256_LF_A4prima": "8c2f9fce9825700e700635c5dc11e7f893112b3c209047859248c78f9539e752",
+    "sha256_LF_A3": "9b8ec138bd58ceba1f57401f52ba4abf0ef11cd9391a625acfe9992e9905cb4a"
+  },
+  "tests/tda17_e03/test_e03_motor.py": {
+    "sha256_bytes_A4prima": "89d2c92d611fad3db4b0fbc162c7cdfc69cb83a6df1730ffea52b62965c3d875",
+    "sha256_LF_A4prima": "89d2c92d611fad3db4b0fbc162c7cdfc69cb83a6df1730ffea52b62965c3d875",
+    "sha256_LF_A3": "a54ed6077b285a38ccbbdd1261e93303cd5141a8b29a3589f42cab6dd8ccd52f"
+  },
+  "tests/tda17_e03/test_e03_gobernanza.py": {
+    "sha256_bytes_A4prima": "51338e941e21773f175060f4e6018af87f1653e547ddc5241b8e3c86dcaf8d17",
+    "sha256_LF_A4prima": "51338e941e21773f175060f4e6018af87f1653e547ddc5241b8e3c86dcaf8d17",
+    "sha256_LF_A3": "f425c7c4df78214c9c391f2817a13cbb80e1b9fc7d34c97ec8fc03ca843cc7e5"
+  },
+  "tests/tda17_e03/test_e03_cobertura.py": {
+    "sha256_bytes_A4prima": "3743ad9e422d5110191fc2dd050be53b1017d431e024100f762abea96e4819fc",
+    "sha256_LF_A4prima": "3743ad9e422d5110191fc2dd050be53b1017d431e024100f762abea96e4819fc",
+    "sha256_LF_A3": "542d36d957a34d94ba3a2ed8d0e8001bc62e42b91b26cb24914a59db46f8bda5"
+  },
+  "configs/tda17_enmienda_03.yaml": {
+    "sha256_bytes_A4prima": "85cbf62b6c1ac9b5e0fca7e869d6502a0f5784bcde5ed26be809d3cc8042c747",
+    "sha256_LF_A4prima": "85cbf62b6c1ac9b5e0fca7e869d6502a0f5784bcde5ed26be809d3cc8042c747",
+    "sha256_LF_A3": "85cbf62b6c1ac9b5e0fca7e869d6502a0f5784bcde5ed26be809d3cc8042c747"
+  },
+  "src/ohlcv_dataroad/tda17_e03/__init__.py": {
+    "sha256_bytes_A4prima": "ae22ee28987bbb86a5b7a5bfec53266b422702d63926978ed3b6063dc6697a8a",
+    "sha256_LF_A4prima": "ae22ee28987bbb86a5b7a5bfec53266b422702d63926978ed3b6063dc6697a8a",
+    "sha256_LF_A3": "ae22ee28987bbb86a5b7a5bfec53266b422702d63926978ed3b6063dc6697a8a"
+  },
+  "src/ohlcv_dataroad/tda17_e03/enmienda.py": {
+    "sha256_bytes_A4prima": "c96b95a938a7e684de18792316116ad8afc7b8f8b657f67b80893f88f93f4a43",
+    "sha256_LF_A4prima": "c96b95a938a7e684de18792316116ad8afc7b8f8b657f67b80893f88f93f4a43",
+    "sha256_LF_A3": "c96b95a938a7e684de18792316116ad8afc7b8f8b657f67b80893f88f93f4a43"
+  },
+  "tests/tda17_e03/e03_equivalencia.py": {
+    "sha256_bytes_A4prima": "daf95ae8b62567e2b41b86fbe041b39f0d72e171d1d25b7e5207640de39ca734",
+    "sha256_LF_A4prima": "daf95ae8b62567e2b41b86fbe041b39f0d72e171d1d25b7e5207640de39ca734",
+    "sha256_LF_A3": "daf95ae8b62567e2b41b86fbe041b39f0d72e171d1d25b7e5207640de39ca734"
+  }
+}

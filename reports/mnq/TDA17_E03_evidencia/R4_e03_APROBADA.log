@@ -1,0 +1,50 @@
+# e03 estricta, estado APROBADA; 2026-10-26T16:15:59-03:00; RAM libre al inicio: 13 GB; limite externo 10800 s
+# clon /c/tm19/r4/clon; rama main; HEAD 84915b309b5ba8894bf6e1360699499c3b39d3c3
+# registro E03: APROBADA {'documento': 'reports/mnq/TDA17_E03_acta_aprobacion.md', 'commit_auditado': '1c973603e982e9df1f69686bbb9979a0cac64e9d'}
+# modulos desde C:\tm19\r4\clon
+........................................................................ [ 59%]
+.................................................                        [100%]
+============================== warnings summary ===============================
+tests/tda17_e03/test_e03_motor.py::test_end_to_end_equivalence_in_the_inherited_environment
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x000002F4CF0271F0>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\tokens.py", line 98, in __init__
+      def __init__(self, value, plain, start_mark, end_mark, style=None):
+      
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/tda17_e03/test_e03_motor.py::test_a_blocked_worker_that_never_reads_its_task_fails_explicitly
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x000002F4CEFE1210>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\scanner.py", line 289, in stale_possible_simple_keys
+      or self.index-key.index > 1024:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/tda17_e03/test_e03_motor.py::test_a_worker_that_dies_while_idle_fails_explicitly
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x000002F4CEFE1C60>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\tokens.py", line 98, in __init__
+      def __init__(self, value, plain, start_mark, end_mark, style=None):
+      
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+121 passed, 3 warnings in 5886.82s (1:38:06)
+rc=0
+# fin 2026-10-26T17:54:07-03:00; RAM libre al final: 10,3 GB

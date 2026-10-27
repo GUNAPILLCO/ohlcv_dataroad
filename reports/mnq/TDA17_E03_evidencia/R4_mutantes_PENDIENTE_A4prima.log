@@ -1,0 +1,11 @@
+_sin_mutar                       CONTROL_OK      rc=0 46 passed, 21 deselected in 80.16s (0:01:20) (82 s; 0 pruebas detectan)
+M1_carga_sin_pendiente           DETECTADO       rc=1 23 failed, 23 passed, 21 deselected in 49.00s (50 s; 23 pruebas detectan)
+M2_oficial_sin_cadena            DETECTADO       rc=1 46 failed, 21 deselected in 33.21s (35 s; 46 pruebas detectan)
+M3_p3_inexistente_aceptada       DETECTADO       rc=1 21 failed, 25 passed, 21 deselected in 53.59s (55 s; 21 pruebas detectan)
+M4_verificador_activable         DETECTADO       rc=1 21 failed, 25 passed, 21 deselected in 36.46s (38 s; 21 pruebas detectan)
+M5_publicacion_sin_cadena        DETECTADO       rc=1 21 failed, 25 passed, 21 deselected in 63.02s (0:01:03) (64 s; 21 pruebas detectan)
+M6_aprobacion_sin_huellas        DETECTADO       rc=1 13 failed, 33 passed, 21 deselected in 58.30s (60 s; 13 pruebas detectan)
+M7_remoto_omitido                DETECTADO       rc=1 2 failed, 44 passed, 21 deselected in 86.78s (0:01:26) (88 s; 2 pruebas detectan)
+M8_pendiente_sin_rechazo         DETECTADO       rc=1 4 failed, 42 passed, 21 deselected in 80.64s (0:01:20) (83 s; 4 pruebas detectan)
+RESULTADO: TODOS DETECTADOS
+rc=0

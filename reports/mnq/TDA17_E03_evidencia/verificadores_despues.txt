@@ -1,0 +1,98 @@
+# aprobacion E03 R4 (sin commit); 2026-10-26T23:24:44-03:00
+## Git
+  OK    HEAD = A4 7fc78bcbc28f5e94c02bb545f46c7e89201408a2
+  OK    A4 -> unico padre A3 -> unico padre P2
+  OK    origin/main = P2 ff224dc7e30f7631dc46eea17db5a60dd44b07cc (sin push)
+  OK    rama main
+  OK    indice vacio (sin commit)
+  OK    cambios = registro (M) + acta + 44 evidencias (nuevos); nada mas
+  OK    unico fichero seguido modificado: el registro de E03
+## 8 ficheros auditados (arbol = A4 = aprobacion = paquete R4)
+  OK    la aprobacion cubre exactamente AUDITED_E03
+  OK    configs/tda17_enmienda_03.yaml = 85cbf62b6c1a
+  OK    src/ohlcv_dataroad/tda17_e03/__init__.py = ae22ee28987b
+  OK    src/ohlcv_dataroad/tda17_e03/motor.py = 8c2f9fce9825
+  OK    src/ohlcv_dataroad/tda17_e03/enmienda.py = c96b95a938a7
+  OK    tests/tda17_e03/e03_equivalencia.py = daf95ae8b625
+  OK    tests/tda17_e03/test_e03_motor.py = 89d2c92d611f
+  OK    tests/tda17_e03/test_e03_gobernanza.py = 51338e941e21
+  OK    tests/tda17_e03/test_e03_cobertura.py = 3743ad9e422d
+  OK    E03_SHA256 = YAML = registro (85cbf62b...)
+## Registro E03
+  OK    estado APROBADA
+  OK    aprobacion con exactamente ['fecha', 'aprobada_por', 'referencia_auditoria', 'sha256_auditados']
+  OK    fecha 2026-10-26; aprobada_por = la declaracion autorizada
+  OK    referencia_auditoria = {acta, A4} (cita exclusivamente A4)
+  OK    registro = el de A4 (PENDIENTE) salvo estado y aprobacion
+  OK    formato del registro (json indent 2, LF)
+## Acta
+  OK    acta existente (fichero regular)
+  OK    el acta declara A4 como commit auditado
+  OK    fecha y responsable = registro
+  OK    las 8 huellas del acta = registro
+  OK    el acta cita los SHA-256 de los paquetes R3 y R4 auditados
+  OK    huellas del registro PENDIENTE (A4) y del YAML
+  OK    el acta no cita A3 como commit auditado
+  OK    observacion BufferError documentada
+## Evidencias
+  OK    PAQUETE_AUDITORIA_R3_E03.zip = 4cbf5ecf914d
+  OK    PAQUETE_AUDITORIA_R4_E03.zip = 73db0a649cdd
+  OK    README lista exactamente los 43 ficheros de evidencia
+  OK    cada evidencia = su SHA-256 del README
+  OK    evidencias byte a byte (* -text)
+  OK    manifiesto R4 = el del zip auditado
+  OK    diff auditado = git diff A3 A4 (byte a byte)
+  OK    registro_aprobacion_salida.json = aprobacion registrada
+  OK    controles: cita A4, nada activable ni creado
+  OK    prueba de estado del proyecto en APROBADA: 1 passed
+  OK    cobertura en APROBADA: 9 passed
+  OK    R4_suite_PENDIENTE.log: 1917 passed, 13 skipped, rc=0
+  OK    R4_suite_APROBADA.log: 1917 passed, 13 skipped, rc=0
+  OK    R4_e03_PENDIENTE.log: 121 passed, rc=0
+  OK    R4_e03_APROBADA.log: 121 passed, rc=0
+## E02 (15 huellas: arbol = registro = A2 = HEAD) y E01
+  OK    registro E02 APROBADA con 15 huellas
+  OK    configs/tda17_enmienda_02.yaml = fd7478d557e9
+  OK    src/ohlcv_dataroad/ingest/tda17_enmiendas_e02.py = 9484cb1ebc1b
+  OK    tests/test_tda17_enmienda_02.py = 0a62fddbaa5b
+  OK    src/ohlcv_dataroad/ingest/tda17_analysis.py = f26bf380e0bb
+  OK    src/ohlcv_dataroad/ingest/tda17_g2.py = 586b97b79cde
+  OK    src/ohlcv_dataroad/ingest/tda17_causalidad.py = 1f5b6f3b1348
+  OK    src/ohlcv_dataroad/ingest/tda17_salidas.py = c8c3272caaca
+  OK    src/ohlcv_dataroad/ingest/tda17_entradas.py = fae54edd2773
+  OK    tests/test_tda17_analysis.py = acf1278fe3a9
+  OK    tests/test_tda17_g2.py = 33f820ff9c4a
+  OK    tests/test_tda17_rango_diagnostico.py = 61aefb2dcbd8
+  OK    tests/test_tda17_causalidad.py = a4508c40a223
+  OK    tests/test_tda17_e02_motor.py = f9ebbfbf1e01
+  OK    tests/test_tda17_procedencia.py = 28d1717a44ea
+  OK    tests/test_tda17_salidas.py = 20be16897d9e
+  OK    registro E02 = P2
+  OK    E01 configs/tda17_enmienda_01.yaml = 62b91747d510
+  OK    E01 src/ohlcv_dataroad/ingest/tda17_enmiendas.py = 6c5d96d0513b
+  OK    E01 src/ohlcv_dataroad/ingest/tda17_indicators.py = 9d197a52576f
+  OK    E01 src/ohlcv_dataroad/ingest/tda17_primitives.py = 11f90df582ba
+  OK    E01 tests/test_tda17_indicators.py = c3dc92f122be
+  OK    E01 tests/test_tda17_enmienda_01.py = 25a86dbe3935
+  OK    E01 tests/tda17_synthetic.py = 23e4f30a1306
+  OK    diff P2->A4 fuera de E03: ninguno
+## Verificadores oficiales (TDA17_INTEGRIDAD=estricta)
+  $ python -m ohlcv_dataroad.ingest.tda17_protocol_freeze verificar --referencia-git 9cdea2f4657de1c54e3fccf86cf380b2eac8704e  (rc=0)
+    VERIFICACION ESTRICTA: CONFORME (estado CONGELADO; 9 ficheros del protocolo, 5 entradas, 188 artefactos previos)
+  OK    tda17_protocol_freeze CONFORME
+  $ python -m ohlcv_dataroad.ingest.tda17_enmiendas verificar --referencia-git 24f9f1d2bb831a25e4dec6a651c0a5129f0bbca1  (rc=0)
+    VERIFICACION DE ENMIENDAS: CONFORME (base 9cdea2f; E01 APROBADA 62b91747d510; activable: SI; efectiva 79462d2c0145)
+  OK    tda17_enmiendas CONFORME
+  $ python -m ohlcv_dataroad.ingest.tda17_enmiendas_e02 verificar --referencia-git ff224dc7e30f7631dc46eea17db5a60dd44b07cc  (rc=0)
+    VERIFICACION DE E02: CONFORME (protocolo 9cdea2f estricto; E01 24f9f1d; E02 APROBADA fd7478d557e9; modo PRODUCCION; activable: SI; ejecucion oficial: SI; efectiva 66ab24579c51)
+  OK    tda17_enmiendas_e02 CONFORME
+  $ python -m ohlcv_dataroad.tda17_e03.enmienda verificar  (rc=0)
+    VERIFICACION DE E03: CONFORME (estado APROBADA; YAML 85cbf62b6c1a; hilos BLAS 1; reanudacion oficial DESHABILITADA; ruta oficial E03 BLOQUEADA: [E03_P3_EXISTE] la publicacion 0000000000000000000000000000000000000000 no existe en el repositorio)
+  OK    enmienda CONFORME
+  OK    E03 APROBADA y ruta oficial BLOQUEADA sin P3 (E03_P3_EXISTE)
+## Ruta oficial sin P3
+  OK    load_e03_aprobada: APROBADA, ejecucion_oficial False, sin publicacion
+  OK    official_e03(000000000000) rechazada [E03_P3_EXISTE]
+  OK    official_e03(7fc78bcbc28f) rechazada [E03_P3_A3]
+  OK    official_e03(fbd7ef64bb9b) rechazada [E03_P3_A3]
+# RESULTADO: TODO CONFORME

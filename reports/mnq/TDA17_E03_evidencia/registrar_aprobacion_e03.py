@@ -1,0 +1,42 @@
+"""Registra la aprobacion DEFINITIVA de E03 R4 en reports/mnq/TDA17_enmiendas_E03.json citando A4 (fuera del
+repositorio; sin commit). Misma herramienta que la ronda R3 (registrar_aprobacion_e03.py), con A4 en lugar de A3 y
+la fecha de esta aprobacion. Solo cambia estado y aprobacion de la entrada E03; el resto del registro queda byte a
+byte igual. Exige que las huellas registradas sean las auditadas en R4 (PROCEDIMIENTO_A4_aprobacion_P3.md)."""
+import json
+import subprocess
+from pathlib import Path
+
+R = Path.cwd().resolve()
+A4 = "7fc78bcbc28f5e94c02bb545f46c7e89201408a2"
+AUDITADAS_R4 = {
+    "configs/tda17_enmienda_03.yaml": "85cbf62b6c1ac9b5e0fca7e869d6502a0f5784bcde5ed26be809d3cc8042c747",
+    "src/ohlcv_dataroad/tda17_e03/__init__.py": "ae22ee28987bbb86a5b7a5bfec53266b422702d63926978ed3b6063dc6697a8a",
+    "src/ohlcv_dataroad/tda17_e03/motor.py": "8c2f9fce9825700e700635c5dc11e7f893112b3c209047859248c78f9539e752",
+    "src/ohlcv_dataroad/tda17_e03/enmienda.py": "c96b95a938a7e684de18792316116ad8afc7b8f8b657f67b80893f88f93f4a43",
+    "tests/tda17_e03/e03_equivalencia.py": "daf95ae8b62567e2b41b86fbe041b39f0d72e171d1d25b7e5207640de39ca734",
+    "tests/tda17_e03/test_e03_motor.py": "89d2c92d611fad3db4b0fbc162c7cdfc69cb83a6df1730ffea52b62965c3d875",
+    "tests/tda17_e03/test_e03_gobernanza.py": "51338e941e21773f175060f4e6018af87f1653e547ddc5241b8e3c86dcaf8d17",
+    "tests/tda17_e03/test_e03_cobertura.py": "3743ad9e422d5110191fc2dd050be53b1017d431e024100f762abea96e4819fc",
+}
+from ohlcv_dataroad.ingest import tda17_enmiendas as e01  # noqa: E402
+from ohlcv_dataroad.tda17_e03 import enmienda as m3  # noqa: E402
+
+assert Path(m3.__file__).resolve().is_relative_to(R) and Path(m3.ROOT).resolve() == R, (m3.__file__, m3.ROOT, R)
+assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=R, capture_output=True, text=True).stdout.strip() == A4
+path = R / m3.REGISTRY_E03
+old = path.read_bytes().replace(b"\r\n", b"\n")
+reg = json.loads(old.decode("utf-8"))
+assert (json.dumps(reg, indent=2, ensure_ascii=False) + "\n").encode("utf-8") == old, "formato inesperado del registro"
+(entry,) = reg["enmiendas"]
+assert entry["estado"] == e01.ESTADO_PENDIENTE and entry["aprobacion"] is None
+huellas = {rel: e01.sha256_text_file(R / rel) for rel in m3.AUDITED_E03}
+assert huellas == AUDITADAS_R4, "las huellas del arbol no son las auditadas en R4"
+entry["estado"] = e01.ESTADO_APROBADA
+entry["aprobacion"] = {
+    "fecha": "2026-10-26",
+    "aprobada_por": "Responsable del proyecto IRIS (declaración de aprobación; identidad no autenticada)",
+    "referencia_auditoria": {"documento": "reports/mnq/TDA17_E03_acta_aprobacion.md", "commit_auditado": A4},
+    "sha256_auditados": huellas,
+}
+path.write_bytes((json.dumps(reg, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+print(json.dumps(entry["aprobacion"], indent=2, ensure_ascii=False))

@@ -1,0 +1,4 @@
+_sin_mutar                       CONTROL_OK      rc=0 9 passed, 103 deselected, 2 warnings in 36.55s (38 s; 0 pruebas detectan)
+MM0_motor_R3_envio_directo_sin_confirmacion DETECTADO       rc=1 5 failed, 4 passed, 103 deselected in 804.96s (0:13:24) (806 s; 5 pruebas detectan)
+RESULTADO: TODOS DETECTADOS
+rc=0

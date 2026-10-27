@@ -1,0 +1,15 @@
+# Controles de la aprobacion E03 R4 (APROBADA sin commit, HEAD = A4, P3 inexistente); psutil 7.2.2
+HEAD: 7fc78bcbc28f5e94c02bb545f46c7e89201408a2 | == A4: True
+load_e03_aprobada: estado APROBADA | modo PRODUCCION | ejecucion_oficial False | publicacion_E03 None
+commit_auditado citado: 7fc78bcbc28f5e94c02bb545f46c7e89201408a2 | == A4: True | == A3 (obsoleto): False
+documento: reports/mnq/TDA17_E03_acta_aprobacion.md | existe: True
+fecha: 2026-10-26 | aprobada_por: Responsable del proyecto IRIS (declaración de aprobación; identidad no autenticada)
+sha256_auditados = AUDITED_E03: True
+huellas aprobadas = blobs de A4: True
+registro = el de A4 salvo estado y aprobacion: True
+official_e03 000000000000 -> RECHAZADA: [E03_P3_EXISTE] la publicacion 0000000000000000000000000000000000000000 no existe en el repositorio
+official_e03 7fc78bcbc28f -> RECHAZADA: [E03_P3_A3] el commit auditado A3 debe ser antecesor estricto de la publicacion P3
+official_e03 fbd7ef64bb9b -> RECHAZADA: [E03_P3_A3] el commit auditado A3 debe ser antecesor estricto de la publicacion P3
+official_publish_th35_e03(000000000000) -> RECHAZADA: [E03_P3_EXISTE] la publicacion 0000000000000000000000000000000000000000 no existe en el repositorio | directorio de ejecucion creado: False
+official_publish_th35_e03(7fc78bcbc28f) -> RECHAZADA: [E03_P3_A3] el commit auditado A3 debe ser antecesor estricto de la publicacion P3 | directorio de ejecucion creado: False
+verify(): errores [] | estado APROBADA | ruta_oficial_e03: BLOQUEADA: [E03_P3_EXISTE] la publicacion 0000000000000000000000000000000000000000 no existe en el repositorio

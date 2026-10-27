@@ -1,0 +1,614 @@
+diff --git a/src/ohlcv_dataroad/tda17_e03/motor.py b/src/ohlcv_dataroad/tda17_e03/motor.py
+index 68f8ba3..8f3ff26 100644
+--- a/src/ohlcv_dataroad/tda17_e03/motor.py
++++ b/src/ohlcv_dataroad/tda17_e03/motor.py
+@@ -46,6 +46,14 @@ estimacion del tiempo restante SOLO con tareas medidas. Puntos de control por ta
+ ejecucion; una ejecucion incompleta nunca produce resultado (``COMPLETA.json`` solo al terminar). La REANUDACION solo
+ existe fuera de la ruta oficial (``Ejecucion(oficial=True)`` la rechaza: el SHA-256 del registro de progreso protege
+ la integridad frente a errores, no la autenticidad frente a quien puede escribir el directorio).
++
++Comunicacion con los workers (R4): el principal NUNCA espera indefinidamente a un worker muerto o bloqueado. En Windows
++el extremo del pipe del worker queda duplicado en el principal hasta que el worker lo toma al arrancar; si el worker
++muere antes, el pipe no se rompe y un envio mayor que su bufer esperaba para siempre. Por eso (1) ninguna tarea se
++envia antes de que el worker confirme su arranque (``("listo", pid)``, plazo ``espera_arranque_s``); (2) todo envio
++de una tarea y toda recepcion de un resultado se hacen con plazo (``espera_envio_s``) vigilando la vida del worker;
++(3) un worker muerto, bloqueado o que no arranca termina la ejecucion entera con ``E03_TRABAJADOR`` tras terminar los
++procesos (``_abortar``): nunca hay resultado ni publicacion parcial.
+ """
+ from __future__ import annotations
+ 
+@@ -109,6 +117,8 @@ class Recursos:
+     margen_pico: float = 1.15
+     memoria_estricta: bool = False           # ruta OFICIAL: ninguna tarea arranca si no cabe (E03_MEMORIA_INSUFICIENTE)
+     espera_memoria_s: float = 10.0           # con memoria_estricta: espera a que el sistema libere antes de rechazar
++    espera_arranque_s: float = 300.0         # el worker confirma que tomo su extremo del pipe (si no: E03_TRABAJADOR)
++    espera_envio_s: float = 300.0            # envio de una tarea o recepcion de un resultado (si no: E03_TRABAJADOR)
+     barajar: int | None = None               # SOLO pruebas: orden de despacho aleatorio (semilla)
+     fallo_tras: int | None = None            # SOLO pruebas: interrupcion simulada tras n tareas nuevas
+ 
+@@ -539,7 +549,9 @@ def _ejecutar_tarea(fn_name: str, args: tuple):
+ 
+ 
+ def _trabajador(conn) -> None:
+-    """Bucle de un worker: recibe (id, funcion, argumentos), devuelve ("ok"|"error", id, resultado, medidas)."""
++    """Bucle de un worker: confirma el arranque (``("listo", pid, None, None)``: ya posee su extremo del pipe), recibe
++    (id, funcion, argumentos) y devuelve ("ok"|"error", id, resultado, medidas)."""
++    conn.send(("listo", os.getpid(), None, None))
+     while True:
+         msg = conn.recv()
+         if msg is None:
+@@ -581,6 +593,9 @@ class _Worker:
+     tarea: Tarea | None = None
+     inicio: float = 0.0
+     activos_al_inicio: int = 0
++    creado: float = field(default_factory=time.time)
++    listo: bool = False                         # confirmo su arranque: ya se le pueden enviar tareas
++    mensaje: tuple | None = None                # tarea asignada pendiente de envio (worker aun sin confirmar)
+ 
+ 
+ @dataclass
+@@ -1014,11 +1029,11 @@ class _Motor:
+                     break
+                 listos = mpc.wait([w.conn for w in activos] + [w.proc.sentinel for w in activos], timeout=0.5)
+                 for w in activos:
+-                    if w.conn in listos or w.conn.poll():
+-                        try:
+-                            tipo, tid, val, med = w.conn.recv()
+-                        except (EOFError, OSError):
+-                            _fail("E03_TRABAJADOR", f"el worker {w.pid} termino durante la tarea {w.tarea.id}")
++                    if w.conn in listos or self._hay_mensaje(w):
++                        tipo, tid, val, med = self._transferir(w, w.conn.recv, "la recepcion")
++                        if tipo == "listo":
++                            self._confirmar_arranque(w, tid)
++                            continue
+                         t, n_act = w.tarea, w.activos_al_inicio
+                         w.tarea = None
+                         if tipo == "error":
+@@ -1027,8 +1042,9 @@ class _Motor:
+                             raise val
+                         self._completar(etapa, t, val, med, n_act, res)
+                     elif w.proc.sentinel in listos and not w.proc.is_alive():
+-                        _fail("E03_TRABAJADOR", f"el worker {w.pid} termino (codigo {w.proc.exitcode}) durante la "
+-                                                f"tarea {w.tarea.id}")
++                        self._fallo_worker(w, f"termino (codigo {w.proc.exitcode})")
++                    elif not w.listo and time.time() - w.creado > self.r.espera_arranque_s:
++                        self._fallo_worker(w, f"no confirmo su arranque en {self.r.espera_arranque_s:g} s")
+                 if time.time() - ultimo >= self.r.intervalo_estado_s:
+                     self._escribir_estado(etapa, cola)
+                     ultimo = time.time()
+@@ -1037,6 +1053,9 @@ class _Motor:
+             raise
+ 
+     def _despachar(self, cola: list[Tarea], res: dict) -> None:
++        for w in self.workers:                           # un worker libre vive en su recv: si murio, es un fallo
++            if w.tarea is None and not w.proc.is_alive():
++                self._fallo_worker(w, f"termino (codigo {w.proc.exitcode}) sin tarea asignada")
+         while cola:
+             hechas = set(res)
+             t = next((x for x in cola if all(d in hechas for d in x.deps)), None)
+@@ -1056,7 +1075,68 @@ class _Motor:
+             w.tarea, w.inicio = t, time.time()
+             w.activos_al_inicio = len(self._activos())
+             self.max_activos = max(self.max_activos, w.activos_al_inicio)
+-            w.conn.send((t.id, t.fn, self._resolver(t, res)))
++            w.mensaje = (t.id, t.fn, self._resolver(t, res))
++            if w.listo:                                  # un worker sin confirmar recibe la tarea al confirmar
++                self._enviar(w)
++
++    # ------------------------------------------------------------------ comunicacion con plazo (R4)
++    def _enviar(self, w: _Worker) -> None:
++        msg, w.mensaje = w.mensaje, None
++        self._transferir(w, lambda: w.conn.send(msg), "el envio")
++
++    def _confirmar_arranque(self, w: _Worker, pid: int) -> None:
++        if pid != w.pid:
++            self._fallo_worker(w, f"confirmo el arranque con otro pid ({pid})")
++        w.listo = True
++        if w.mensaje is not None:
++            self._enviar(w)
++
++    def _hay_mensaje(self, w: _Worker) -> bool:
++        try:
++            return w.conn.poll()
++        except (EOFError, OSError):
++            self._fallo_worker(w, "termino (pipe cerrado)")
++
++    def _transferir(self, w: _Worker, fn, que: str):
++        """``fn`` (envio de la tarea o recepcion de un mensaje por el pipe de ``w``) con plazo ``espera_envio_s``,
++        vigilando la vida del worker: un worker muerto o bloqueado nunca deja al principal esperando (lo termina y
++        rechaza con E03_TRABAJADOR; el hilo de la transferencia, daemon, se abandona)."""
++        out: dict = {}
++
++        def run():
++            try:
++                out["valor"] = fn()
++            except BaseException as exc:                 # noqa: BLE001 - se clasifica abajo
++                out["error"] = exc
++        th = threading.Thread(target=run, daemon=True, name=f"e03-pipe-{w.pid}")
++        th.start()
++        limite = time.time() + self.r.espera_envio_s
++        while True:
++            th.join(0.05)
++            if not th.is_alive():
++                break
++            if not w.proc.is_alive():
++                th.join(2.0)                             # lo ya escrito en el pipe sigue legible tras la salida
++                if not th.is_alive():
++                    break
++                self._fallo_worker(w, f"termino (codigo {w.proc.exitcode}) durante {que}")
++            if time.time() >= limite:
++                self._fallo_worker(w, f"no completo {que} en {self.r.espera_envio_s:g} s")
++        if isinstance(out.get("error"), (EOFError, OSError)):
++            self._fallo_worker(w, f"termino durante {que} ({type(out['error']).__name__})")
++        if "error" in out:
++            raise out["error"]
++        return out["valor"]
++
++    def _fallo_worker(self, w: _Worker, detalle: str):
++        """Worker muerto, bloqueado o que no arranca: evento ``worker_fallo``, se termina y la ejecucion entera falla
++        con E03_TRABAJADOR (``_ejecutar_procesos`` termina los demas en ``_abortar``)."""
++        tarea = f"; tarea {w.tarea.id}" if w.tarea is not None else ""
++        with contextlib.suppress(Exception):
++            self.ej.evento(evento="worker_fallo", pid=w.pid, detalle=f"{detalle}{tarea}")
++        with contextlib.suppress(Exception):
++            w.proc.terminate()
++        _fail("E03_TRABAJADOR", f"el worker {w.pid} {detalle}{tarea}")
+ 
+     def _abortar(self) -> None:
+         for w in self.workers:
+diff --git a/tests/tda17_e03/test_e03_cobertura.py b/tests/tda17_e03/test_e03_cobertura.py
+index d245f6c..132657c 100644
+--- a/tests/tda17_e03/test_e03_cobertura.py
++++ b/tests/tda17_e03/test_e03_cobertura.py
+@@ -172,3 +172,12 @@ def test_static_guards_of_the_engine():
+     sin = inspect.getsource(mo._Motor._sin_memoria_y_sin_activas)
+     assert sin.index("if not self.r.memoria_estricta:") < sin.index("_fail(\"E03_MEMORIA_INSUFICIENTE\"")
+     assert "E03_RECURSOS_OFICIALES" in inspect.getsource(mo.run_th35_e03)
++    # R4: ninguna tarea antes de que el worker confirme su arranque; envio y recepcion siempre con plazo
++    trab = inspect.getsource(mo._trabajador)
++    assert trab.index('conn.send(("listo", os.getpid(), None, None))') < trab.index("conn.recv()")
++    desp = inspect.getsource(mo._Motor._despachar)
++    assert "conn.send" not in desp and desp.index("if w.listo:") < desp.index("self._enviar(w)")
++    assert "self._transferir(w, lambda: w.conn.send(msg)" in inspect.getsource(mo._Motor._enviar)
++    proc = inspect.getsource(mo._Motor._ejecutar_procesos)
++    assert "conn.recv()" not in proc and "self._transferir(w, w.conn.recv," in proc and "conn.poll()" not in proc
++    assert src.count("conn.recv()") == 1                                  # solo el bucle del worker
+diff --git a/tests/tda17_e03/test_e03_gobernanza.py b/tests/tda17_e03/test_e03_gobernanza.py
+index 7632a48..1bbf339 100644
+--- a/tests/tda17_e03/test_e03_gobernanza.py
++++ b/tests/tda17_e03/test_e03_gobernanza.py
+@@ -9,6 +9,9 @@ en el repositorio del proyecto. Las entradas analizadas son SINTETICAS (``data/s
+ del protocolo de E02 comprueba por SHA-256, como en las pruebas de E02, los ficheros de datos del manifiesto
+ (enlazados, nunca escritos ni cargados). Sin holdout ni ``data/raw``.
+ 
++Registro del PROYECTO (R4, como E02 v11): admite exactamente PENDIENTE_AUDITORIA y APROBADA (``check_project_state``); el
++mismo control se ejerce en el repositorio temporal en ambos estados y frente a aprobaciones falsificadas.
++
+ Negativas: tipo EXACTO y mensaje COMPLETO (``assert_rejects`` de las pruebas de E02). Los controles que solo se
+ alcanzan tras otra barrera (E03_DOC, E03_P3_APROBADA) se prueban fijando con ``monkeypatch`` la constante o la funcion
+ de la barrera anterior.
+@@ -21,6 +24,7 @@ import json
+ import os
+ import shutil
+ import sys
++import threading
+ from pathlib import Path
+ 
+ import pytest
+@@ -43,26 +47,74 @@ APPROVAL_DATE = "2026-10-25"
+ PENDING_MSG = "[E03_PENDIENTE] E03 no aprobada (estado PENDIENTE_AUDITORIA): la ruta oficial del motor E03 no se activa"
+ 
+ 
+-# =========================================================================== registro del PROYECTO (sin aprobar)
+-def test_project_registry_is_pending_and_the_official_e03_route_is_blocked(tmp_path):
+-    reg = json.loads((SRC / m3.REGISTRY_E03).read_text(encoding="utf-8"))
++# =========================================================================== registro del PROYECTO (PENDIENTE o APROBADA)
++NO_P3_MSG = f"[E03_P3_EXISTE] la publicacion {'0' * 40} no existe en el repositorio"
++P3_A3_MSG = "[E03_P3_A3] el commit auditado A3 debe ser antecesor estricto de la publicacion P3"
++
++
++def pending_registry(reg: dict) -> dict:
++    """Forma PENDIENTE (la del commit auditado) de un registro de E03: la aprobacion solo cambia ``estado`` y
++    ``aprobacion``."""
++    reg = copy.deepcopy(reg)
++    (entry,) = reg["enmiendas"]
++    entry.update(estado=e01.ESTADO_PENDIENTE, aprobacion=None)
++    return reg
++
++
++def check_project_state(root: Path, tmp_path: Path) -> str:
++    """Estado de E03 en el registro de ``root``: PENDIENTE_AUDITORIA (hasta el commit auditado; produccion y ruta
++    oficial rechazan con E03_PENDIENTE) o APROBADA (aprobacion PREPARATORIA verificable que cita el commit auditado, con
++    acta existente; nunca oficial sin una P3 valida). Cualquier otro estado es un fallo (como E02 v11). Devuelve el
++    estado."""
++    reg = json.loads((root / m3.REGISTRY_E03).read_text(encoding="utf-8"))
+     assert list(reg) == list(m3.REGISTRY_FIELDS) and reg["requiere"] == m3._requiere()
+     (entry,) = reg["enmiendas"]
+-    assert entry["estado"] == e01.ESTADO_PENDIENTE and entry["aprobacion"] is None
+-    assert entry["sha256"] == m3.E03_SHA256 == e01.sha256_text_file(SRC / m3.E03_YAML)
+-    doc = yaml.safe_load((SRC / m3.E03_YAML).read_text(encoding="utf-8"))["enmienda"]
++    assert entry["estado"] in (e01.ESTADO_PENDIENTE, e01.ESTADO_APROBADA), entry["estado"]
++    assert entry["sha256"] == m3.E03_SHA256 == e01.sha256_text_file(root / m3.E03_YAML)
++    doc = yaml.safe_load((root / m3.E03_YAML).read_text(encoding="utf-8"))["enmienda"]
+     assert doc["entorno_numerico"]["hilos_blas"] == 1 and doc["puntos_de_control"]["reanudacion_oficial"] == "DESHABILITADA"
+     assert doc["base"]["publicacion_E02"] == m3.E02_P2 and doc["base"]["commit_auditado_E02"] == m3.E02_A2
+     assert doc["paralelismo"]["memoria_insuficiente"] == "RECHAZO_EXPLICITO" and doc["paralelismo"]["reserva_memoria_mb"] == 4096
+     assert doc["publicacion_oficial"]["comprobante_E03"] == m3.COMPROBANTE
+     r = m3.official_resources(doc)
+     assert r.memoria_estricta is True and r.reserva_mb == 4096.0 and r.hilos_blas is None
+-    errors, info = m3.verify(SRC)
+-    assert errors == [] and info["ruta_oficial_e03"] == f"BLOQUEADA: {PENDING_MSG}" and info["estado"] == e01.ESTADO_PENDIENTE
+-    assert_rejects(PENDING_MSG, m3.official_e03, SRC, "0" * 40)
+-    assert_rejects(PENDING_MSG, m3.load_e03_aprobada, SRC)
+-    assert_rejects(PENDING_MSG, m3.official_publish_th35_e03, "0" * 40, SRC, ejecucion=tmp_path / "ej")
++    if entry["estado"] == e01.ESTADO_PENDIENTE:
++        assert entry["aprobacion"] is None
++        errors, info = m3.verify(root)
++        assert errors == [] and info["ruta_oficial_e03"] == f"BLOQUEADA: {PENDING_MSG}" and info["estado"] == e01.ESTADO_PENDIENTE
++        assert_rejects(PENDING_MSG, m3.official_e03, root, "0" * 40)
++        assert_rejects(PENDING_MSG, m3.load_e03_aprobada, root)
++        assert_rejects(PENDING_MSG, m3.official_publish_th35_e03, "0" * 40, root, ejecucion=tmp_path / "ej")
++        assert not (tmp_path / "ej").exists()
++        return e01.ESTADO_PENDIENTE
++    a = entry["aprobacion"]
++    assert isinstance(a, dict) and set(a) == set(e01.APPROVAL_FIELDS), a
++    ref = a["referencia_auditoria"]
++    assert isinstance(ref, dict) and set(ref) == set(e01.AUDIT_REFERENCE_FIELDS), ref
++    commit, documento = ref["commit_auditado"], ref["documento"]
++    assert isinstance(commit, str) and len(commit) == 40 and set(commit) <= set("0123456789abcdef"), commit
++    assert a["sha256_auditados"] == {r: e01.sha256_text_file(root / r) for r in m3.AUDITED_E03}    # arbol = aprobado
++    assert a["sha256_auditados"] == {r: m2._hash_at(root, commit, r) for r in m3.AUDITED_E03}      # = commit auditado
++    assert pending_registry(reg) == json.loads(git(root, "show", f"{commit}:{m3.REGISTRY_E03}"))  # commit: PENDIENTE
++    assert commit != m3.E02_P2 and m2._ancestor(root, m3.E02_P2, commit) and m2._ancestor(root, commit, "HEAD")
++    acta = root / documento
++    assert isinstance(documento, str) and not Path(documento).is_absolute() and ".." not in Path(documento).parts
++    assert acta.is_file() and not acta.is_symlink(), documento                                    # acta existente
++    prep = m3.load_e03_aprobada(root)
++    assert (prep["estado"], prep["modo"], prep["ejecucion_oficial"], prep["publicacion_E03"], prep["aprobacion"]) == \
++        (e01.ESTADO_APROBADA, "PRODUCCION", False, None, a)
++    errors, info = m3.verify(root)                                         # sin --referencia-git: nunca oficial
++    assert errors == [] and info["estado"] == e01.ESTADO_APROBADA and info["ruta_oficial_e03"] == f"BLOQUEADA: {NO_P3_MSG}"
++    assert_rejects(NO_P3_MSG, m3.official_e03, root, "0" * 40)              # sin P3 no hay ejecucion oficial
++    assert_rejects(P3_A3_MSG, m3.official_e03, root, commit)                # el commit auditado no es una P3
++    assert_rejects(NO_P3_MSG, m3.official_publish_th35_e03, "0" * 40, root, ejecucion=tmp_path / "ej")
+     assert not (tmp_path / "ej").exists()
++    return e01.ESTADO_APROBADA
++
++
++def test_project_registry_is_pending_or_approved_and_the_official_e03_route_needs_a_valid_p3(tmp_path):
++    """R4: el registro del proyecto admite exactamente PENDIENTE_AUDITORIA y APROBADA (antes solo PENDIENTE)."""
++    assert check_project_state(SRC, tmp_path) in (e01.ESTADO_PENDIENTE, e01.ESTADO_APROBADA)
+ 
+ 
+ def test_the_e02_publication_constants_are_the_published_ones():
+@@ -166,6 +218,89 @@ def test_the_synthetic_approval_chain_is_accepted(repo3):
+     assert errors == [] and v["ruta_oficial_e03"] == "ACTIVABLE"
+ 
+ 
++# --------------------------------------------------------------------------- R4: control del proyecto en ambos estados
++ACTA = "reports/mnq/TDA17_E03_acta_sintetica.md"
++
++
++def publish_with_minutes(repo3) -> str:
++    """P3' = P3 + acta SINTETICA + aprobacion simulada que la cita, publicada en el remoto TEMPORAL. Devuelve P3'."""
++    root, a3 = repo3["root"], repo3["A3"]
++    (root / ACTA).parent.mkdir(parents=True, exist_ok=True)
++    (root / ACTA).write_text("# Acta SINTETICA de E03 (PRUEBA_SINTETICA)\n", encoding="utf-8")
++    approve(root, a3, referencia_auditoria={"documento": ACTA, "commit_auditado": a3})
++    git(root, "add", "--", ACTA, m3.REGISTRY_E03)
++    git(root, "commit", "-q", "-m", "P3 con acta (sintetica)")
++    git(root, "push", "-q", "origin", "main")
++    return git(root, "rev-parse", "HEAD")
++
++
++def test_the_project_state_check_in_a_temporary_repository_in_both_states(repo3, tmp_path):
++    """El control del registro del proyecto (``check_project_state``) sobre el repositorio temporal: la P3 publicada
++    con acta (APROBADA) habilita la via oficial, y solo con esa P3; el commit auditado A3 (PENDIENTE) no."""
++    root, a3 = repo3["root"], repo3["A3"]
++    p3 = publish_with_minutes(repo3)
++    assert check_project_state(root, tmp_path / "aprobada") == e01.ESTADO_APROBADA
++    info = m3.official_e03(root, p3)["e03"]
++    assert (info["ejecucion_oficial"], info["publicacion_E03"], info["commit_auditado_E03"]) == (True, p3, a3)
++    assert info["remoto_E03"] == {"repositorio": str(repo3["bare"]), "ref": "refs/heads/main", "sha": p3}
++    errors, v = m3.verify(root, p3)
++    assert errors == [] and v["ruta_oficial_e03"] == "ACTIVABLE"
++    git(root, "checkout", "-q", a3)                                         # el commit auditado: registro PENDIENTE
++    assert check_project_state(root, tmp_path / "pendiente") == e01.ESTADO_PENDIENTE
++
++
++def _append(path: Path) -> None:
++    with open(path, "ab") as fh:
++        fh.write(b"\n# cambio no auditado\n")
++
++
++def _forged_states(root: Path, a3: str):
++    """Aprobaciones del proyecto falsificadas o incoherentes (sobre la P3 publicada con acta)."""
++    def entry(fn):
++        return lambda: edit_registry(root, lambda r: fn(r["enmiendas"][0]))
++
++    def ref(**kw):
++        return entry(lambda e: e["aprobacion"]["referencia_auditoria"].update(**kw))
++    yield "otro_commit", ref(commit_auditado=m3.E02_P2)
++    yield "commit_inexistente", ref(commit_auditado="f" * 40)
++    yield "commit_abreviado", ref(commit_auditado=a3[:12])
++    yield "huella", entry(lambda e: e["aprobacion"]["sha256_auditados"].update({m3.AUDITED_E03[2]: "0" * 64}))
++    yield "huella_falta", entry(lambda e: e["aprobacion"]["sha256_auditados"].pop(m3.AUDITED_E03[-1]))
++    yield "fichero_alterado", lambda: _append(root / m3.AUDITED_E03[2])
++    yield "yaml_alterado", lambda: _append(root / m3.E03_YAML)
++    yield "sin_acta", lambda: (root / ACTA).unlink()
++    yield "acta_inexistente", ref(documento="reports/mnq/NO_EXISTE.md")
++    yield "acta_directorio", ref(documento="reports/mnq")
++    yield "acta_absoluta", ref(documento=str((root / ACTA).resolve()))
++    yield "acta_fuera", ref(documento=f"../{root.name}/{ACTA}")
++    yield "campos", entry(lambda e: e["aprobacion"].update(extra=1))
++    yield "fecha_futura", entry(lambda e: e["aprobacion"].update(fecha="2999-01-01"))
++    yield "responsable", entry(lambda e: e["aprobacion"].update(aprobada_por=" "))
++    yield "estado_desconocido", entry(lambda e: e.update(estado="APROBADA_PROVISIONAL"))
++    yield "aprobada_sin_datos", entry(lambda e: e.update(aprobacion=None))
++    yield "pendiente_con_datos", entry(lambda e: e.update(estado=e01.ESTADO_PENDIENTE))
++    yield "registro_cambiado", lambda: edit_registry(root, lambda r: r.update(descripcion="cambiada"))
++
++
++FORGED = ["otro_commit", "commit_inexistente", "commit_abreviado", "huella", "huella_falta", "fichero_alterado",
++          "yaml_alterado", "sin_acta", "acta_inexistente", "acta_directorio", "acta_absoluta", "acta_fuera", "campos",
++          "fecha_futura", "responsable", "estado_desconocido", "aprobada_sin_datos", "pendiente_con_datos",
++          "registro_cambiado"]
++
++
++@pytest.mark.parametrize("case", FORGED)
++def test_a_forged_or_inconsistent_project_approval_is_always_rejected(repo3, tmp_path, case):
++    root, a3 = repo3["root"], repo3["A3"]
++    publish_with_minutes(repo3)
++    assert check_project_state(root, tmp_path / "control") == e01.ESTADO_APROBADA     # control sin falsificar
++    assert [c for c, _ in _forged_states(root, a3)] == FORGED
++    (fn,) = [f for c, f in _forged_states(root, a3) if c == case]
++    fn()
++    with pytest.raises((AssertionError, m3.ProtocolNotAuthorizedError)):
++        check_project_state(root, tmp_path / "falsificada")
++    assert not (tmp_path / "falsificada" / "ej").exists()
++
++
+ # --------------------------------------------------------------------------- registro y documento
+ def _registry_cases(root: Path, a3: str):
+     yield "falta", lambda: (root / m3.REGISTRY_E03).unlink(), "[E03_REGISTRO] falta el registro de E03"
+@@ -643,6 +778,40 @@ def test_official_e03_route_has_no_resumption_and_needs_a_new_directory_outside_
+     assert not any((official3["out"] / n).exists() for n in sal.OFFICIAL) and not inside.exists()
+ 
+ 
++def test_a_dead_worker_during_the_official_e03_run_publishes_nothing(official3, tmp_path, monkeypatch):
++    """R4: un worker que muere durante la ejecucion oficial (aqui, justo antes de recibir su tarea) termina la
++    ejecucion con E03_TRABAJADOR: ningun worker vivo y ninguna salida oficial, comprobante ni area de preparacion."""
++    root, p3, out = official3["root"], official3["P3"], official3["out"]
++    real = mo._Motor._enviar
++
++    def kill_then_send(self, w):
++        w.proc.terminate()
++        w.proc.join(30)
++        return real(self, w)
++    monkeypatch.setattr(mo._Motor, "_enviar", kill_then_send)
++    res = {}
++
++    def run():
++        try:
++            m3.official_publish_th35_e03(p3, root, ejecucion=tmp_path / "ej")
++        except BaseException as exc:                                          # noqa: BLE001
++            res["exc"] = exc
++    th = threading.Thread(target=run, daemon=True)
++    th.start()
++    th.join(300)
++    assert not th.is_alive(), "la ruta oficial sigue esperando a un worker muerto (bloqueo indefinido)"
++    exc = res.get("exc")
++    assert type(exc) is mo.MotorE03Error and str(exc).startswith("[E03_TRABAJADOR] el worker "), repr(exc)
++    assert "durante el envio" in str(exc), str(exc)
++    assert not any(os.path.lexists(out / n) for n in m3._salidas_e03()) and not (out / sal.STAGING).exists()
++    assert not (tmp_path / "ej" / "COMPLETA.json").exists()
++    eventos = [json.loads(x)["evento"] for x in (tmp_path / "ej" / "progreso.jsonl").read_text(encoding="utf-8").splitlines()]
++    assert "worker_fallo" in eventos
++    vivos = [c for c in mo.psutil.Process().children(recursive=True)
++             if c.is_running() and "multiprocessing" in " ".join(c.cmdline())]
++    assert vivos == [], vivos
++
++
+ def test_official_e03_route_rejects_an_unverifiable_blas(official3, tmp_path, monkeypatch):
+     root, p3 = official3["root"], official3["P3"]
+     monkeypatch.setattr(mo, "_openblas", lambda: [])
+diff --git a/tests/tda17_e03/test_e03_motor.py b/tests/tda17_e03/test_e03_motor.py
+index a8a1380..0e142c5 100644
+--- a/tests/tda17_e03/test_e03_motor.py
++++ b/tests/tda17_e03/test_e03_motor.py
+@@ -13,6 +13,7 @@ import copy
+ import inspect
+ import json
+ import os
++import pickle
+ import subprocess
+ import sys
+ import threading
+@@ -374,9 +375,72 @@ def test_worker_error_propagates_with_the_same_type_and_message(tmp_path, cfg, t
+     assert any(e["evento"] == "tarea_error" and e["id"] == "TH37O" for e in _events(tmp_path / "ej"))
+ 
+ 
++# --------------------------------------------------------------------------- workers muertos o bloqueados (R4)
++def _bounded(fn, plazo: float = 120.0):
++    """Ejecuta ``fn`` con un vigilante: si el motor no termina en ``plazo`` la prueba FALLA (bloqueo indefinido) en
++    lugar de colgar la suite. Devuelve la excepcion lanzada (None si no lanza)."""
++    out = {}
++
++    def run():
++        try:
++            fn()
++        except BaseException as exc:                                          # noqa: BLE001
++            out["exc"] = exc
++    th = threading.Thread(target=run, daemon=True)
++    th.start()
++    th.join(plazo)
++    if th.is_alive():
++        for c in mo.psutil.Process().children(recursive=True):
++            c.kill()
++        pytest.fail(f"el motor sigue esperando tras {plazo:g} s: bloqueo indefinido")
++    return out.get("exc")
++
++
++def _spy_workers(motor, on_new=None, before_send=None) -> list:
++    """Procesos de los workers creados (para comprobar la limpieza) y acciones al crearlos o antes de cada envio."""
++    procs, real_new, real_send = [], motor._nuevo_worker, motor._enviar
++
++    def new():
++        w = real_new()
++        procs.append(w.proc)
++        if on_new is not None:
++            on_new(w)
++        return w
++
++    def send(w):
++        if before_send is not None:
++            before_send(w)
++        return real_send(w)
++    motor._nuevo_worker, motor._enviar = new, send
++    return procs
++
++
++def _assert_failed_cleanly(exc, motor, procs, ej: Path, fragment: str) -> None:
++    """Rechazo EXPLICITO E03_TRABAJADOR, ningun worker vivo, evento de fallo, ninguna tarea completada ni resultado."""
++    assert type(exc) is mo.MotorE03Error and str(exc).startswith("[E03_TRABAJADOR] el worker "), repr(exc)
++    assert fragment in str(exc), str(exc)
++    assert motor.workers == [] and procs and not [p for p in procs if p.is_alive()]
++    ev = _events(ej)
++    assert [e for e in ev if e["evento"] == "worker_fallo"] and not [e for e in ev if e["evento"] == "tarea_completa"]
++    assert not (ej / "COMPLETA.json").exists()
++
++
++def _large_cfg(cfg) -> dict:
++    big = copy.deepcopy(cfg)
++    big["_relleno_prueba_r4"] = "x" * (4 * 1024 * 1024)                    # tarea GRANDE: mucho mayor que el bufer
++    return big
++
++
++def _th37_tasks(datos, c, n: int = 1) -> list:
++    return [mo.Tarea(f"TH37O/{k}", "_t_th37_origin", (datos, c), "TH37O") for k in range(n)]
++
++
+ def test_a_dead_worker_fails_the_whole_run(tmp_path, cfg, th37_frame):
++    """La prueba original (asesino 1 s despues de asignar la tarea), reforzada en R4: rechazo explicito, limpieza de
++    procesos, evento de fallo y nunca un resultado; un bloqueo indefinido (el defecto de R3) hace FALLAR la prueba."""
+     motor = _motor(tmp_path / "ej", 1)
+     datos = _th37_ref(motor, th37_frame)
++    procs = _spy_workers(motor)
+ 
+     def killer():
+         for _ in range(600):
+@@ -388,10 +452,111 @@ def test_a_dead_worker_fails_the_whole_run(tmp_path, cfg, th37_frame):
+             time.sleep(0.05)
+     th = threading.Thread(target=killer, daemon=True)
+     th.start()
+-    with pytest.raises(mo.MotorE03Error, match=r"^\[E03_TRABAJADOR\]"):
+-        motor.ejecutar("TH37", [mo.Tarea(f"TH37O/{k}", "_t_th37_origin", (datos, cfg), "TH37O") for k in range(3)])
++    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, cfg, 3)))
+     th.join()
+-    assert motor.workers == [] and not (tmp_path / "ej" / "COMPLETA.json").exists()
++    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "")
++
++
++def test_a_worker_that_dies_before_receiving_a_large_task_fails_explicitly(tmp_path, cfg, th37_frame):
++    """Reproduccion determinista del bloqueo de R3: el worker muere ANTES de tomar su extremo del pipe (sigue duplicado
++    en el principal) y la tarea no cabe en el bufer; antes el envio esperaba para siempre."""
++    motor = _motor(tmp_path / "ej", 1)
++    datos = _th37_ref(motor, th37_frame)
++    big = _large_cfg(cfg)
++    assert len(pickle.dumps(("TH37O/0", "_t_th37_origin", (datos, big)))) > 4 * 1024 * 1024
++
++    def kill_now(w):
++        w.proc.terminate()
++        w.proc.join(30)
++    procs = _spy_workers(motor, on_new=kill_now)
++    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, big)))
++    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "termino (codigo")
++
++
++def test_a_worker_that_dies_during_the_send_of_a_large_task_fails_explicitly(tmp_path, cfg, th37_frame):
++    """El worker ya confirmo su arranque, se suspende (no lee) y muere mientras el principal le envia la tarea grande."""
++    assert mo.psutil is not None
++    motor = _motor(tmp_path / "ej", 1)
++    datos = _th37_ref(motor, th37_frame)
++
++    def suspend_then_kill(w):
++        mo.psutil.Process(w.pid).suspend()
++        threading.Timer(1.0, w.proc.terminate).start()
++    procs = _spy_workers(motor, before_send=suspend_then_kill)
++    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, _large_cfg(cfg))))
++    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "durante el envio")
++
++
++def test_a_blocked_worker_that_never_reads_its_task_fails_explicitly(tmp_path, cfg, th37_frame):
++    """Worker vivo pero bloqueado (suspendido): el envio tiene plazo; se termina el worker y se rechaza."""
++    assert mo.psutil is not None
++    motor = _motor(tmp_path / "ej", 1, espera_envio_s=2.0)
++    datos = _th37_ref(motor, th37_frame)
++    procs = _spy_workers(motor, before_send=lambda w: mo.psutil.Process(w.pid).suspend())
++    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, _large_cfg(cfg))))
++    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "no completo el envio en 2 s")
++
++
++def test_a_worker_that_never_confirms_its_start_fails_explicitly(tmp_path, cfg, th37_frame):
++    """Worker suspendido nada mas crearse: nunca confirma su arranque y nunca se le envia la tarea."""
++    assert mo.psutil is not None
++    motor = _motor(tmp_path / "ej", 1, espera_arranque_s=2.0)
++    datos = _th37_ref(motor, th37_frame)
++    sends = []
++    procs = _spy_workers(motor, on_new=lambda w: mo.psutil.Process(w.pid).suspend(), before_send=sends.append)
++    exc = _bounded(lambda: motor.ejecutar("TH37", _th37_tasks(datos, cfg)))
++    _assert_failed_cleanly(exc, motor, procs, tmp_path / "ej", "no confirmo su arranque en 2 s")
++    assert sends == []
++
++
++def test_a_worker_that_dies_while_idle_fails_explicitly(tmp_path, cfg, th37_frame):
++    """Un worker libre (entre etapas) que muere se detecta al despachar: rechazo explicito, nunca se le asigna nada."""
++    motor = _motor(tmp_path / "ej", 1)
++    datos = _th37_ref(motor, th37_frame)
++    procs = _spy_workers(motor)
++    assert _bounded(lambda: motor.ejecutar("TH37A", _th37_tasks(datos, cfg))) is None
++    (w,) = motor.workers
++    assert w.tarea is None and w.listo
++    w.proc.terminate()
++    w.proc.join(30)
++    exc = _bounded(lambda: motor.ejecutar("TH37B", [mo.Tarea("TH37O/b", "_t_th37_origin", (datos, cfg), "TH37O")]))
++    assert type(exc) is mo.MotorE03Error and str(exc).startswith(f"[E03_TRABAJADOR] el worker {w.pid} termino (codigo ")
++    assert str(exc).endswith(") sin tarea asignada") and motor.workers == [] and not [p for p in procs if p.is_alive()]
++    assert [e for e in _events(tmp_path / "ej") if e["evento"] == "worker_fallo"]
++
++
++def test_the_pipe_transfers_are_bounded_and_watch_the_worker(tmp_path):
++    """``_transferir`` (envio y recepcion): plazo, muerte del worker, pipe roto y transferencia normal."""
++    motor = _motor(tmp_path / "ej", 1, espera_envio_s=0.3)
++
++    class _Proc:
++        def __init__(self, alive):
++            self.alive, self.exitcode, self.terminated = alive, None if alive else 9, False
++
++        def is_alive(self):
++            return self.alive
++
++        def terminate(self):
++            self.terminated = True
++    never = threading.Event()
++
++    def broken():
++        raise EOFError
++
++    def worker(pid, alive=True):
++        return mo._Worker(proc=_Proc(alive), conn=None, pid=pid, listo=True)
++    def rejects(message, w, fn, que):
++        exc = _bounded(lambda: motor._transferir(w, fn, que), 30.0)
++        assert type(exc) is mo.MotorE03Error and str(exc) == message, repr(exc)
++    w1, w2, w3 = worker(4241), worker(4242, alive=False), worker(4243)
++    rejects("[E03_TRABAJADOR] el worker 4241 no completo la recepcion en 0.3 s", w1, never.wait, "la recepcion")
++    rejects("[E03_TRABAJADOR] el worker 4242 termino (codigo 9) durante el envio", w2, never.wait, "el envio")
++    rejects("[E03_TRABAJADOR] el worker 4243 termino durante la recepcion (EOFError)", w3, broken, "la recepcion")
++    assert w1.proc.terminated and w2.proc.terminated and w3.proc.terminated
++    assert motor._transferir(worker(4244), lambda: ("ok", "T", 1, {}), "la recepcion") == ("ok", "T", 1, {})
++    fallos = [e for e in _events(tmp_path / "ej") if e["evento"] == "worker_fallo"]
++    assert [e["pid"] for e in fallos] == [4241, 4242, 4243]
++    never.set()
+ 
+ 
+ def test_low_memory_runs_one_task_at_a_time(tmp_path, cfg, monkeypatch):

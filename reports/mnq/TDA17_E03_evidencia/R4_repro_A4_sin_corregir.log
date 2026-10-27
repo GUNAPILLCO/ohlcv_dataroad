@@ -1,0 +1,16 @@
+python 3.13.13 | psutil 7.2.2 | base C:\tm19\r4\repro\repro_oh97_g9p
+A1 pipe: lector parado muere, envio 1 KB                   {'valor': {'send_volvio_s': 0.0, 'hijo_vivo': True}, 'resultado': 'TERMINA', 'segundos': 0.01, 'hijos_vivos_al_final': [45816]}
+A2 pipe: lector parado muere, envio 64 KB                  {'resultado': 'EXCEPCION', 'excepcion': 'BrokenPipeError: [WinError 109] Ha terminado la canalización', 'segundos': 1.51, 'hijos_vivos_al_final': []}
+A3 pipe: lector parado muere, envio 2 MB                   {'resultado': 'EXCEPCION', 'excepcion': 'BrokenPipeError: [WinError 109] Ha terminado la canalización', 'segundos': 1.51, 'hijos_vivos_al_final': []}
+A4 pipe: envio 2 MB a hijo ya muerto                       {'resultado': 'EXCEPCION', 'excepcion': 'BrokenPipeError: [WinError 232] Se está cerrando la canalización', 'segundos': 0.07, 'hijos_vivos_al_final': []}
+A5 pipe: poll/recv de hijo muerto                          {'resultado': 'EXCEPCION', 'excepcion': 'BrokenPipeError: [WinError 109] Ha terminado la canalización', 'segundos': 0.07, 'hijos_vivos_al_final': []}
+B0 motor: tamano del mensaje de la tarea TH37O             {'valor': {'bytes_mensaje_tarea': 79864}, 'resultado': 'TERMINA', 'segundos': 2.58, 'hijos_vivos_al_final': []}
+B1 motor: worker suspendido, muerto 1 s tras asignar       {'resultado': 'BLOQUEADO (> 90 s)', 'hijos_vivos_al_final': []}
+B2 motor: worker muerto antes del envio                    {'resultado': 'BLOQUEADO (> 90 s)', 'hijos_vivos_al_final': []}
+B3.0 motor: asesino de la prueba original                  {'valor': {'eventos': ['terminado_1s_tras_asignar'], 'fin': 'MotorE03Error: [E03_TRABAJADOR] el worker 47220 termino durante la tarea TH37O/0', 'workers_tras': 0}, 'resultado': 'TERMINA', 'segundos': 2.39, 'hijos_vivos_al_final': []}
+B3.1 motor: asesino de la prueba original                  {'valor': {'eventos': ['terminado_1s_tras_asignar'], 'fin': 'MotorE03Error: [E03_TRABAJADOR] el worker 59196 termino durante la tarea TH37O/0', 'workers_tras': 0}, 'resultado': 'TERMINA', 'segundos': 2.34, 'hijos_vivos_al_final': []}
+B3.2 motor: asesino de la prueba original                  {'valor': {'eventos': ['terminado_1s_tras_asignar'], 'fin': 'MotorE03Error: [E03_TRABAJADOR] el worker 48572 termino durante la tarea TH37O/0', 'workers_tras': 0}, 'resultado': 'TERMINA', 'segundos': 2.32, 'hijos_vivos_al_final': []}
+B3.3 motor: asesino de la prueba original                  {'valor': {'eventos': ['terminado_1s_tras_asignar'], 'fin': 'MotorE03Error: [E03_TRABAJADOR] el worker 42320 termino durante la tarea TH37O/0', 'workers_tras': 0}, 'resultado': 'TERMINA', 'segundos': 2.3, 'hijos_vivos_al_final': []}
+B3.4 motor: asesino de la prueba original                  {'resultado': 'BLOQUEADO (> 90 s)', 'hijos_vivos_al_final': []}
+FIN
+rc=0

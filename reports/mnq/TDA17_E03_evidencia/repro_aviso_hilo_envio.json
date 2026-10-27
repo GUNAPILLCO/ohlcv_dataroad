@@ -1,0 +1,37 @@
+{
+  "python": "3.13.13 | packaged by Anaconda, Inc. | (main, Apr 14 2026, 06:12:50) [MSC v.1942 64 bit (AMD64)]",
+  "casos": [
+    {
+      "destino": "_hijo_lee",
+      "bytes": 200000,
+      "envio": "ok",
+      "gc_recogidos": 0,
+      "avisos": []
+    },
+    {
+      "destino": "_hijo_muere",
+      "bytes": 2000000,
+      "envio": "BrokenPipeError",
+      "gc_recogidos": 38,
+      "avisos": [
+        "BufferError: Existing exports of data: object cannot be re-sized | objeto BytesIO"
+      ]
+    },
+    {
+      "destino": "_hijo_muere",
+      "bytes": 2000000,
+      "envio": "BrokenPipeError",
+      "gc_recogidos": 38,
+      "avisos": [
+        "BufferError: Existing exports of data: object cannot be re-sized | objeto BytesIO"
+      ]
+    },
+    {
+      "destino": "_hijo_lee",
+      "bytes": 2000000,
+      "envio": "ok",
+      "gc_recogidos": 0,
+      "avisos": []
+    }
+  ]
+}

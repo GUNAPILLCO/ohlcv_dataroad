@@ -1,0 +1,103 @@
+{
+  "escala": "MD",
+  "filas": 119700,
+  "construccion_s": 1.9,
+  "hilos_blas": {
+    "numpy:libscipy_openblas64_-327b2e0bcffce2882e0dc04cdeb4eaa6.dll": 1,
+    "scipy:libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll": 1
+  },
+  "replicas": 300,
+  "variantes": [
+    {
+      "procesos": 8,
+      "segundos": 304.3,
+      "aceleracion_vs_E02": 6.14,
+      "tablas": {
+        "TDA17_auditoria_causalidad.csv": "a85841ad067dbcac2b2af10162d16d9539661d332c94df6743ca1010b2ad2963",
+        "TDA17_diagnostico_bloqueo.csv": "f259b63b1b0938e557d1834eb7084488aebb73006a4c6dd723651d51355872ed"
+      },
+      "etapas": [
+        {
+          "etapa": "TH37",
+          "tareas": 73,
+          "reutilizadas": 0,
+          "duracion_s": 193.859
+        },
+        {
+          "etapa": "TH35_CELDAS",
+          "tareas": 15,
+          "reutilizadas": 0,
+          "duracion_s": 10.93
+        },
+        {
+          "etapa": "TH35_BOOTSTRAP_R2",
+          "tareas": 270,
+          "reutilizadas": 0,
+          "duracion_s": 65.862
+        },
+        {
+          "etapa": "TH35_VALIDACION_PREPARACION",
+          "tareas": 2,
+          "reutilizadas": 0,
+          "duracion_s": 1.492
+        },
+        {
+          "etapa": "TH35_VALIDACION_30",
+          "tareas": 60,
+          "reutilizadas": 0,
+          "duracion_s": 12.931
+        }
+      ],
+      "tareas_por_etapa": {
+        "TH37": 73,
+        "TH35_CELDAS": 15,
+        "TH35_BOOTSTRAP_R2": 270,
+        "TH35_VALIDACION_PREPARACION": 2,
+        "TH35_VALIDACION_30": 60
+      },
+      "memoria_estricta": true,
+      "reserva_mb": 4096.0,
+      "lanzadas_sin_memoria_suficiente": 0,
+      "hilos_blas_motor": {
+        "numpy:libscipy_openblas64_-327b2e0bcffce2882e0dc04cdeb4eaa6.dll": 1,
+        "scipy:libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll": 1
+      },
+      "estado": "BLOQUEADO_HASTA_EXPLICAR",
+      "validacion_spearman": "VALIDADA",
+      "celdas_con_bootstrap": [
+        "ANIO_2024",
+        "GLOBAL",
+        "SEG_00:00-02:00",
+        "SEG_02:00-03:00",
+        "SEG_03:00-08:30",
+        "SEG_08:30-09:30",
+        "SEG_09:30-16:02",
+        "SEG_16:02-20:00",
+        "SEG_20:00-24:00"
+      ],
+      "pico_privado_por_tipo_mb": {
+        "TH37F": 334,
+        "TH37O": 411,
+        "TH37R": 923,
+        "TH35C": 891,
+        "TH35B": 364,
+        "TH35VP": 733,
+        "TH35VR": 832
+      },
+      "max_workers_activos": 8,
+      "memoria_disponible_min_mb": 13074,
+      "rss_hijos_max_mb": 6642,
+      "privada_hijos_max_mb": 5559,
+      "identicas": true
+    }
+  ],
+  "E02": {
+    "segundos": 1867.9,
+    "estado": "BLOQUEADO_HASTA_EXPLICAR",
+    "tablas": {
+      "TDA17_auditoria_causalidad.csv": "a85841ad067dbcac2b2af10162d16d9539661d332c94df6743ca1010b2ad2963",
+      "TDA17_diagnostico_bloqueo.csv": "f259b63b1b0938e557d1834eb7084488aebb73006a4c6dd723651d51355872ed"
+    },
+    "memoria_disponible_min_mb": 17615
+  }
+}

@@ -1,0 +1,137 @@
+# suite estricta, estado APROBADA; 2026-10-26T20:34:02-03:00; RAM libre al inicio: 19 GB; limite externo 18000 s
+# clon /c/tm19/r4/clon; rama main; HEAD 84915b309b5ba8894bf6e1360699499c3b39d3c3
+# registro E03: APROBADA {'documento': 'reports/mnq/TDA17_E03_acta_aprobacion.md', 'commit_auditado': '1c973603e982e9df1f69686bbb9979a0cac64e9d'}
+# modulos desde C:\tm19\r4\clon
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 14%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 59%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+............................................ss.......................... [ 93%]
+...............................s..s.ss..sss...sss...s................... [ 96%]
+..........................................................               [100%]
+============================== warnings summary ===============================
+tests/tda17_e03/test_e03_motor.py::test_end_to_end_equivalence_in_the_inherited_environment
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x0000019EC0C2ECF0>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\tokens.py", line 98, in __init__
+      def __init__(self, value, plain, start_mark, end_mark, style=None):
+      
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/tda17_e03/test_e03_motor.py::test_a_blocked_worker_that_never_reads_its_task_fails_explicitly
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x0000019EC1470310>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\scanner.py", line 289, in stale_possible_simple_keys
+      or self.index-key.index > 1024:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/tda17_e03/test_e03_motor.py::test_a_worker_that_dies_while_idle_fails_explicitly
+  C:\Users\heguu\miniconda3\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <_io.BytesIO object at 0x0000019EC07B7830>
+  
+  Traceback (most recent call last):
+    File "C:\Users\heguu\miniconda3\Lib\site-packages\yaml\tokens.py", line 98, in __init__
+      def __init__(self, value, plain, start_mark, end_mark, style=None):
+      
+  BufferError: Existing exports of data: object cannot be re-sized
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:192: RuntimeWarning: Mean of empty slice
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:201: RuntimeWarning: Mean of empty slice
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 52 warnings
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1593: RuntimeWarning: All-NaN slice encountered
+    return fnb._ureduce(a,
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:192: RuntimeWarning: All-NaN slice encountered
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 12 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:201: RuntimeWarning: All-NaN slice encountered
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py::test_bar_population_variables_use_all_admissible_bars_including_first_of_session
+tests/test_tda06_intraday_calendar_profile.py::test_structurally_closed_minutes_are_not_filled_with_synthetic_observations
+tests/test_tda06_intraday_calendar_profile.py::test_minute_profile_table_always_has_all_1440_minutes
+tests/test_tda06_intraday_calendar_profile.py::test_minute_aggregation_matches_hand_computed_median
+tests/test_tda06_intraday_calendar_profile.py::test_by_year_tables_do_not_mix_years
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1213: RuntimeWarning: Mean of empty slice
+    return np.nanmean(a, axis, out=out, keepdims=keepdims)
+
+tests/test_tda06_intraday_calendar_profile.py::test_s_m_guards_against_zero_or_non_finite_point
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:940: RuntimeWarning: invalid value encountered in divide
+    table["point"].to_numpy() / mean_level,
+
+tests/test_tda06_intraday_calendar_profile.py: 15 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:436: RuntimeWarning: Mean of empty slice
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 15 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:443: RuntimeWarning: Mean of empty slice
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 25 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:436: RuntimeWarning: All-NaN slice encountered
+    point = func(pivot, axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 25 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:443: RuntimeWarning: All-NaN slice encountered
+    boot[b, :] = func(pivot[sampled_rows, :], axis=0)
+
+tests/test_tda06_intraday_calendar_profile.py: 20 warnings
+  C:\tm19\r4\clon\src\ohlcv_dataroad\ingest\tda06_intraday_calendar_profile.py:546: RuntimeWarning: Mean of empty slice
+    return np.nanmean(stacked, axis=0)
+
+tests/test_tda08_linear_mean_dependence.py::test_analyze_window_computes_mean_per_bar_and_rho1_on_the_correct_minute_range
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_never_opens_any_raw_or_holdout_file
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_never_opens_any_raw_or_holdout_file
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_end_to_end_produces_all_result_fields
+tests/test_tda08_linear_mean_dependence.py::test_run_tda08_end_to_end_produces_all_result_fields
+tests/test_tda08_linear_mean_dependence.py::test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolete
+tests/test_tda08_linear_mean_dependence.py::test_persist_artifacts_writes_exactly_the_declared_paths_and_nothing_obsolete
+  C:\Users\heguu\miniconda3\Lib\site-packages\numpy\lib\_nanfunctions_impl.py:1396: RuntimeWarning: All-NaN slice encountered
+    return _nanquantile_unchecked(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1917 passed, 13 skipped, 216 warnings in 8393.54s (2:19:53)
+rc=0
+# fin 2026-10-26T22:53:57-03:00; RAM libre al final: 19 GB

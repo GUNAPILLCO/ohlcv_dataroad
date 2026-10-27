@@ -1,0 +1,95 @@
+{
+  "escala": "SB",
+  "filas": 2750,
+  "construccion_s": 125.4,
+  "hilos_blas": {
+    "numpy:libscipy_openblas64_-327b2e0bcffce2882e0dc04cdeb4eaa6.dll": 1,
+    "scipy:libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll": 1
+  },
+  "replicas": 300,
+  "variantes": [
+    {
+      "procesos": 8,
+      "segundos": 61.7,
+      "aceleracion_vs_E02": 4.99,
+      "tablas": {
+        "TDA17_auditoria_causalidad.csv": "91117fa9896b9ef532bb3d3da28b7bfa7603712ec6a3a3f95b04753eb13f1b63",
+        "TDA17_estabilidad_celdas.csv": "c839fa3406f594168b5356b369f8d9027e0724a8e4d6cf0c31046d71f8eda261",
+        "TDA17_r2_reconstruccion.csv": "7125c07d0a0b5467af02a0984d8eb30f664e070790abbab2be176de299c00c98",
+        "TDA17_correlacion_spearman.csv": "acde69418316c39c508bd137869d80d1a207e9a397bc03ca52cf002fadb848e6",
+        "TDA17_clasificacion_final.csv": "424245f8fd629f172577e87c841869d20cf1a6593203ef0e109df6a1132e070f"
+      },
+      "etapas": [
+        {
+          "etapa": "TH37",
+          "tareas": 14,
+          "reutilizadas": 0,
+          "duracion_s": 32.394
+        },
+        {
+          "etapa": "TH35_CELDAS",
+          "tareas": 15,
+          "reutilizadas": 0,
+          "duracion_s": 2.925
+        },
+        {
+          "etapa": "TH35_BOOTSTRAP_R2",
+          "tareas": 90,
+          "reutilizadas": 0,
+          "duracion_s": 22.273
+        }
+      ],
+      "tareas_por_etapa": {
+        "TH37": 14,
+        "TH35_CELDAS": 15,
+        "TH35_BOOTSTRAP_R2": 90
+      },
+      "memoria_estricta": true,
+      "reserva_mb": 4096.0,
+      "lanzadas_sin_memoria_suficiente": 0,
+      "hilos_blas_motor": {
+        "numpy:libscipy_openblas64_-327b2e0bcffce2882e0dc04cdeb4eaa6.dll": 1,
+        "scipy:libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll": 1
+      },
+      "estado": "SIN_BLOQUEO",
+      "validacion_spearman": "NO_EJECUTABLE",
+      "celdas_con_bootstrap": [
+        "ANIO_2021",
+        "GLOBAL",
+        "SEG_16:02-20:00"
+      ],
+      "pico_privado_por_tipo_mb": {
+        "TH37F": 154,
+        "TH37O": 138,
+        "TH37R": 150,
+        "TH35C": 228,
+        "TH35B": 183
+      },
+      "max_workers_activos": 8,
+      "memoria_disponible_min_mb": 17278,
+      "rss_hijos_max_mb": 1474,
+      "privada_hijos_max_mb": 1387,
+      "identicas": true,
+      "diferencias_resultado_completo": [],
+      "huella_resultado": "e9503cf458423fc7157a986ef5e76e3fde66a02e19f48dda792220ff6de62497",
+      "huella_bootstrap": "fdaaf858bd2b8c442319d311be042995186712e206263833ad0593a2a8c697a3",
+      "huella_validacion_spearman": "3c0f39dab8f098b46cb1d53f254f20d02f664fe9e3c958e4f3a8ab1220cfd803",
+      "resultado_identico": true
+    }
+  ],
+  "E02": {
+    "segundos": 307.8,
+    "estado": "SIN_BLOQUEO",
+    "huella_resultado": "e9503cf458423fc7157a986ef5e76e3fde66a02e19f48dda792220ff6de62497",
+    "huella_bootstrap": "fdaaf858bd2b8c442319d311be042995186712e206263833ad0593a2a8c697a3",
+    "huella_validacion_spearman": "3c0f39dab8f098b46cb1d53f254f20d02f664fe9e3c958e4f3a8ab1220cfd803",
+    "tablas": {
+      "TDA17_auditoria_causalidad.csv": "91117fa9896b9ef532bb3d3da28b7bfa7603712ec6a3a3f95b04753eb13f1b63",
+      "TDA17_estabilidad_celdas.csv": "c839fa3406f594168b5356b369f8d9027e0724a8e4d6cf0c31046d71f8eda261",
+      "TDA17_r2_reconstruccion.csv": "7125c07d0a0b5467af02a0984d8eb30f664e070790abbab2be176de299c00c98",
+      "TDA17_correlacion_spearman.csv": "acde69418316c39c508bd137869d80d1a207e9a397bc03ca52cf002fadb848e6",
+      "TDA17_clasificacion_final.csv": "424245f8fd629f172577e87c841869d20cf1a6593203ef0e109df6a1132e070f"
+    },
+    "memoria_disponible_min_mb": 17530
+  }
+}
